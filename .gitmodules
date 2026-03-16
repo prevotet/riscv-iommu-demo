@@ -1,12 +1,12 @@
 [submodule "opensbi"]
 	path = opensbi
-	url = git@github.com:riscv-software-src/opensbi.git
+	url = git@github.com:prevotet/opensbi.git
 [submodule "bao-hypervisor"]
 	path = bao-hypervisor
-	url = git@github.com:bao-project/bao-hypervisor.git
+	url = git@github.com:prevotet/bao-hypervisor.git
 [submodule "cva6"]
 	path = cva6
-	url = git@github.com:zero-day-labs/cva6.git
+	url = git@github.com:prevotet/cva6.git
 [submodule "linux"]
 	path = linux
-	url = git@github.com:malejo97/linux.git
+	url = git@github.com:prevotet/linux.git
