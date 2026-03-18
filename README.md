@@ -4,24 +4,27 @@
 
 Two scripts are available to implement different applications on the Genesys Board.
 Both scripts
-- compile guests
-- compile BAO
-- compile OpenSBI
+- Compile guests
+- Compile BAO
+- Compile OpenSBI
 - Generate images on SDCARD
 - Program FPGA
-- 
+  
 The script:
     - 1_build_HLB.sh implements the bao hypervisor (H) + VM1 with Linux (L) + VM2 with Baremetal (B)
     - 2_build_HB.sh implements the bao hypervisor (H) + VM1 with Baremetal (B) only
 
 For example :
 1) Format and generate the SDCard files
+   
  ````./2_build_HB.sh````
 
-2) Program the FPGA via JTAG UART
+3) Program the FPGA via JTAG UART
+   
 ````./2_build_HB.sh program````
 
-3) visualise the results on the serial port
+5) visualise the results on the serial port
+   
 ```` picocom -b 115200 /dev/ttyUSB2 ```` if the serial port is on ttyUSB2
 
 
