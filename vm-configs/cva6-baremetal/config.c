@@ -1,6 +1,6 @@
 #include <config.h>
 
-VM_IMAGE(baremetal_image, XSTR(/path/to/baremetal.bin));
+VM_IMAGE(baremetal_image, XSTR(BAO_WRKDIR_IMGS/baremetal.bin));
 
 struct config config = {
     
