@@ -148,7 +148,7 @@ do_clean() {
     RUN make -C "$ROOT_DIR/linux"                  ARCH=riscv mrproper
     RUN make -C "$ROOT_DIR/linux/tools/lloader"    clean
     RUN make -C "$ROOT_DIR/bao-baremetal-guest"    clean
-    RUN make -C "$ROOT_DIR/bao-baremetal-guest-reconf" clean
+    RUN make -C "$ROOT_DIR/bao-baremetal-guest" clean
     RUN make -C "$ROOT_DIR/bao-hypervisor"         clean
     RUN make -C "$ROOT_DIR/opensbi"                clean
     log_ok "Nettoyage terminé"
@@ -172,9 +172,9 @@ do_baremetal() {
     log_step "Compilation des guests baremetal"
 
     # Copie du source principal depuis trust_gw
-    copy_if_changed \
-        "$ROOT_DIR/trust_gw/bao-baremetal-guest/src/main.c" \
-        "$ROOT_DIR/bao-baremetal-guest/src/main.c"
+    #copy_if_changed \
+     #   "$ROOT_DIR/trust_gw/bao-baremetal-guest/src/main.c" \
+      #  "$ROOT_DIR/bao-baremetal-guest/src/main.c"
 
     log_step "  → Guest baremetal principal"
     RUN make -C "$ROOT_DIR/bao-baremetal-guest" \
@@ -182,8 +182,8 @@ do_baremetal() {
         PLATFORM=cva6 \
         -j"$JOBS"
 
-    log_step "  → Guest baremetal reconf"
-    RUN make -C "$ROOT_DIR/bao-baremetal-guest-reconf" \
+    log_step "  → Guest baremetal"
+    RUN make -C "$ROOT_DIR/bao-baremetal-guest" \
         CROSS_COMPILE="$CROSS_COMPILE" \
         PLATFORM=cva6 \
         -j"$JOBS"
@@ -191,9 +191,6 @@ do_baremetal() {
     copy_if_changed \
         "$ROOT_DIR/bao-baremetal-guest/build/cva6/baremetal.bin" \
         "$BUILD_GUESTS_DIR/baremetal.bin"
-    copy_if_changed \
-        "$ROOT_DIR/bao-baremetal-guest-reconf/build/cva6/baremetal.bin" \
-        "$BUILD_GUESTS_DIR/baremetal2.bin"
 
     log_ok "Guests baremetal compilés"
 }
@@ -218,7 +215,11 @@ do_linux() {
         ARCH=rv64 \
         IMAGE="../../build/arch/riscv/boot/Image" \
         DTB="../../arch/riscv/boot/dts/cva6/cva6-ariane-minimal.dtb" \
-        TARGET=linux-rv64-cva6
+        TARGET=linux-rv64-cva6 \
+    
+    copy_if_changed \
+        "$ROOT_DIR/linux/tools/lloader/linux-rv64-cva6.bin" \
+        "$BUILD_GUESTS_DIR/linux-rv64-cva6.bin"
 
     log_ok "Noyau Linux compilé"
 }
@@ -234,7 +235,7 @@ do_bao() {
         CROSS_COMPILE="$CROSS_COMPILE" \
         PLATFORM=cva6 \
         CONFIG=cva6-baremetal-linux \
-        CPPFLAGS="-DBAO_WRKDIR_IMGS=$BUILD_GUESTS_DIR" \
+        CPPFLAGS="-DBAO_WRKDIR_IMGS=$BUILD_GUESTS_DIR -DLOGLEVEL=TRACE" \
         -j"$JOBS"
 
     copy_if_changed \
@@ -254,6 +255,103 @@ do_opensbi() {
         -j"$JOBS"
     log_ok "OpenSBI compilé"
 }
+
+do_program() {
+    log_step "Chargement du bitstream sur Genesys2"
+    local bit="$BUILD_CVA6_DIR/ariane_xilinx.bit"
+
+    if [[ ! -f "$bit" ]]; then
+        log_error "Bitstream introuvable : $bit"
+        exit 1
+    fi
+
+    log_step "  → Bitstream : $bit"
+
+    source "$VIVADO_DIR/settings64.sh"
+
+    # Écriture du script TCL dans un fichier temporaire
+    local tcl_script
+    tcl_script=$(mktemp /tmp/program_fpga_XXXXXX.tcl)
+    trap "rm -f $tcl_script" EXIT
+
+    cat > "$tcl_script" <<EOF
+open_hw_manager
+connect_hw_server -url localhost:3121
+open_hw_target
+set dev [lindex [get_hw_devices xc7k*] 0]
+current_hw_device \$dev
+set_property PROGRAM.FILE {$bit} \$dev
+program_hw_devices \$dev
+close_hw_target
+disconnect_hw_server
+close_hw_manager
+EOF
+
+    log_step "  → Lancement de Vivado hw_server"
+    if [[ "$DRY_RUN" == "1" ]]; then
+        echo -e "\e[90m[DRY-RUN]\e[0m vivado -mode batch -source $tcl_script"
+    else
+        vivado -mode batch -nojournal -nolog -source "$tcl_script"
+        if [[ $? -eq 0 ]]; then
+            log_ok "Bitstream chargé"
+        else
+            log_error "Échec du chargement — voir la sortie Vivado ci-dessus"
+            exit 1
+        fi
+    fi
+}
+
+# =============================================================================
+# Flashage de la carte SD
+# =============================================================================
+
+do_sdcard() {
+    log_step "Flashage de la carte SD"
+
+    local fw="$ROOT_DIR/opensbi/build/platform/fpga/ariane/firmware/fw_payload.bin"
+    local device="${SDCARD_DEV:-}"
+
+    # Vérification du firmware
+    if [[ ! -f "$fw" ]]; then
+        log_error "Firmware introuvable : $fw (lancer 'do_opensbi' d'abord)"
+        exit 1
+    fi
+
+    # Détection automatique si SDCARD_DEV non défini
+    if [[ -z "$device" ]]; then
+        log_step "  → Détection de la carte SD"
+        sudo fdisk -l 2>/dev/null | grep -E "^Disk /dev/sd" || true
+        read -rp "Entrer le device SD (ex: /dev/sdc) : " device
+    fi
+
+    # Vérification que le device existe
+    if [[ ! -b "$device" ]]; then
+        log_error "Device introuvable ou non-bloc : $device"
+        exit 1
+    fi
+
+    # Confirmation de sécurité
+    log_warn "ATTENTION : $device va être entièrement réécrit !"
+    read -rp "Confirmer (oui/NON) : " confirm
+    if [[ "$confirm" != "oui" ]]; then
+        log_warn "Opération annulée"
+        return 0
+    fi
+
+    log_step "  → Partitionnement GPT de $device"
+    RUN sudo sgdisk --clear \
+        --new=1:2048:+322M \
+        --new=2 \
+        --typecode=1:3000 \
+        --typecode=2:8300 \
+        "$device" -g
+
+    log_step "  → Écriture du firmware sur ${device}1"
+    RUN sudo dd if="$fw" of="${device}1" oflag=sync bs=1M status=progress
+
+    log_ok "Carte SD flashée sur $device"
+}
+
 
 do_all() {
     init_submodules
@@ -285,6 +383,8 @@ case "$TARGET" in
     linux)     create_dirs; do_linux ;;
     bao)       create_dirs; do_bao ;;
     opensbi)   create_dirs; do_opensbi ;;
+    program)   create_dirs; do_program ;;
+    sdcard)    do_sdcard ;;
     *)
         log_error "Cible inconnue : '$TARGET'"
         echo ""
@@ -298,6 +398,9 @@ case "$TARGET" in
         echo "  linux      — noyau Linux uniquement"
         echo "  bao        — hyperviseur BAO uniquement"
         echo "  opensbi    — OpenSBI uniquement"
+        echo "  sdcard     — partitionne et flashe la carte SD"
+        echo "" 
+        echo "  SDCARD_DEV=/dev/sdc ./build.sh sdcard   # sans prompt interactif"
         echo ""
         echo "Variables d'environnement :"
         echo "  VIVADO_VERSION     (défaut: 2022.2)"

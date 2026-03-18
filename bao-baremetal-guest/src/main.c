@@ -131,6 +131,7 @@ static void check_released_pb(void)
 {
     do {
         // try to clean intf register
+       
         *dma_intf = (uint64_t) DMA_FRONTEND_INTF_ALL_BUTTONS_MASK;
 
         // Debounce counter
@@ -157,6 +158,7 @@ void state_target_selection(void)
     printf("\tR - Hypervisor attack. \n");
 
     do {
+         wfi();
         // poll intf.btnl and intf.btnr bits
         intf = *dma_intf & ((1ULL << DMA_FRONTEND_INTF_BTNL_BIT) | 
                             (1ULL << DMA_FRONTEND_INTF_BTNR_BIT));
@@ -189,6 +191,7 @@ void state_target_selection(void)
  */
 void state_before_attack(void)
 {
+
     uint64_t intf = 0;
 
     /*** Select protection ***/
@@ -198,6 +201,7 @@ void state_before_attack(void)
 
     do
     {
+         wfi();
         // poll intf.btnu and intf.btnd bits
         intf = *dma_intf & ((1ULL << DMA_FRONTEND_INTF_BTNU_BIT) | 
                             (1ULL << DMA_FRONTEND_INTF_BTND_BIT));
@@ -238,6 +242,7 @@ void state_attack(void)
 
     do
     {
+         wfi();
         // poll intf.btnc bit
         intf = *dma_intf & (1ULL << DMA_FRONTEND_INTF_BTNC_BIT);
     }
@@ -292,6 +297,7 @@ void state_after_attack(void)
 
     do
     {
+         wfi();
         // poll intf.btnc register
         intf = *dma_intf & ((1ULL << DMA_FRONTEND_INTF_BTNC_BIT));
     }
