@@ -153,12 +153,17 @@ do_clean() {
 
 do_fpga() {
     log_step "Synthèse FPGA (CVA6)"
+    #cp -f $ROOT_DIR/cva6/corev_apu/rv_iommu/packages/dependencies/ariane_axi_soc_pkg.sv $ROOT_DIR/cva6/corev_apu/tb
+    cp -f $ROOT_DIR/cva6/corev_apu/rv_iommu/packages/dependencies/ariane_soc_pkg.sv $ROOT_DIR/cva6/corev_apu/tb/ariane_soc_pkg.sv
     source "$VIVADO_DIR/settings64.sh"
-    if [[ -d "$ROOT_DIR/cva6/build" ]]; then
-        log_warn "Synthèse déjà réalisée — pour forcer, supprimer cva6/build"
+    
+    if [[ -d "$ROOT_DIR/cva6/build" ]] && [[ "${FORCE_FPGA:-0}" != "1" ]]; then
+        log_warn "Synthèse déjà réalisée — pour forcer, utiliser FORCE_FPGA=1 ou './build.sh fpga --force'"
     else
+        [[ -d "$ROOT_DIR/cva6/build" ]] && RUN rm -rf "$ROOT_DIR/cva6/build"
         RUN make -C "$ROOT_DIR/cva6" fpga
     fi
+
     copy_if_changed \
         "$ROOT_DIR/cva6/corev_apu/fpga/work-fpga/ariane_xilinx.bit" \
         "$BUILD_CVA6_DIR/ariane_xilinx.bit"
@@ -337,6 +342,16 @@ do_all() {
 
 TARGET="${1:-all}"
 
+FORCE_FPGA=0
+
+# Parsing des flags optionnels
+for arg in "$@"; do
+    case "$arg" in
+        --force) FORCE_FPGA=1 ;;
+    esac
+done
+export FORCE_FPGA
+
 # Les cibles autres que clean vérifient les dépendances
 if [[ "$TARGET" != "clean" ]]; then
     check_deps
@@ -359,7 +374,10 @@ case "$TARGET" in
         echo "Targets disponibles :"
         echo "  all        — build complet (défaut)"
         echo "  clean      — supprime tous les artefacts"
-        echo "  fpga       — synthèse CVA6 uniquement"
+        echo "  fpga       — synthèse CVA6 uniquement (ajouter --force pour resynthétiser)"
+        echo ""
+        echo     "  FORCE_FPGA=1 ./build.sh fpga           # forcer via variable"
+        echo "  ./build.sh fpga --force                # forcer via flag"
         echo "  baremetal  — guests baremetal uniquement"
         echo "  bao        — hyperviseur BAO uniquement"
         echo "  opensbi    — OpenSBI uniquement"
