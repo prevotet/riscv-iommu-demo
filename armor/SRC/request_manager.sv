@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 
-`include "../Include/axi_types.sv"
-import axi_types::*;
+
+
 
 module request_manager #(
     parameter type req_iommu_t = logic

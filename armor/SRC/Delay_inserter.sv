@@ -1,13 +1,13 @@
 `timescale 1ns/1ps
 
-`include "../Include/axi_types.sv"
-import axi_types::*;
+
+
 
 
 
 module response_delayer #(
     parameter int unsigned MAX_DELAY = 16,
-    parameter type resp_slv_t = axi_types::resp_slv_t
+    parameter type resp_slv_t = logic
 )(
     input  logic        clk_i,
     input  logic        rst_ni,

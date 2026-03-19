@@ -1,10 +1,10 @@
 `timescale 1ns/1ps
 
-`include "../Include/axi_types.sv"
-import axi_types::*;
+
+
 
 module response_manager #(
-    parameter type resp_t = logic
+    parameter type resp_slv_t = logic
 )(
     input  logic    clk_i,
     input  logic    rst_ni,

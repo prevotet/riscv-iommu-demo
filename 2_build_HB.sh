@@ -161,7 +161,7 @@ do_fpga() {
     cp -f $ROOT_DIR/armor/SRC/*.sv $ROOT_DIR/cva6/corev_apu/fpga/src/armor/SRC
     cp -f $ROOT_DIR/armor/Include/*.* $ROOT_DIR/cva6/corev_apu/fpga/src/armor/Include
    
-    cp -f $ROOT_DIR/cva6/corev_apu/rv_iommu/packages/dependencies/ariane_soc_pkg.sv $ROOT_DIR/cva6/corev_apu/tb/ariane_soc_pkg.sv
+   # cp -f $ROOT_DIR/cva6/corev_apu/rv_iommu/packages/dependencies/ariane_soc_pkg.sv $ROOT_DIR/cva6/corev_apu/tb/ariane_soc_pkg.sv
     source "$VIVADO_DIR/settings64.sh"
     
     if [[ -f "$ROOT_DIR/cva6/corev_apu/fpga/work-fpga/ariane_xilinx.bit" ]] && [[ "${FORCE_FPGA:-0}" != "1" ]]; then

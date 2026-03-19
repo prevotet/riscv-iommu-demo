@@ -1,8 +1,8 @@
 `timescale 1ns/1ps
 
 
-`include "../Include/axi_types.sv"
-import axi_types::*;
+
+
 
 
 module wrapper #(
@@ -18,22 +18,22 @@ module wrapper #(
     parameter StrbWidth    = DataWidth / 8,
 
 
-    parameter type aw_chan_extended_t  = axi_types::aw_chan_extended_t,
-    parameter type aw_chan_slv_t       = axi_types::aw_chan_slv_t,
-    parameter type aw_chan_t           = axi_types::aw_chan_t,
-    parameter type w_chan_t            = axi_types::w_chan_t,
-    parameter type b_chan_t            = axi_types::b_chan_t,
-    parameter type b_chan_slv_t        = axi_types::b_chan_slv_t,
-    parameter type ar_chan_extended_t  = axi_types::ar_chan_extended_t,
-    parameter type ar_chan_slv_t       = axi_types::ar_chan_slv_t,
-    parameter type ar_chan_t           = axi_types::ar_chan_t,
-    parameter type r_chan_t            = axi_types::r_chan_t,
-    parameter type r_chan_slv_t        = axi_types::r_chan_slv_t,
-    parameter type req_t               = axi_types::req_t,
-    parameter type req_slv_t           = axi_soc::req_slv_t,
-    parameter type resp_t              = axi_soc::resp_t,
-    parameter type resp_slv_t          = axi_soc::resp_slv_t,
-    parameter type req_mmu_t           = axi_soc::req_mmu_t
+    parameter type aw_chan_extended_t  = logic,
+    parameter type aw_chan_slv_t       = logic,
+    parameter type aw_chan_t           = logic,
+    parameter type w_chan_t            = logic,
+    parameter type b_chan_t            = logic,
+    parameter type b_chan_slv_t        = logic,
+    parameter type ar_chan_extended_t  = logic,
+    parameter type ar_chan_slv_t       = logic,
+    parameter type ar_chan_t           = logic,
+    parameter type r_chan_t            = logic,
+    parameter type r_chan_slv_t        = logic,
+    parameter type req_t               = logic,
+    parameter type req_slv_t           = logic,
+    parameter type resp_t              = logic,
+    parameter type resp_slv_t          = logic,
+    parameter type req_iommu_t           = logic
 
 
 )(
@@ -45,7 +45,7 @@ module wrapper #(
 
 
     // IP-Wrapper Interface (Slave)
-    input   req_mmu_t     req_IP_wrapper_i,
+    input   req_iommu_t   req_IP_wrapper_i,
     output  resp_slv_t    resp_IP_wrapper_o,  //change it to resp_t when integration of the iommu 
     
     
@@ -53,8 +53,8 @@ module wrapper #(
     // Wrapper-IOMMU Interface (Master)
 
 
-    input   resp_t      resp_wrapper_iommu_i, //change it to resp_t when integration of the iommu 
-    output  req_mmu_t   req_wrapper_iommu_o,
+    input   resp_slv_t    resp_wrapper_iommu_i, //change it to resp_t when integration of the iommu 
+    output  req_iommu_t   req_wrapper_iommu_o,
     
     
     //CPU_Wrapper Interface   (Slave)
@@ -62,12 +62,6 @@ module wrapper #(
     input   req_slv_t       req_CPU_Wrapper__i,
     output  resp_slv_t      resp_CPU_Wrapper_o
 
-
-
-    
-    
-
-    
 
 
 
@@ -170,7 +164,7 @@ request_manager #(
 );
 
 response_manager #(
-    .resp_t(resp_t)
+    .resp_slv_t(resp_slv_t)
 ) response_manager_module (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
@@ -213,7 +207,8 @@ request_flow_monitor #(
 outs_req_monitor #(
     .MAX_OUTSTANDING(16),
     .BLOCK_CYCLES(10),
-    .resp_slv_t(resp_slv_t)
+    .resp_slv_t(resp_slv_t),
+    .req_iommu_t(req_iommu_t)
 ) outs_monitor_inst (
     .clk_i(clk_i),
     .rst_ni(rst_ni),

@@ -1,11 +1,11 @@
 `timescale 1ns/1ps
 
-`include "../Include/axi_types.sv"
-import axi_types::*;
+
+
 
 module address_extractor #(
     parameter int unsigned AddrWidth = 64,
-    parameter type req_iommu_t = axi_types::req_iommu_t
+    parameter type req_iommu_t = logic
 )(
     input  logic                   clk_i,
     input  logic                   rst_ni,
@@ -34,7 +34,7 @@ module address_extractor #(
                 Address_write_enable_o  <= 1'b1;
                 is_write_o              <= 1'b1;
             end else if (req_i.ar_valid) begin
-                Address_o               <= req_i.ar.ar_addr;
+                Address_o               <= req_i.ar.addr;
                 Address_write_enable_o  <= 1'b1;
                 is_read_o               <= 1'b1;
             end else begin

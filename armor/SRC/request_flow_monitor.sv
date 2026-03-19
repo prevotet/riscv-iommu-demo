@@ -48,7 +48,7 @@ module request_flow_monitor #(
                 aw_first_req <= 1'b0;
             end
             if (ar_handshake) begin
-                ar_id_prev   <= req_IP_wrapper_i.ar.ar_id;
+                ar_id_prev   <= req_IP_wrapper_i.ar.id;
                 ar_first_req <= 1'b0;
             end
         end
@@ -57,7 +57,7 @@ module request_flow_monitor #(
     //assign aw_edge = req_IP_wrapper_i.aw_valid & ~aw_prev;
     //assign ar_edge = req_IP_wrapper_i.ar_valid & ~ar_prev;
     assign aw_id_changed = (req_IP_wrapper_i.aw.id != aw_id_prev);
-    assign ar_id_changed = (req_IP_wrapper_i.ar.ar_id != ar_id_prev);
+    assign ar_id_changed = (req_IP_wrapper_i.ar.id != ar_id_prev);
 
 
 

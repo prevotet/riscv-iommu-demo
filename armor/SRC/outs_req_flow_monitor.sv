@@ -1,8 +1,8 @@
 module outs_req_monitor #(
     parameter MAX_OUTSTANDING = 16,
     parameter BLOCK_CYCLES = 10,
-    parameter type resp_slv_t = logic
-    //parameter type req_iommu_t = logic
+    parameter type resp_slv_t = logic,
+    parameter type req_iommu_t = logic
 
 )(
     input  logic        clk_i,
@@ -26,7 +26,7 @@ module outs_req_monitor #(
     logic resp_complete;
     
     assign b_handshake  = resp_wrapper_iommu_i.b_valid && req_IP_wrapper_i.b_ready;
-    assign r_handshake  = resp_wrapper_iommu_i.r_valid && req_IP_wrapper_i.r_ready && resp_wrapper_iommu_i.r.r_last;
+    assign r_handshake  = resp_wrapper_iommu_i.r_valid && req_IP_wrapper_i.r_ready && resp_wrapper_iommu_i.r.last;
     assign resp_complete = b_handshake | r_handshake;
     
     // Compteur de requêtes outstanding
