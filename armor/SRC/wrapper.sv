@@ -30,10 +30,10 @@ module wrapper #(
     parameter type r_chan_t            = axi_types::r_chan_t,
     parameter type r_chan_slv_t        = axi_types::r_chan_slv_t,
     parameter type req_t               = axi_types::req_t,
-    parameter type req_slv_t           = axi_types::req_slv_t,
-    parameter type resp_t              = axi_types::resp_t,
-    parameter type resp_slv_t          = axi_types::resp_slv_t,
-    parameter type req_mmu_t         = axi_types::req_mmu_t
+    parameter type req_slv_t           = axi_soc::req_slv_t,
+    parameter type resp_t              = axi_soc::resp_t,
+    parameter type resp_slv_t          = axi_soc::resp_slv_t,
+    parameter type req_mmu_t           = axi_soc::req_mmu_t
 
 
 )(
@@ -46,15 +46,15 @@ module wrapper #(
 
     // IP-Wrapper Interface (Slave)
     input   req_mmu_t     req_IP_wrapper_i,
-    output  resp_slv_t       resp_IP_wrapper_o,  //change it to resp_t when integration of the iommu 
+    output  resp_slv_t    resp_IP_wrapper_o,  //change it to resp_t when integration of the iommu 
     
     
 
     // Wrapper-IOMMU Interface (Master)
 
 
-    input   resp_slv_t      resp_wrapper_iommu_i, //change it to resp_t when integration of the iommu 
-    output  req_mmu_t       req_wrapper_iommu_o,
+    input   resp_t      resp_wrapper_iommu_i, //change it to resp_t when integration of the iommu 
+    output  req_mmu_t   req_wrapper_iommu_o,
     
     
     //CPU_Wrapper Interface   (Slave)

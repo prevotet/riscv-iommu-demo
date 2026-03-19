@@ -25,12 +25,11 @@ module ID_extractor #(
             if (req_i.aw_valid) begin
                 Device_ID_o              <= req_i.aw.aw_stream_id_o;
                 Device_ID_write_enable_o <= 1'b1;
-            end else if (req_i.ar_valid) begin
+            end else if (req_i.ar_valid) 
+            begin
                 Device_ID_o              <= req_i.ar.ar_stream_id;
                 Device_ID_write_enable_o <= 1'b1;
-            end else begin
-                // Hold previous Device_ID_o (a voiiiiiiiiiiiiiiiiiiiir)
-                Device_ID_o <= Device_ID_o;
+            
             end
         end
     end
