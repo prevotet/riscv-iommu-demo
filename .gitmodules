@@ -11,6 +11,3 @@
 [submodule "linux"]
 	path = linux
 	url = git@github.com:prevotet/linux.git
-[submodule "armor"]
-	path = armor
-	url = https://git.renater.fr/anonscm/git/anr-trustgw/armor.git
