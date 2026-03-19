@@ -154,12 +154,17 @@ do_clean() {
 do_fpga() {
     log_step "Synthèse FPGA (CVA6)"
     #cp -f $ROOT_DIR/cva6/corev_apu/rv_iommu/packages/dependencies/ariane_axi_soc_pkg.sv $ROOT_DIR/cva6/corev_apu/tb
+    # Copy armor files 
+    cp -f $ROOT_DIR/armor/SRC/*.sv $ROOT_DIR/cva6/corev_apu/fpga/src/armor
+   
     cp -f $ROOT_DIR/cva6/corev_apu/rv_iommu/packages/dependencies/ariane_soc_pkg.sv $ROOT_DIR/cva6/corev_apu/tb/ariane_soc_pkg.sv
     source "$VIVADO_DIR/settings64.sh"
     
     if [[ -d "$ROOT_DIR/cva6/build" ]] && [[ "${FORCE_FPGA:-0}" != "1" ]]; then
         log_warn "Synthèse déjà réalisée — pour forcer, utiliser FORCE_FPGA=1 ou './build.sh fpga --force'"
     else
+        log_warn "Mode force activé — suppression des fichiers .bit"
+        rm -rf "$ROOT_DIR/cva6/corev_apu/fpga/work-fpga/ariane_xilinx.bit"
         [[ -d "$ROOT_DIR/cva6/build" ]] && RUN rm -rf "$ROOT_DIR/cva6/build"
         RUN make -C "$ROOT_DIR/cva6" fpga
     fi
