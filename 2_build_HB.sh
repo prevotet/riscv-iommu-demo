@@ -164,7 +164,7 @@ do_fpga() {
     cp -f $ROOT_DIR/cva6/corev_apu/rv_iommu/packages/dependencies/ariane_soc_pkg.sv $ROOT_DIR/cva6/corev_apu/tb/ariane_soc_pkg.sv
     source "$VIVADO_DIR/settings64.sh"
     
-    if [[ -d "$ROOT_DIR/cva6/build" ]] && [[ "${FORCE_FPGA:-0}" != "1" ]]; then
+    if [[ -f "$ROOT_DIR/cva6/corev_apu/fpga/work-fpga/ariane_xilinx.bit" ]] && [[ "${FORCE_FPGA:-0}" != "1" ]]; then
         log_warn "Synthèse déjà réalisée — pour forcer, utiliser FORCE_FPGA=1 ou './build.sh fpga --force'"
     else
         log_warn "Mode force activé — suppression des fichiers .bit"
@@ -336,7 +336,7 @@ do_sdcard() {
 
 
 do_all() {
-    init_submodules
+    #init_submodules
     create_dirs
     do_fpga
     do_baremetal

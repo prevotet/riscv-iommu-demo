@@ -1,0 +1,440 @@
+=== /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/armor/SRC/outs_req_flow_monitor.sv ===
+module outs_req_monitor #(
+    parameter MAX_OUTSTANDING = 16,
+    parameter BLOCK_CYCLES = 10,
+    parameter type resp_slv_t = logic
+    //parameter type req_iommu_t = logic
+
+)(
+    input  logic        clk_i,
+    input  logic        rst_ni,
+    
+    // Signal réutilisé du request_flow_monitor
+    input  logic        req_fire,
+    
+    // Response interface (depuis IOMMU)
+    input  resp_slv_t   resp_wrapper_iommu_i,
+    input  req_iommu_t  req_IP_wrapper_i,
+
+    
+    // Outputs
+    output logic        overflow_flag,
+    output logic        block_req
+);
+
+    // Détection des handshakes de réponses
+    logic b_handshake, r_handshake;
+    logic resp_complete;
+    
+    assign b_handshake  = resp_wrapper_iommu_i.b_valid && req_IP_wrapper_i.b_ready;
+    assign r_handshake  = resp_wrapper_iommu_i.r_valid && req_IP_wrapper_i.r_ready && resp_wrapper_iommu_i.r.r_last;
+    assign resp_complete = b_handshake | r_handshake;
+    
+    // Compteur de requêtes outstanding
+    logic [$clog2(MAX_OUTSTANDING+1):0] outstanding;
+    
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            outstanding <= 0;
+        end else begin
+            case ({req_fire, resp_complete})
+                2'b10:   outstanding <= outstanding + 1;  // nouvelle requête
+                2'b01:   outstanding <= outstanding - 1;  // réponse reçue
+                default: outstanding <= outstanding;       // 00 ou 11
+            endcase
+        end
+    end
+    
+    // Détection de l'overflow
+    assign overflow_flag = (outstanding >= MAX_OUTSTANDING);
+    
+    // Mécanisme de blocage temporaire
+    logic [$clog2(BLOCK_CYCLES):0] block_cnt;
+    logic blocking;
+    
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            block_cnt <= 0;
+            blocking  <= 1'b0;
+        end else begin
+            if (overflow_flag && !blocking) begin
+                blocking  <= 1'b1;
+                block_cnt <= 0;
+            end else if (blocking) begin
+                if (block_cnt == BLOCK_CYCLES-1) begin
+                    blocking  <= 1'b0;
+                    block_cnt <= 0;
+                end else begin
+                    block_cnt <= block_cnt + 1;
+                end
+            end
+        end
+    end
+    
+    assign block_req = blocking;
+
+endmodule
+=== /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/armor/SRC/request_flow_monitor.sv ===
+module request_flow_monitor #(
+    parameter WINDOW_CYCLES = 1024,
+    parameter MAX_REQ_PER_WINDOW = 64,
+    parameter BLOCK_CYCLES = 20,
+    parameter type req_iommu_t = logic,
+    parameter type resp_slv_t = logic
+
+)(
+    input  logic        clk_i,
+    input  logic        rst_ni,
+
+    // Incoming request 
+    input req_iommu_t   req_IP_wrapper_i,
+    input resp_slv_t    resp_wrapper_iommu_i,
+
+
+    // Outputs
+    output logic        storm_flag,
+    output logic        block_req,
+    output logic        req_fire        // signal injected in proceeding modules 
+);
+    // Detect VALID rising edges of AW or AR
+    logic aw_prev,      ar_prev;
+    logic aw_edge,      ar_edge;
+    logic aw_handshake, ar_handshake;
+    logic aw_id_prev,   ar_id_prev;
+    logic aw_id_changed, ar_id_changed;
+    logic aw_first_req, ar_first_req;  // Pour gérer la première transaction
+
+    assign aw_handshake = req_IP_wrapper_i.aw_valid && resp_wrapper_iommu_i.aw_ready;
+    assign ar_handshake = req_IP_wrapper_i.ar_valid && resp_wrapper_iommu_i.ar_ready;
+    
+
+    // Edge detectors
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            aw_prev <= 1'b0;
+            ar_prev <= 1'b0;
+            aw_first_req  <= 1'b1;
+            ar_first_req  <= 1'b1;
+        end else begin
+            //aw_prev <= req_IP_wrapper_i.aw_valid;
+            //ar_prev <= req_IP_wrapper_i.ar_valid;
+            //aw_id_prev <= req_IP_wrapper_i.aw.id;  // sauvegardé lors du handshake
+            //ar_id_prev <= req_IP_wrapper_i.ar.id;
+            if (aw_handshake) begin
+                aw_id_prev   <= req_IP_wrapper_i.aw.id;
+                aw_first_req <= 1'b0;
+            end
+            if (ar_handshake) begin
+                ar_id_prev   <= req_IP_wrapper_i.ar.ar_id;
+                ar_first_req <= 1'b0;
+            end
+        end
+    end
+
+    //assign aw_edge = req_IP_wrapper_i.aw_valid & ~aw_prev;
+    //assign ar_edge = req_IP_wrapper_i.ar_valid & ~ar_prev;
+    assign aw_id_changed = (req_IP_wrapper_i.aw.id != aw_id_prev);
+    assign ar_id_changed = (req_IP_wrapper_i.ar.ar_id != ar_id_prev);
+
+
+
+    // A request is fired on a rising edge of AW or AR
+    //assign req_fire = aw_edge | ar_edge;
+ // Une requête est comptée si : handshake ET (première req OU changement d'ID)
+    assign req_fire = (aw_handshake && (aw_first_req || aw_id_changed)) || (ar_handshake && (ar_first_req || ar_id_changed));
+
+
+    logic [$clog2(WINDOW_CYCLES):0] window_cnt;
+    logic [$clog2(MAX_REQ_PER_WINDOW):0] req_cnt;
+
+    // Sliding window counter
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if(!rst_ni) begin
+            window_cnt <= 0;
+        end else if(window_cnt == WINDOW_CYCLES-1) begin
+            window_cnt <= 0;
+        end else begin
+            window_cnt <= window_cnt + 1;
+        end
+    end
+
+    // Count requests in the window
+
+    
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if(!rst_ni) begin
+            req_cnt <= 0;
+        end else if(window_cnt == WINDOW_CYCLES-1) begin
+            req_cnt <= 0; // new window
+        end else if(req_fire) begin // && req_ready
+            req_cnt <= req_cnt + 1;
+        end
+    end
+
+    assign storm_flag = (req_cnt >= MAX_REQ_PER_WINDOW);
+    
+    
+    // Blocage temporaire
+
+    logic [$clog2(BLOCK_CYCLES):0] block_cnt;
+    logic blocking;
+
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if(!rst_ni) begin
+            block_cnt <= 0;
+            blocking  <= 1'b0;
+        end else begin
+            if(storm_flag && !blocking) begin
+                blocking  <= 1'b1;  // démarrage du blocage
+                block_cnt <= 0;
+            end else if(blocking) begin
+                if(block_cnt == BLOCK_CYCLES-1) begin
+                    blocking  <= 1'b0; // fin du blocage
+                    block_cnt <= 0;
+                end else begin
+                    block_cnt <= block_cnt + 1;
+                end
+            end
+        end
+    end
+
+    assign block_req = blocking;
+
+endmodule
+
+=== /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/armor/SRC/security_monitor.sv ===
+`timescale 1ns/1ps
+
+module security_monitor #(
+    parameter MAX_FAILURES = 3,
+    parameter BLOCK_DURATION = 32'd100000 // Durée du blocage en cycles
+)(
+    input  logic        clk_i,
+    input  logic        rst_ni,
+    input  logic        legit_hit,
+    input  logic        comparison_valid,
+    output logic        block_ip_o,
+    output logic [7:0]  failure_count,
+    output logic        threat_detected
+);
+
+    logic [7:0] consecutive_failures;
+    logic [31:0] block_timer;
+    logic legit_hit_d, comparison_valid_d;
+
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        legit_hit_d        <= 1'b0;
+        comparison_valid_d <= 1'b0;
+    end else begin
+        legit_hit_d        <= legit_hit;
+        comparison_valid_d <= comparison_valid;
+    end
+end
+
+
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            block_ip_o           <= 1'b0;
+            consecutive_failures <= 8'h0;
+            failure_count        <= 8'h0;
+            threat_detected      <= 1'b0;
+            block_timer          <= 32'h0;
+        end else begin
+            // Gestion du timer de blocage
+            if (block_ip_o) begin
+                if (block_timer > 0) begin
+                    block_timer <= block_timer - 1;
+                end else begin
+                    block_ip_o           <= 1'b0;
+                    threat_detected      <= 1'b0;
+                    consecutive_failures <= 8'h0;
+                end
+            end
+
+            // Traitement des comparaisons
+            if (comparison_valid_d && !block_ip_o) begin
+                if (!legit_hit_d) begin
+                    consecutive_failures <= consecutive_failures + 1;
+                    failure_count        <= failure_count + 1;
+                    
+                    if ((consecutive_failures + 1) >= (MAX_FAILURES )) begin
+                        block_ip_o   <= 1'b1;
+                        threat_detected <= 1'b1;
+                        block_timer  <= BLOCK_DURATION;
+                    end
+                end else begin
+                    consecutive_failures <= 8'h0;
+                end
+            end
+        end
+    end
+
+endmodule
+
+=== /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/armor/SRC/id_comparator.sv ===
+`timescale 1ns/1ps
+
+module id_comparator #(
+    parameter int unsigned DevIDWidth = 24
+    )
+(
+    input  logic                 clk_i,
+    input  logic                 rst_ni,
+    input  logic [DevIDWidth-1:0]  fixed_id,
+    input  logic [DevIDWidth-1:0]  dynamic_id,
+    input  logic                 compare_enable,
+    output logic                 legit_hit,
+    output logic                 comparison_valid
+);
+
+    logic ids_match_reg;
+
+    // Sequential comparison
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            ids_match_reg       <= 1'b0;
+            comparison_valid    <= 1'b0;
+        end else begin
+            if (compare_enable) begin
+                ids_match_reg    <= (fixed_id == dynamic_id) && (fixed_id != '0);
+                comparison_valid <= 1'b1;
+            end else begin
+                comparison_valid <= 1'b0;
+            end
+        end
+    end
+
+    assign legit_hit = ids_match_reg;
+
+endmodule
+
+
+=== /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/armor/SRC/interrupt_monitor.sv ===
+`timescale 1ns/1ps
+
+module interrupt_monitor #(
+    parameter int unsigned WINDOW_CYCLES      = 1024,
+    parameter int unsigned MAX_MSI_PER_WINDOW = 32,
+    parameter int unsigned MAX_RATIO_MSI_DMA  = 2
+)(
+    input  logic clk_i,
+    input  logic rst_ni,
+
+    // From msi_detector
+    input  logic comparison_valid,
+    input  logic is_msi_interrupt,
+    input  logic is_dma,
+
+    // Outputs
+    output logic msi_storm,
+    output logic block_msi
+);
+
+    // One-cycle events
+    logic msi_fire;
+    logic dma_fire;
+
+    assign msi_fire = comparison_valid && is_msi_interrupt;
+    assign dma_fire = comparison_valid && is_dma;
+
+    logic [$clog2(WINDOW_CYCLES):0]      window_cnt;
+    logic [$clog2(MAX_MSI_PER_WINDOW):0] msi_cnt;
+    logic [$clog2(MAX_MSI_PER_WINDOW):0] dma_cnt;
+
+    // Sliding time window
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni)
+            window_cnt <= '0;
+        else if (window_cnt == WINDOW_CYCLES-1)
+            window_cnt <= '0;
+        else
+            window_cnt <= window_cnt + 1;
+    end
+
+    // Count MSI and DMA events
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            msi_cnt <= '0;
+            dma_cnt <= '0;
+        end
+        else if (window_cnt == WINDOW_CYCLES-1) begin
+            msi_cnt <= '0;
+            dma_cnt <= '0;
+        end
+        else begin
+            if (msi_fire) msi_cnt <= msi_cnt + 1;
+            if (dma_fire) dma_cnt <= dma_cnt + 1;
+        end
+    end
+
+    // Storm detection (paper logic)
+    assign msi_storm =
+        (msi_cnt >= MAX_MSI_PER_WINDOW) ||
+        ((dma_cnt != 0) && (msi_cnt >= MAX_RATIO_MSI_DMA * dma_cnt));
+
+    assign block_msi = msi_storm;
+
+endmodule
+
+=== /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/armor/SRC/Interrupt_detector.sv ===
+`timescale 1ns/1ps
+
+module msi_detector #(
+    parameter int unsigned AddrWidth = 64
+)(
+    input  logic                   clk_i,
+    input  logic                   rst_ni,
+    
+    // Adresse MSI configurée par le CPU
+    input  logic [AddrWidth-1:0]   msi_address_config,
+    
+    // Adresse extraite de la requête
+    input  logic [AddrWidth-1:0]   extracted_address,
+    
+    // Signal de validation de la comparaison
+    input  logic                   compare_enable,
+    // Type de transaction (MSI = toujours write)
+    input  logic                   is_write_req,
+    
+    // Outputs
+    output logic                   is_msi_interrupt,
+    output logic                   is_dma,
+    output logic                   comparison_valid
+);
+
+    logic addr_match_reg;
+    logic is_dma_reg;
+
+    
+    // Sequential comparison
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            addr_match_reg      <= 1'b0;
+            is_dma_reg          <= 1'b0;
+            comparison_valid    <= 1'b0;
+        end else begin
+            if (compare_enable && is_write_req) begin
+                // Comparer UNIQUEMENT si c'est une écriture
+                addr_match_reg   <= (msi_address_config == extracted_address) && (msi_address_config != '0);
+                // DMA = écriture vers une adresse NON-MSI
+                is_dma_reg       <= (msi_address_config != extracted_address) || (msi_address_config == '0);
+
+                comparison_valid <= 1'b1;
+            end else if (compare_enable && !is_write_req) begin
+                // Si c'est une lecture, ni MSI ni DMA write
+                addr_match_reg   <= 1'b0;
+                is_dma_reg       <= 1'b0;
+                comparison_valid <= 1'b1;
+            end else begin
+                comparison_valid <= 1'b0;
+            end
+             
+        end
+    end
+    
+    assign is_msi_interrupt = addr_match_reg;
+    assign is_dma = is_dma_reg;
+
+
+endmodule
