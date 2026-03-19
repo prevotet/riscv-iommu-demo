@@ -155,7 +155,11 @@ do_fpga() {
     log_step "Synthèse FPGA (CVA6)"
     #cp -f $ROOT_DIR/cva6/corev_apu/rv_iommu/packages/dependencies/ariane_axi_soc_pkg.sv $ROOT_DIR/cva6/corev_apu/tb
     # Copy armor files 
-    cp -f $ROOT_DIR/armor/SRC/*.sv $ROOT_DIR/cva6/corev_apu/fpga/src/armor
+    mkdir -p $ROOT_DIR/cva6/corev_apu/fpga/src/armor/
+    mkdir -p $ROOT_DIR/cva6/corev_apu/fpga/src/armor/SRC
+    mkdir -p $ROOT_DIR/cva6/corev_apu/fpga/src/armor/Include
+    cp -f $ROOT_DIR/armor/SRC/*.sv $ROOT_DIR/cva6/corev_apu/fpga/src/armor/SRC
+    cp -f $ROOT_DIR/armor/Include/*.* $ROOT_DIR/cva6/corev_apu/fpga/src/armor/Include
    
     cp -f $ROOT_DIR/cva6/corev_apu/rv_iommu/packages/dependencies/ariane_soc_pkg.sv $ROOT_DIR/cva6/corev_apu/tb/ariane_soc_pkg.sv
     source "$VIVADO_DIR/settings64.sh"
