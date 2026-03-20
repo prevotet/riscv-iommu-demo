@@ -179,6 +179,51 @@ do_fpga() {
     log_ok "FPGA prêt"
 }
 
+do_fpga_dpr() {
+    log_step "Synthèse FPGA DPR (Dynamic Partial Reconfiguration)"
+    
+    # On s'assure que Vivado est sourcé
+    source "$VIVADO_DIR/settings64.sh"
+
+    # Récupération du RM (Reconfigurable Module)
+    local rm_to_build="${RM:-accel_default}"
+    
+    # On fait le lien entre le flag --force du script et la sécurité du Makefile
+    local force_static_flag="FORCE_STATIC=${FORCE_FPGA:-0}"
+
+    if [[ "${DPR_MODE:-}" == "all" ]]; then
+        log_step "  → Génération de TOUTES les configurations (dpr-all)"
+        # On passe le flag force pour permettre de régénérer la base si besoin
+        RUN make -C "$ROOT_DIR/dpr" dpr-all "$force_static_flag"
+
+    elif [[ "${DPR_MODE:-}" == "static" ]]; then
+        log_step "  → Génération de la base statique uniquement"
+        RUN make -C "$ROOT_DIR/dpr" dpr-static "$force_static_flag"
+
+    else
+        # Avant de lancer un partiel, on vérifie si le fichier statique existe
+        # C'est une double sécurité (Script + Makefile)
+        if [[ ! -f "$ROOT_DIR/cva6/corev_apu/fpga/work-dpr/static_routed.dcp" ]]; then
+            log_error "Fichier statique manquant ! Lancez 'DPR_MODE=static ./2_build_HB.sh fpga-dpr' d'abord."
+            exit 1
+        fi
+
+        log_step "  → Génération de la config partielle : $rm_to_build"
+        RUN make -C "$ROOT_DIR/dpr" dpr-partial RM="$rm_to_build"
+    fi
+
+    # Archivage des bitstreams vers le dossier build
+    if [[ -d "$ROOT_DIR/cva6/corev_apu/fpga/work-dpr" ]]; then
+        RUN mkdir -p "$BUILD_CVA6_DIR/dpr"
+        log_step "  → Archivage des bitstreams vers $BUILD_CVA6_DIR/dpr"
+        # On cherche tous les bitstreams (statiques et partiels)
+        find "$ROOT_DIR/cva6/corev_apu/fpga/work-dpr" -name "*.bit" -exec cp {} "$BUILD_CVA6_DIR/dpr/" \;
+    fi
+
+    log_ok "Flux DPR terminé"
+}
+
+
 do_baremetal() {
     log_step "Compilation des guests baremetal"
 
@@ -370,6 +415,7 @@ case "$TARGET" in
     all)       do_all ;;
     clean)     do_clean ;;
     fpga)      create_dirs; do_fpga ;;
+    fpga-dpr)  create_dirs; do_fpga_dpr ;; 
     baremetal) create_dirs; do_baremetal ;;
     bao)       create_dirs; do_bao ;;
     opensbi)   create_dirs; do_opensbi ;;
@@ -387,6 +433,12 @@ case "$TARGET" in
         echo ""
         echo     "  FORCE_FPGA=1 ./build.sh fpga           # forcer via variable"
         echo "  ./build.sh fpga --force                # forcer via flag"
+        echo "  fpga-dpr   — synthèse avec Reconfiguration Partielle"
+        echo ""
+        echo "Exemples DPR :"
+        echo "  RM=accel_A ./build.sh fpga-dpr        # Compile la config A"
+        echo "  DPR_MODE=all ./build.sh fpga-dpr      # Compile tout (A, B, default)"
+        echo "  DPR_MODE=static ./build.sh fpga-dpr   # Génère uniquement le checkpoint statique"
         echo "  baremetal  — guests baremetal uniquement"
         echo "  bao        — hyperviseur BAO uniquement"
         echo "  opensbi    — OpenSBI uniquement"
