@@ -31,9 +31,6 @@ dpr-prepare:
 	cp $(DPR_DIR)/src/rp_boundary_regs.sv $(CVA6_FPGA)/src/
 	cp $(DPR_DIR)/rm/accel_default/accel_blank.sv $(CVA6_FPGA)/src/accel_wrap.sv
 
-$(CVA6_FPGA)/work-fpga/ariane_xilinx.bit:
-	@echo "==> Build CVA6 FPGA..."
-	$(MAKE) -C $(CVA6_REPO_DIR) fpga
 
 # --- Étape 0b : Génération des IPs Xilinx (obligatoire avant synthèse) ---
 dpr-ips:
@@ -48,8 +45,12 @@ dpr-ips:
 		work-fpga/xlnx_clk_gen.xci \
 		work-fpga/xlnx_mig_7_ddr3.xci
 
+$(CVA6_FPGA)/work-fpga/ariane_xilinx.bit:
+	@echo "==> Build CVA6 FPGA..."
+	$(MAKE) -C $(CVA6_REPO_DIR) fpga
+
 # --- Étape 1 : Implémentation Statique (La base fixe) ---
-dpr-static: dpr-prepare dpr-ips cva6-fpga
+dpr-static: dpr-prepare dpr-ips $(CVA6_FPGA)/work-fpga/ariane_xilinx.bit
 	@if [ -f $(WORK_DPR)/static_routed.dcp ] && [ "$(FORCE_STATIC)" != "1" ]; then \
 		echo "--------------------------------------------------------------------------"; \
 		echo " SKIP : Le checkpoint statique existe déjà : $(WORK_DPR)/static_routed.dcp"; \
