@@ -185,38 +185,27 @@ do_fpga_dpr() {
     # On s'assure que Vivado est sourcé
     source "$VIVADO_DIR/settings64.sh"
 
-    # Récupération du RM (Reconfigurable Module)
+    # Récupération du RM (Reconfigurable Module) depuis l'environnement ou argument
+    # Usage: RM=accel_A ./build.sh fpga-dpr
     local rm_to_build="${RM:-accel_default}"
-    
-    # On fait le lien entre le flag --force du script et la sécurité du Makefile
-    local force_static_flag="FORCE_STATIC=${FORCE_FPGA:-0}"
 
     if [[ "${DPR_MODE:-}" == "all" ]]; then
         log_step "  → Génération de TOUTES les configurations (dpr-all)"
-        # On passe le flag force pour permettre de régénérer la base si besoin
-        RUN make -C "$ROOT_DIR/dpr" dpr-all "$force_static_flag"
-
+        RUN make -C "$ROOT_DIR/dpr" dpr-all
     elif [[ "${DPR_MODE:-}" == "static" ]]; then
         log_step "  → Génération de la base statique uniquement"
-        RUN make -C "$ROOT_DIR/dpr" dpr-static "$force_static_flag"
-
+        RUN make -C "$ROOT_DIR/dpr" dpr-static
     else
-        # Avant de lancer un partiel, on vérifie si le fichier statique existe
-        # C'est une double sécurité (Script + Makefile)
-        if [[ ! -f "$ROOT_DIR/cva6/corev_apu/fpga/work-dpr/static_routed.dcp" ]]; then
-            log_error "Fichier statique manquant ! Lancez 'DPR_MODE=static ./2_build_HB.sh fpga-dpr' d'abord."
-            exit 1
-        fi
-
         log_step "  → Génération de la config partielle : $rm_to_build"
+        # Note : dpr-partial dans votre Makefile dépend de static_routed.dcp
         RUN make -C "$ROOT_DIR/dpr" dpr-partial RM="$rm_to_build"
     fi
 
-    # Archivage des bitstreams vers le dossier build
+    # Copie des bitstreams utiles vers le dossier build (optionnel)
     if [[ -d "$ROOT_DIR/cva6/corev_apu/fpga/work-dpr" ]]; then
         RUN mkdir -p "$BUILD_CVA6_DIR/dpr"
-        log_step "  → Archivage des bitstreams vers $BUILD_CVA6_DIR/dpr"
-        # On cherche tous les bitstreams (statiques et partiels)
+        log_step "  → Archivage des bitstreams DPR vers $BUILD_CVA6_DIR/dpr"
+        # On copie les bitstreams partiels s'ils existent
         find "$ROOT_DIR/cva6/corev_apu/fpga/work-dpr" -name "*.bit" -exec cp {} "$BUILD_CVA6_DIR/dpr/" \;
     fi
 
@@ -255,7 +244,7 @@ do_bao() {
     log_step "Compilation de BAO hypervisor"
 
     log_step "  → Copie des configurations VM et plateforme"
-    RUN cp -R "$ROOT_DIR/vm-configs/"*   "$BAO_SRCS/configs/"
+    RUN cp -R "$ROOT_DIR/vm-configs/"* "$BAO_SRCS/configs/"
     RUN cp -R "$ROOT_DIR/plat-configs/"* "$BAO_SRCS/src/platform/"
 
     RUN make -C "$BAO_SRCS" \

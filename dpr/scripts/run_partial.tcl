@@ -13,12 +13,29 @@ open_checkpoint $work_dpr/static_routed.dcp
 set rm_synth $work_dpr/${rm_name}_synth.dcp
 if {![file exists $rm_synth]} {
     puts "Synthèse OOC du RM $rm_name..."
+    
+    # Déterminer la racine de CVA6 à partir de work_dpr (cva6/corev_apu/fpga/work-dpr)
+    set cva6_root [file normalize [file join $work_dpr ".." ".." ".."]]
+
+    # Configurer les chemins d'inclusion pour la synthèse OOC
+    set_property include_dirs [list \
+        [file join $cva6_root "vendor" "pulp-platform" "axi" "include"] \
+        [file join $cva6_root "vendor" "pulp-platform" "common_cells" "include"] \
+        [file join $cva6_root "core" "include"] \
+    ] [current_fileset]
+
+    # Lire les packages et interfaces nécessaires
+    read_verilog -sv [file join $cva6_root "vendor" "pulp-platform" "axi" "src" "axi_pkg.sv"]
+    read_verilog -sv [file join $cva6_root "core" "include" "axi_intf.sv"]
+
+    # Lire les sources du RM
     set rm_sources [glob -nocomplain $rm_dir/*.sv]
+    read_verilog -sv $rm_sources
+
     synth_design \
         -top accel_wrap \
         -part xc7k325tffg900-2 \
-        -mode out_of_context \
-        -files $rm_sources
+        -mode out_of_context
     write_checkpoint -force $rm_synth
     close_design
     open_checkpoint $work_dpr/static_routed.dcp

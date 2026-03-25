@@ -1,41 +1,50 @@
-# run_static.tcl - Implémentation DPR configuration de base
-# vivado -mode batch -source run_static.tcl
-#        -tclargs <cva6_fpga_dir> <dpr_dir> <work_dpr_dir>
-
+# run_static.tcl - Implémentation DPR (Utilisation du projet existant)
 set cva6_fpga [lindex $argv 0]
 set dpr_dir   [lindex $argv 1]
 set work_dpr  [lindex $argv 2]
 
 open_project $cva6_fpga/ariane.xpr
+set_property incremental_checkpoint {} [get_runs synth_1]
 
-# Ajouter contraintes Pblock et source frontière RP
-add_files -fileset constrs_1 $dpr_dir/constraints/pblock_accels.xdc
-add_files -fileset sources_1 $dpr_dir/src/rp_boundary_regs.sv
-set_property USED_IN_SYNTHESIS true \
-    [get_files $dpr_dir/src/rp_boundary_regs.sv]
+# 1. AJOUT DES SOURCES DPR
+puts "==> Injection des sources DPR..."
+add_files -fileset sources_1 -norecurse [list \
+    $dpr_dir/src/rp_boundary_regs.sv \
+    $cva6_fpga/src/accel_wrap.sv \
+]
+update_compile_order -fileset sources_1
 
-# Reset et synthèse
-set synth_status [get_property STATUS [get_runs synth_1]]
-if {$synth_status != "synth_design Complete!"} {
-    reset_run synth_1
-    launch_runs synth_1 -jobs 4
-    wait_on_run synth_1
+# 2. AJOUT DES CONTRAINTES DE PLACEMENT (Pblocks)
+puts "==> Application des contraintes de Pblocks..."
+add_files -fileset constrs_1 -norecurse $dpr_dir/constraints/pblock_accels.xdc
+set_property used_in_synthesis true  [get_files pblock_accels.xdc]
+set_property used_in_implementation true [get_files pblock_accels.xdc]
+
+# 3. FORÇAGE DU TOP
+set_property top ariane_xilinx [current_fileset]
+
+# 4. SYNTHÈSE
+puts "==> Lancement de la synthèse synth_1..."
+reset_run synth_1
+launch_runs synth_1 -jobs 8
+wait_on_run synth_1
+if {[get_property PROGRESS [get_runs synth_1]] != "100%"} {
+    puts "ERROR: Synthèse échouée."
+    exit 1
 }
-open_run synth_1
 
-# Implémentation avec Pblocks
-opt_design
-place_design
-phys_opt_design
-route_design
-
-# Vérifications DPR
-report_drc -checks {HDPR-*} -file $work_dpr/drc_dpr.rpt -quiet
-set viol [llength [get_drc_violations -quiet -filter {CHECK =~ HDPR-*}]]
-if {$viol > 0} {
-    puts "WARNING: $viol DPR DRC violations - voir $work_dpr/drc_dpr.rpt"
+# 5. IMPLÉMENTATION
+puts "==> Lancement de l'implémentation impl_1..."
+reset_run impl_1
+launch_runs impl_1 -jobs 8
+wait_on_run impl_1
+if {[get_property PROGRESS [get_runs impl_1]] != "100%"} {
+    puts "ERROR: Implémentation échouée."
+    exit 1
 }
 
+# 6. EXPORTATION DU CHECKPOINT POUR DPR
+open_run impl_1
 file mkdir $work_dpr
 write_checkpoint -force $work_dpr/static_routed.dcp
 write_bitstream  -force $work_dpr/static_full.bit

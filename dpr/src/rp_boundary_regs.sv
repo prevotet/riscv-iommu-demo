@@ -1,9 +1,10 @@
 
 // rp_boundary_regs.sv
 // Registres pipeline à la frontière statique/RP.
-// Vivado DPR exige que tous les signaux traversant la frontière
-// soient enregistrés (Partition Pins).
-// PASS_THROUGH=1 pour simulation, =0 pour DPR réel.
+
+// Inclure la définition de l'interface AXI pour éviter "no interface AXI_BUS found"
+`include "axi/typedef.svh"
+`include "axi/assign.svh"
 
 module rp_boundary_regs #(
     parameter int unsigned AXI_ADDR_WIDTH = 64,
