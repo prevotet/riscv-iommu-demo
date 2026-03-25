@@ -10,6 +10,7 @@ set_property incremental_checkpoint {} [get_runs synth_1]
 puts "==> Injection des sources DPR..."
 add_files -fileset sources_1 -norecurse [list \
     $dpr_dir/src/rp_boundary_regs.sv \
+    $dpr_dir/src/rp_boundary_regs_mmu.sv \
     $cva6_fpga/src/accel_wrap.sv \
 ]
 update_compile_order -fileset sources_1
