@@ -179,39 +179,45 @@ do_fpga() {
     log_ok "FPGA prêt"
 }
 
+
 do_fpga_dpr() {
     log_step "Synthèse FPGA DPR (Dynamic Partial Reconfiguration)"
-    
-    # On s'assure que Vivado est sourcé
+
     source "$VIVADO_DIR/settings64.sh"
 
-    # Récupération du RM (Reconfigurable Module) depuis l'environnement ou argument
-    # Usage: RM=accel_A ./build.sh fpga-dpr
     local rm_to_build="${RM:-accel_default}"
+    local dpr_log="$ROOT_DIR/dpr/dpr_build.log"
+
+    log_step "  → Log DPR : $dpr_log"
 
     if [[ "${DPR_MODE:-}" == "all" ]]; then
         log_step "  → Génération de TOUTES les configurations (dpr-all)"
-        RUN make -C "$ROOT_DIR/dpr" dpr-all
+        RUN make -C "$ROOT_DIR/dpr" dpr-all 2>&1 | tee "$dpr_log"
     elif [[ "${DPR_MODE:-}" == "static" ]]; then
         log_step "  → Génération de la base statique uniquement"
-        RUN make -C "$ROOT_DIR/dpr" dpr-static
+        RUN make -C "$ROOT_DIR/dpr" dpr-static 2>&1 | tee "$dpr_log"
     else
         log_step "  → Génération de la config partielle : $rm_to_build"
-        # Note : dpr-partial dans votre Makefile dépend de static_routed.dcp
-        RUN make -C "$ROOT_DIR/dpr" dpr-partial RM="$rm_to_build"
+        RUN make -C "$ROOT_DIR/dpr" dpr-partial RM="$rm_to_build" 2>&1 | tee "$dpr_log"
     fi
 
-    # Copie des bitstreams utiles vers le dossier build (optionnel)
+    # Vérifie le code de retour (tee masque l'erreur du make)
+    if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
+        log_error "Flux DPR échoué. Voir $dpr_log"
+        # Affiche les dernières erreurs Vivado
+        grep "^ERROR:\|^CRITICAL" "$dpr_log" | tail -20
+        exit 1
+    fi
+
     if [[ -d "$ROOT_DIR/cva6/corev_apu/fpga/work-dpr" ]]; then
         RUN mkdir -p "$BUILD_CVA6_DIR/dpr"
         log_step "  → Archivage des bitstreams DPR vers $BUILD_CVA6_DIR/dpr"
-        # On copie les bitstreams partiels s'ils existent
-        find "$ROOT_DIR/cva6/corev_apu/fpga/work-dpr" -name "*.bit" -exec cp {} "$BUILD_CVA6_DIR/dpr/" \;
+        find "$ROOT_DIR/cva6/corev_apu/fpga/work-dpr" -name "*.bit" \
+            -exec cp {} "$BUILD_CVA6_DIR/dpr/" \;
     fi
 
     log_ok "Flux DPR terminé"
 }
-
 
 do_baremetal() {
     log_step "Compilation des guests baremetal"

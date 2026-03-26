@@ -3,6 +3,7 @@
 // Remplacer par accel_A_wrap.sv ou accel_B_wrap.sv.
 // Ce module a la même interface que accel_wrap dans ariane_peripherals.
 
+(* keep_hierarchy = "yes" *)
 module accel_wrap #(
     parameter int unsigned AXI_ADDR_WIDTH   = 64,
     parameter int unsigned AXI_DATA_WIDTH   = 64,
