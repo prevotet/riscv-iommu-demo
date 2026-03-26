@@ -1,0 +1,264 @@
+#-----------------------------------------------------------
+# Vivado v2022.2 (64-bit)
+# SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+# IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+# Start of session at: Thu Mar 26 23:43:16 2026
+# Process ID: 280238
+# Current directory: /home/jc/tmp/riscv-iommu-demo/dpr
+# Command line: vivado -mode gui /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/static_routed.dcp
+# Log file: /home/jc/tmp/riscv-iommu-demo/dpr/vivado.log
+# Journal file: /home/jc/tmp/riscv-iommu-demo/dpr/vivado.jou
+# Running On: jc-VirtualBox, OS: Linux, CPU Frequency: 2995.198 MHz, CPU Physical cores: 24, Host memory: 19797 MB
+#-----------------------------------------------------------
+start_gui
+open_checkpoint /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/static_routed.dcp
+Command: open_checkpoint /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/static_routed.dcp
+
+Starting open_checkpoint Task
+
+Time (s): cpu = 00:00:00.22 ; elapsed = 00:00:00.05 . Memory (MB): peak = 6445.301 ; gain = 10.906 ; free physical = 10508 ; free virtual = 17385
+WARNING: [Board 49-26] cannot add Board Part xilinx.com:vek280_es:part0:1.0 available at /tools/Xilinx/Vivado/2022.2/data/xhub/boards/XilinxBoardStore/boards/Xilinx/vek280/es/1.0/board.xml as part xcve2802-vsvh1760-2lp-e-s-es1 specified in board_part file is either invalid or not available
+WARNING: [Board 49-26] cannot add Board Part xilinx.com:vhk158_es:part0:1.0 available at /tools/Xilinx/Vivado/2022.2/data/xhub/boards/XilinxBoardStore/boards/Xilinx/vhk158/es/1.0/board.xml as part xcvh1582-vsva3697-2mp-e-s-es1 specified in board_part file is either invalid or not available
+WARNING: [Board 49-26] cannot add Board Part xilinx.com:vmk180:part0:2.2 available at /tools/Xilinx/Vivado/2022.2/data/xhub/boards/XilinxBoardStore/boards/Xilinx/vmk180/production/2.2/board.xml as part xcvm1802-vsva2197-2mp-e-s specified in board_part file is either invalid or not available
+WARNING: [Board 49-26] cannot add Board Part xilinx.com:vmk180:part0:3.0 available at /tools/Xilinx/Vivado/2022.2/data/xhub/boards/XilinxBoardStore/boards/Xilinx/vmk180/production/3.0/board.xml as part xcvm1802-vsva2197-2mp-e-s specified in board_part file is either invalid or not available
+WARNING: [Board 49-26] cannot add Board Part xilinx.com:vmk180:part0:3.1 available at /tools/Xilinx/Vivado/2022.2/data/xhub/boards/XilinxBoardStore/boards/Xilinx/vmk180/production/3.1/board.xml as part xcvm1802-vsva2197-2mp-e-s specified in board_part file is either invalid or not available
+WARNING: [Board 49-26] cannot add Board Part xilinx.com:vmk180_newl:part0:1.0 available at /tools/Xilinx/Vivado/2022.2/data/xhub/boards/XilinxBoardStore/boards/Xilinx/vmk180_newl/production/1.0/board.xml as part xcvm1802-vsva2197-2mp-e-s specified in board_part file is either invalid or not available
+WARNING: [Board 49-26] cannot add Board Part xilinx.com:vpk120:part0:1.0 available at /tools/Xilinx/Vivado/2022.2/data/xhub/boards/XilinxBoardStore/boards/Xilinx/vpk120/production/1.0/board.xml as part xcvp1202-vsva2785-2mp-e-s specified in board_part file is either invalid or not available
+WARNING: [Board 49-26] cannot add Board Part xilinx.com:vpk120_es:part0:1.2 available at /tools/Xilinx/Vivado/2022.2/data/xhub/boards/XilinxBoardStore/boards/Xilinx/vpk120/es/1.2/board.xml as part xcvp1202-vsva2785-2mp-e-s-es1 specified in board_part file is either invalid or not available
+WARNING: [Board 49-26] cannot add Board Part xilinx.com:vpk120_es_revb:part0:1.0 available at /tools/Xilinx/Vivado/2022.2/data/xhub/boards/XilinxBoardStore/boards/Xilinx/vpk120_revb/es/1.0/board.xml as part xcvp1202-vsva2785-2mp-e-s-es1 specified in board_part file is either invalid or not available
+WARNING: [Board 49-26] cannot add Board Part xilinx.com:vpk180_es:part0:1.0 available at /tools/Xilinx/Vivado/2022.2/data/xhub/boards/XilinxBoardStore/boards/Xilinx/vpk180/es/1.0/board.xml as part xcvp1802-lsvc4072-2mp-e-s-es1 specified in board_part file is either invalid or not available
+WARNING: [Board 49-26] cannot add Board Part xilinx.com:zcu208ld:part0:2.0 available at /tools/Xilinx/Vivado/2022.2/data/xhub/boards/XilinxBoardStore/boards/Xilinx/zcu208ld/production/2.0/board.xml as part xczu58dr-fsvg1517-2-i specified in board_part file is either invalid or not available
+WARNING: [Board 49-26] cannot add Board Part xilinx.com:zcu216ld:part0:2.0 available at /tools/Xilinx/Vivado/2022.2/data/xhub/boards/XilinxBoardStore/boards/Xilinx/zcu216ld/production/2.0/board.xml as part xczu59dr-ffvf1760-2-i specified in board_part file is either invalid or not available
+WARNING: [Board 49-26] cannot add Board Part xilinx.com:zcu670:part0:2.0 available at /tools/Xilinx/Vivado/2022.2/data/xhub/boards/XilinxBoardStore/boards/Xilinx/zcu670/2.0/board.xml as part xczu67dr-fsve1156-2-i specified in board_part file is either invalid or not available
+WARNING: [Board 49-26] cannot add Board Part xilinx.com:zcu670ld:part0:1.0 available at /tools/Xilinx/Vivado/2022.2/data/xhub/boards/XilinxBoardStore/boards/Xilinx/zcu670ld/1.0/board.xml as part xczu57dr-fsve1156-2-i specified in board_part file is either invalid or not available
+INFO: [IP_Flow 19-234] Refreshing IP repositories
+INFO: [IP_Flow 19-1704] No user IP repositories specified
+INFO: [IP_Flow 19-2313] Loaded Vivado IP repository '/tools/Xilinx/Vivado/2022.2/data/ip'.
+WARNING: [Board 49-151] The current board 'digilentinc.com::genesys2:1.1' is from a local repo. The vivado install has a corresponding board with version greater than or equal to the local repo board. Please use boards from vivado install to avoid any upgrade/migrate issues
+INFO: [Device 21-403] Loading part xc7k325tffg900-2
+Netlist sorting complete. Time (s): cpu = 00:00:00.7 ; elapsed = 00:00:00.66 . Memory (MB): peak = 7301.086 ; gain = 0.000 ; free physical = 9618 ; free virtual = 16510
+INFO: [Netlist 29-17] Analyzing 9893 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-479] Netlist was created with Vivado 2022.2
+INFO: [Project 1-570] Preparing netlist for logic optimization
+WARNING: [Constraints 18-550] Could not create 'IBUF_LOW_PWR' constraint because net 'i_xlnx_clk_gen/clk_in1' is not directly connected to top level port. Synthesis is ignored for IBUF_LOW_PWR but preserved for implementation.
+INFO: [Timing 38-478] Restoring timing data from binary archive.
+INFO: [Timing 38-479] Binary timing data restore complete.
+INFO: [Project 1-856] Restoring constraints from binary archive.
+INFO: [Project 1-853] Binary constraint restore complete.
+Reading XDEF placement.
+Reading placer database...
+Reading XDEF routing.
+Read XDEF Files: Time (s): cpu = 00:00:09 ; elapsed = 00:00:08 . Memory (MB): peak = 8465.203 ; gain = 162.633 ; free physical = 8573 ; free virtual = 15466
+Restored from archive | CPU: 9.400000 secs | Memory: 169.332626 MB |
+Finished XDEF File Restore: Time (s): cpu = 00:00:09 ; elapsed = 00:00:08 . Memory (MB): peak = 8465.203 ; gain = 162.633 ; free physical = 8575 ; free virtual = 15467
+CRITICAL WARNING: [Project 1-486] Could not resolve non-primitive black box cell 'accel_wrap__parameterized0_bb' instantiated as 'i_ariane_peripherals/gen_dma.i_accel1' [/home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/ariane_peripherals_xilinx.sv:566]
+CRITICAL WARNING: [Project 1-486] Could not resolve non-primitive black box cell 'accel_wrap_bb' instantiated as 'i_ariane_peripherals/gen_dma.gen_accel2.i_accel2' [/home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/ariane_peripherals_xilinx.sv:797]
+Netlist sorting complete. Time (s): cpu = 00:00:00.01 ; elapsed = 00:00:00.01 . Memory (MB): peak = 8465.203 ; gain = 0.000 ; free physical = 8594 ; free virtual = 15487
+INFO: [Project 1-111] Unisim Transformation Summary:
+  A total of 355 instances were transformed.
+  IOBUF => IOBUF (IBUF, OBUFT): 1 instance 
+  IOBUFDS_DIFF_OUT_DCIEN => IOBUFDS_DIFF_OUT_DCIEN (IBUFDS_IBUFDISABLE_INT(x2), INV, OBUFTDS_DCIEN(x2)): 4 instances
+  IOBUF_DCIEN => IOBUF_DCIEN (IBUF_IBUFDISABLE, OBUFT_DCIEN): 32 instances
+  LUT6_2 => LUT6_2 (LUT5, LUT6): 17 instances
+  OBUFDS => OBUFDS_DUAL_BUF (INV, OBUFDS(x2)): 1 instance 
+  RAM32M => RAM32M (RAMD32(x6), RAMS32(x2)): 282 instances
+  RAM32X1D => RAM32X1D (RAMD32(x2)): 18 instances
+
+INFO: [Project 1-604] Checkpoint was created with Vivado v2022.2 (64-bit) build 3671981
+OpenCheckpoint Checksum | Checksum: 1b753f350
+----- Checksum: PlaceDB: d1c31cd9 ShapeSum: 77e29e52 RouteDB: 6dae3825 
+open_checkpoint: Time (s): cpu = 00:02:03 ; elapsed = 00:01:00 . Memory (MB): peak = 8929.262 ; gain = 2521.680 ; free physical = 8199 ; free virtual = 15098
+# Dans la console Tcl de Vivado GUI
+highlight_objects -color blue [get_cells -of [get_pblocks pblock_accel1]]
+WARNING: [Vivado 12-1034] No pblocks matched 'pblock_accel1'.
+WARNING: [Vivado 12-180] No cells matched 'get_cells -of [get_pblocks pblock_accel1]'.
+ERROR: [Coretcl 2-2] '0' objects are not highlightable.
+highlight_objects -color blue [get_cells -of [get_pblocks pblock_accel1]]
+WARNING: [Vivado 12-1034] No pblocks matched 'pblock_accel1'.
+WARNING: [Vivado 12-180] No cells matched 'get_cells -of [get_pblocks pblock_accel1]'.
+ERROR: [Coretcl 2-2] '0' objects are not highlightable.
+highlight_objects -color blue [get_cells -of [get_pblocks pblock_accel12]
+missing close-bracket
+highlight_objects -color blue [get_cells -of [get_pblocks pblock_accel2]]
+WARNING: [Vivado 12-1034] No pblocks matched 'pblock_accel2'.
+WARNING: [Vivado 12-180] No cells matched 'get_cells -of [get_pblocks pblock_accel2]'.
+ERROR: [Coretcl 2-2] '0' objects are not highlightable.
+create_pblock pblock_rp_accels
+pblock_rp_accels
+resize_pblock [get_pblocks pblock_rp_accels] \
+    -add {SLICE_X0Y150:SLICE_X111Y224 DSP48_X0Y60:DSP48_X4Y89 RAMB18_X0Y60:RAMB18_X4Y89 RAMB36_X0Y30:RAMB36_X4Y44}
+create_pblock pblock_accel1
+pblock_accel1
+resize_pblock [get_pblocks pblock_accel1] \
+    -add {SLICE_X0Y150:SLICE_X55Y224 DSP48_X0Y60:DSP48_X2Y89 RAMB18_X0Y60:RAMB18_X2Y89 RAMB36_X0Y30:RAMB36_X2Y44}
+set_property PARENT pblock_rp_accels [get_pblocks pblock_accel1]
+create_pblock pblock_accel2
+pblock_accel2
+resize_pblock [get_pblocks pblock_accel2] \
+    -add {SLICE_X56Y150:SLICE_X111Y224 DSP48_X3Y60:DSP48_X4Y89 RAMB18_X3Y60:RAMB18_X4Y89 RAMB36_X3Y30:RAMB36_X4Y44}
+set_property PARENT pblock_rp_accels [get_pblocks pblock_accel2]
+# Dans la console Tcl Vivado GUI
+# Densité par ligne Y dans la zone haute
+foreach y {150 160 170 180 190 200 210 220 230 240 250} {
+    set sites [get_sites -filter "NAME =~ SLICE_X*Y${y}"]
+    set used 0
+    foreach s $sites {
+        if {[get_property IS_USED $s]} { incr used }
+    }
+    puts "Y${y}: $used sites utilisés sur [llength $sites]"
+}
+Y150: 128 sites utilisés sur 128
+Y160: 123 sites utilisés sur 128
+Y170: 123 sites utilisés sur 128
+Y180: 125 sites utilisés sur 134
+Y190: 111 sites utilisés sur 134
+Y200: 124 sites utilisés sur 146
+Y210: 112 sites utilisés sur 146
+Y220: 45 sites utilisés sur 146
+Y230: 0 sites utilisés sur 146
+Y240: 0 sites utilisés sur 146
+Y250: 0 sites utilisés sur 146
+foreach y {230 240 250 260 270 280 290 300 310 320 330 340 350} {
+    set sites [get_sites -filter "NAME =~ SLICE_X*Y${y}"]
+    puts "Y${y}: [llength $sites] sites disponibles"
+}
+Y230: 146 sites disponibles
+Y240: 146 sites disponibles
+Y250: 146 sites disponibles
+Y260: 146 sites disponibles
+Y270: 146 sites disponibles
+Y280: 146 sites disponibles
+Y290: 146 sites disponibles
+Y300: 146 sites disponibles
+Y310: 146 sites disponibles
+Y320: 146 sites disponibles
+Y330: 146 sites disponibles
+Y340: 146 sites disponibles
+WARNING: [Vivado 12-3731] No sites matched 'NAME =~ SLICE_X*Y350'
+Y350: 0 sites disponibles
+set sites [get_sites -filter "NAME =~ SLICE_X*Y230"]
+SLICE_X1Y230 SLICE_X0Y230 SLICE_X2Y230 SLICE_X3Y230 SLICE_X5Y230 SLICE_X4Y230 SLICE_X6Y230 SLICE_X7Y230 SLICE_X8Y230 SLICE_X9Y230 SLICE_X11Y230 SLICE_X10Y230 SLICE_X13Y230 SLICE_X12Y230 SLICE_X14Y230 SLICE_X15Y230 SLICE_X17Y230 SLICE_X16Y230 SLICE_X18Y230 SLICE_X19Y230 SLICE_X20Y230 SLICE_X21Y230 SLICE_X23Y230 SLICE_X22Y230 SLICE_X25Y230 SLICE_X24Y230 SLICE_X26Y230 SLICE_X27Y230 SLICE_X29Y230 SLICE_X28Y230 SLICE_X30Y230 SLICE_X31Y230 SLICE_X33Y230 SLICE_X32Y230 SLICE_X34Y230 SLICE_X35Y230 SLICE_X36Y230 SLICE_X37Y230 SLICE_X39Y230 SLICE_X38Y230 SLICE_X40Y230 SLICE_X41Y230 SLICE_X43Y230 SLICE_X42Y230 SLICE_X44Y230 SLICE_X45Y230 SLICE_X47Y230 SLICE_X46Y230 SLICE_X48Y230 SLICE_X49Y230 SLICE_X50Y230 SLICE_X51Y230 SLICE_X53Y230 SLICE_X52Y230 SLICE_X55Y230 SLICE_X54Y230 SLICE_X56Y230 SLICE_X57Y230 SLICE_X59Y230 SLICE_X58Y230 SLICE_X60Y230 SLICE_X61Y230 SLICE_X63Y230 SLICE_X62Y230 SLICE_X64Y230 SLICE_X65Y230 SLICE_X67Y230 SLICE_X66Y230 SLICE_X68Y230 SLICE_X69Y230 SLICE_X71Y230 SLICE_X70Y230 SLICE_X72Y230 SLICE_X73Y230 SLICE_X75Y230 SLICE_X74Y230 SLICE_X76Y230 SLICE_X77Y230 SLICE_X79Y230 SLICE_X78Y230 SLICE_X81Y230 SLICE_X80Y230 SLICE_X82Y230 SLICE_X83Y230 SLICE_X85Y230 SLICE_X84Y230 SLICE_X86Y230 SLICE_X87Y230 SLICE_X89Y230 SLICE_X88Y230 SLICE_X90Y230 SLICE_X91Y230 SLICE_X93Y230 SLICE_X92Y230 SLICE_X94Y230 SLICE_X95Y230 SLICE_X97Y230 SLICE_X96Y230 SLICE_X98Y230 SLICE_X99Y230 SLICE_X101Y230 SLICE_X100Y230 SLICE_X102Y230 SLICE_X103Y230 SLICE_X104Y230 SLICE_X105Y230 SLICE_X107Y230 SLICE_X106Y230 SLICE_X109Y230 SLICE_X108Y230 SLICE_X110Y230 SLICE_X111Y230 SLICE_X113Y230 SLICE_X112Y230 SLICE_X114Y230 SLICE_X115Y230 SLICE_X117Y230 SLICE_X116Y230 SLICE_X119Y230 SLICE_X118Y230 SLICE_X120Y230 SLICE_X121Y230 SLICE_X122Y230 SLICE_X123Y230 SLICE_X125Y230 SLICE_X124Y230 SLICE_X126Y230 SLICE_X127Y230 SLICE_X129Y230 SLICE_X128Y230 SLICE_X130Y230 SLICE_X131Y230 SLICE_X132Y230 SLICE_X133Y230 SLICE_X135Y230 SLICE_X134Y230 SLICE_X137Y230 SLICE_X136Y230 SLICE_X138Y230 SLICE_X139Y230 SLICE_X141Y230 SLICE_X140Y230 SLICE_X142Y230 SLICE_X143Y230 SLICE_X145Y230 SLICE_X144Y230
+set max_x 0
+0
+foreach s $sites {
+    regexp {SLICE_X(\d+)Y} $s -> x
+    if {$x > $max_x} { set max_x $x }
+}
+puts "X max : $max_x"
+X max : 145
+puts "DSP48 Y60-Y89 (zone haute):"
+DSP48 Y60-Y89 (zone haute):
+foreach y {90 95 100 105 110 115 120} {
+    puts "  Y${y}: [llength [get_sites -filter \"NAME =~ DSP48*Y${y}\"]] DSP"
+}
+ERROR: [Common 17-165] Too many positional options when parsing 'DSP48*Y90"', please type 'get_sites -help' for usage info.
+puts [llength [get_sites -filter {NAME =~ DSP48_X*Y90}]]
+6
+puts [llength [get_sites -filter {NAME =~ DSP48_X*Y95}]]
+6
+puts [llength [get_sites -filter {NAME =~ DSP48_X*Y100}]]
+6
+puts [llength [get_sites -filter {NAME =~ DSP48_X*Y105}]]
+6
+puts [llength [get_sites -filter {NAME =~ RAMB36_X*Y45}]]
+6
+puts [llength [get_sites -filter {NAME =~ RAMB36_X*Y50}]]
+6
+puts [llength [get_sites -filter {NAME =~ RAMB36_X*Y55}]]
+6
+puts [llength [get_sites -filter {NAME =~ RAMB36_X*Y60}]]
+6
+puts [llength [get_sites -filter {NAME =~ RAMB18_X*Y90}]]
+6
+puts [llength [get_sites -filter {NAME =~ RAMB18_X*Y100}]]
+6
+foreach y {0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20} {
+    set d [llength [get_sites -filter "NAME =~ DSP48_X*Y${y}"]]
+    set r [llength [get_sites -filter "NAME =~ RAMB36_X*Y${y}"]]
+    if {$d > 0 || $r > 0} { puts "Y${y}: DSP=$d RAMB36=$r" }
+}
+Y0: DSP=6 RAMB36=7
+Y1: DSP=6 RAMB36=7
+Y2: DSP=6 RAMB36=7
+Y3: DSP=6 RAMB36=7
+Y4: DSP=6 RAMB36=7
+Y5: DSP=6 RAMB36=7
+Y6: DSP=6 RAMB36=7
+Y7: DSP=6 RAMB36=7
+Y8: DSP=6 RAMB36=7
+Y9: DSP=6 RAMB36=7
+Y10: DSP=6 RAMB36=7
+Y11: DSP=6 RAMB36=7
+Y12: DSP=6 RAMB36=7
+Y13: DSP=6 RAMB36=7
+Y14: DSP=6 RAMB36=7
+Y15: DSP=6 RAMB36=7
+Y16: DSP=6 RAMB36=7
+Y17: DSP=6 RAMB36=7
+Y18: DSP=6 RAMB36=7
+Y19: DSP=6 RAMB36=7
+Y20: DSP=6 RAMB36=7
+foreach y {44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65} {
+    set d [llength [get_sites -filter "NAME =~ DSP48_X*Y${y}"]]
+    set r36 [llength [get_sites -filter "NAME =~ RAMB36_X*Y${y}"]]
+    set r18 [llength [get_sites -filter "NAME =~ RAMB18_X*Y${y}"]]
+    if {$d > 0 || $r36 > 0} { puts "Y${y}: DSP=$d RAMB36=$r36 RAMB18=$r18" }
+}
+Y44: DSP=6 RAMB36=6 RAMB18=7
+Y45: DSP=6 RAMB36=6 RAMB18=7
+Y46: DSP=6 RAMB36=6 RAMB18=7
+Y47: DSP=6 RAMB36=6 RAMB18=7
+Y48: DSP=6 RAMB36=6 RAMB18=7
+Y49: DSP=6 RAMB36=6 RAMB18=7
+Y50: DSP=6 RAMB36=6 RAMB18=7
+Y51: DSP=6 RAMB36=6 RAMB18=7
+Y52: DSP=6 RAMB36=6 RAMB18=7
+Y53: DSP=6 RAMB36=6 RAMB18=7
+Y54: DSP=6 RAMB36=6 RAMB18=7
+Y55: DSP=6 RAMB36=6 RAMB18=7
+Y56: DSP=6 RAMB36=6 RAMB18=7
+Y57: DSP=6 RAMB36=6 RAMB18=7
+Y58: DSP=6 RAMB36=6 RAMB18=7
+Y59: DSP=6 RAMB36=6 RAMB18=7
+Y60: DSP=6 RAMB36=6 RAMB18=5
+Y61: DSP=6 RAMB36=6 RAMB18=5
+Y62: DSP=6 RAMB36=6 RAMB18=5
+Y63: DSP=6 RAMB36=6 RAMB18=5
+Y64: DSP=6 RAMB36=6 RAMB18=5
+Y65: DSP=6 RAMB36=6 RAMB18=5
+foreach y {44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65} {
+    set used_dsp 0
+    set used_r36 0
+    foreach s [get_sites -filter "NAME =~ DSP48_X*Y${y}"] {
+        if {[get_property IS_USED $s]} { incr used_dsp }
+    }
+    foreach s [get_sites -filter "NAME =~ RAMB36_X*Y${y}"] {
+        if {[get_property IS_USED $s]} { incr used_r36 }
+    }
+    puts "Y${y}: DSP_used=$used_dsp RAMB36_used=$used_r36"
+}
+Y44: DSP_used=3 RAMB36_used=0
+Y45: DSP_used=2 RAMB36_used=0
+Y46: DSP_used=1 RAMB36_used=0
+Y47: DSP_used=1 RAMB36_used=0
+Y48: DSP_used=1 RAMB36_used=0
+Y49: DSP_used=1 RAMB36_used=0
+Y50: DSP_used=1 RAMB36_used=0
+Y51: DSP_used=1 RAMB36_used=0
+Y52: DSP_used=1 RAMB36_used=0
+Y53: DSP_used=1 RAMB36_used=0
+Y54: DSP_used=1 RAMB36_used=0
+Y55: DSP_used=0 RAMB36_used=0
+Y56: DSP_used=0 RAMB36_used=0
+Y57: DSP_used=0 RAMB36_used=0
+Y58: DSP_used=0 RAMB36_used=0
+Y59: DSP_used=0 RAMB36_used=0
+Y60: DSP_used=0 RAMB36_used=0
+Y61: DSP_used=0 RAMB36_used=0
+Y62: DSP_used=0 RAMB36_used=0
+Y63: DSP_used=0 RAMB36_used=0
+Y64: DSP_used=0 RAMB36_used=0
+Y65: DSP_used=0 RAMB36_used=0
+exit
+INFO: [Common 17-206] Exiting Vivado at Fri Mar 27 00:02:37 2026...

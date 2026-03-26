@@ -1,0 +1,87 @@
+#-----------------------------------------------------------
+# Vivado v2022.2 (64-bit)
+# SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+# IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+# Start of session at: Thu Mar 26 23:43:16 2026
+# Process ID: 280238
+# Current directory: /home/jc/tmp/riscv-iommu-demo/dpr
+# Command line: vivado -mode gui /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/static_routed.dcp
+# Log file: /home/jc/tmp/riscv-iommu-demo/dpr/vivado.log
+# Journal file: /home/jc/tmp/riscv-iommu-demo/dpr/vivado.jou
+# Running On: jc-VirtualBox, OS: Linux, CPU Frequency: 2995.198 MHz, CPU Physical cores: 24, Host memory: 19797 MB
+#-----------------------------------------------------------
+start_gui
+open_checkpoint /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/static_routed.dcp
+# Dans la console Tcl de Vivado GUI
+highlight_objects -color blue [get_cells -of [get_pblocks pblock_accel1]]
+highlight_objects -color blue [get_cells -of [get_pblocks pblock_accel1]]
+highlight_objects -color blue [get_cells -of [get_pblocks pblock_accel12]
+highlight_objects -color blue [get_cells -of [get_pblocks pblock_accel2]]
+create_pblock pblock_rp_accels
+resize_pblock [get_pblocks pblock_rp_accels] \
+    -add {SLICE_X0Y150:SLICE_X111Y224 DSP48_X0Y60:DSP48_X4Y89 RAMB18_X0Y60:RAMB18_X4Y89 RAMB36_X0Y30:RAMB36_X4Y44}
+create_pblock pblock_accel1
+resize_pblock [get_pblocks pblock_accel1] \
+    -add {SLICE_X0Y150:SLICE_X55Y224 DSP48_X0Y60:DSP48_X2Y89 RAMB18_X0Y60:RAMB18_X2Y89 RAMB36_X0Y30:RAMB36_X2Y44}
+set_property PARENT pblock_rp_accels [get_pblocks pblock_accel1]
+create_pblock pblock_accel2
+resize_pblock [get_pblocks pblock_accel2] \
+    -add {SLICE_X56Y150:SLICE_X111Y224 DSP48_X3Y60:DSP48_X4Y89 RAMB18_X3Y60:RAMB18_X4Y89 RAMB36_X3Y30:RAMB36_X4Y44}
+set_property PARENT pblock_rp_accels [get_pblocks pblock_accel2]
+# Dans la console Tcl Vivado GUI
+# Densité par ligne Y dans la zone haute
+foreach y {150 160 170 180 190 200 210 220 230 240 250} {
+    set sites [get_sites -filter "NAME =~ SLICE_X*Y${y}"]
+    set used 0
+    foreach s $sites {
+        if {[get_property IS_USED $s]} { incr used }
+    }
+    puts "Y${y}: $used sites utilisés sur [llength $sites]"
+}
+foreach y {230 240 250 260 270 280 290 300 310 320 330 340 350} {
+    set sites [get_sites -filter "NAME =~ SLICE_X*Y${y}"]
+    puts "Y${y}: [llength $sites] sites disponibles"
+}
+set sites [get_sites -filter "NAME =~ SLICE_X*Y230"]
+set max_x 0
+foreach s $sites {
+    regexp {SLICE_X(\d+)Y} $s -> x
+    if {$x > $max_x} { set max_x $x }
+}
+puts "X max : $max_x"
+puts "DSP48 Y60-Y89 (zone haute):"
+foreach y {90 95 100 105 110 115 120} {
+    puts "  Y${y}: [llength [get_sites -filter \"NAME =~ DSP48*Y${y}\"]] DSP"
+}
+puts [llength [get_sites -filter {NAME =~ DSP48_X*Y90}]]
+puts [llength [get_sites -filter {NAME =~ DSP48_X*Y95}]]
+puts [llength [get_sites -filter {NAME =~ DSP48_X*Y100}]]
+puts [llength [get_sites -filter {NAME =~ DSP48_X*Y105}]]
+puts [llength [get_sites -filter {NAME =~ RAMB36_X*Y45}]]
+puts [llength [get_sites -filter {NAME =~ RAMB36_X*Y50}]]
+puts [llength [get_sites -filter {NAME =~ RAMB36_X*Y55}]]
+puts [llength [get_sites -filter {NAME =~ RAMB36_X*Y60}]]
+puts [llength [get_sites -filter {NAME =~ RAMB18_X*Y90}]]
+puts [llength [get_sites -filter {NAME =~ RAMB18_X*Y100}]]
+foreach y {0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20} {
+    set d [llength [get_sites -filter "NAME =~ DSP48_X*Y${y}"]]
+    set r [llength [get_sites -filter "NAME =~ RAMB36_X*Y${y}"]]
+    if {$d > 0 || $r > 0} { puts "Y${y}: DSP=$d RAMB36=$r" }
+}
+foreach y {44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65} {
+    set d [llength [get_sites -filter "NAME =~ DSP48_X*Y${y}"]]
+    set r36 [llength [get_sites -filter "NAME =~ RAMB36_X*Y${y}"]]
+    set r18 [llength [get_sites -filter "NAME =~ RAMB18_X*Y${y}"]]
+    if {$d > 0 || $r36 > 0} { puts "Y${y}: DSP=$d RAMB36=$r36 RAMB18=$r18" }
+}
+foreach y {44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65} {
+    set used_dsp 0
+    set used_r36 0
+    foreach s [get_sites -filter "NAME =~ DSP48_X*Y${y}"] {
+        if {[get_property IS_USED $s]} { incr used_dsp }
+    }
+    foreach s [get_sites -filter "NAME =~ RAMB36_X*Y${y}"] {
+        if {[get_property IS_USED $s]} { incr used_r36 }
+    }
+    puts "Y${y}: DSP_used=$used_dsp RAMB36_used=$used_r36"
+}
