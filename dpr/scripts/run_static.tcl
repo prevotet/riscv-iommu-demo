@@ -117,8 +117,12 @@ lock_design -level routing
 
 # 8. CONVERSION EN BLACK-BOX AVANT EXPORT
 puts "==> Conversion des cellules reconfigurables en black-box..."
+# Conversion en black-box puis insertion des buffers de frontière
+# Conversion en black-box puis insertion des buffers de frontière
 update_design -cell i_ariane_peripherals/gen_dma.i_accel1 -black_box
 update_design -cell i_ariane_peripherals/gen_dma.gen_accel2.i_accel2 -black_box
+update_design -cell i_ariane_peripherals/gen_dma.i_accel1 -buffer_ports
+update_design -cell i_ariane_peripherals/gen_dma.gen_accel2.i_accel2 -buffer_ports
 puts "  -> black-box appliqué"
 
 # 9. EXPORTATION DU CHECKPOINT
@@ -135,7 +139,9 @@ create_waiver -quiet -type DRC -id {CFGBVS-1} \
     -description "Tension config non critique"
 puts "==> Waivers DFX créés"
 
-write_bitstream -force $work_dpr/static_full.bit
-
+#write_bitstream -force -pr_header $work_dpr/static_full.bit
+# Export du checkpoint statique sans bitstream
+write_checkpoint -force $work_dpr/static_routed.dcp
+puts "OK: checkpoint statique exporté — bitstream généré lors du flow partiel"
 
 puts "OK: static checkpoint -> $work_dpr/static_routed.dcp"
