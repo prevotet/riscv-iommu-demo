@@ -1,9 +1,9 @@
 #!/bin/bash
 # =============================================================================
-# build.sh — Script de build flexible pour riscv-iommu-demo
-# Usage: [ENV_VARS] ./build.sh [TARGET]
+# 2build_HB.sh — Script de build flexible pour riscv-iommu-demo
+# Usage: [ENV_VARS] ./2_build_HB.sh [TARGET]
 #
-# Targets : all | clean | fpga | baremetal | bao | opensbi
+# Targets : all | clean | fpga | fpga-dpr | baremetal | bao | opensbi
 #
 # Variables d'environnement surchargeables :
 #   VIVADO_VERSION, VIVADO_DIR
@@ -153,19 +153,16 @@ do_clean() {
 
 do_fpga() {
     log_step "Synthèse FPGA (CVA6)"
-    #cp -f $ROOT_DIR/cva6/corev_apu/rv_iommu/packages/dependencies/ariane_axi_soc_pkg.sv $ROOT_DIR/cva6/corev_apu/tb
-    # Copy armor files 
     mkdir -p $ROOT_DIR/cva6/corev_apu/fpga/src/armor/
     mkdir -p $ROOT_DIR/cva6/corev_apu/fpga/src/armor/SRC
     mkdir -p $ROOT_DIR/cva6/corev_apu/fpga/src/armor/Include
     cp -f $ROOT_DIR/armor/SRC/*.sv $ROOT_DIR/cva6/corev_apu/fpga/src/armor/SRC
     cp -f $ROOT_DIR/armor/Include/*.* $ROOT_DIR/cva6/corev_apu/fpga/src/armor/Include
-   
-   # cp -f $ROOT_DIR/cva6/corev_apu/rv_iommu/packages/dependencies/ariane_soc_pkg.sv $ROOT_DIR/cva6/corev_apu/tb/ariane_soc_pkg.sv
+
     source "$VIVADO_DIR/settings64.sh"
-    
+
     if [[ -f "$ROOT_DIR/cva6/corev_apu/fpga/work-fpga/ariane_xilinx.bit" ]] && [[ "${FORCE_FPGA:-0}" != "1" ]]; then
-        log_warn "Synthèse déjà réalisée — pour forcer, utiliser FORCE_FPGA=1 ou './build.sh fpga --force'"
+        log_warn "Synthèse déjà réalisée — pour forcer, utiliser FORCE_FPGA=1 ou './2build_HB.sh fpga --force'"
     else
         log_warn "Mode force activé — suppression des fichiers .bit"
         rm -rf "$ROOT_DIR/cva6/corev_apu/fpga/work-fpga/ariane_xilinx.bit"
@@ -179,7 +176,6 @@ do_fpga() {
     log_ok "FPGA prêt"
 }
 
-
 do_fpga_dpr() {
     log_step "Synthèse FPGA DPR (Dynamic Partial Reconfiguration)"
 
@@ -190,12 +186,23 @@ do_fpga_dpr() {
 
     log_step "  → Log DPR : $dpr_log"
 
-    if [[ "${DPR_MODE:-}" == "all" ]]; then
+    if [[ "${DPR_MODE:-}" == "clean" ]]; then
+        log_step "  → Nettoyage des artefacts DPR"
+        RUN make -C "$ROOT_DIR/dpr" dpr-clean 2>&1 | tee "$dpr_log"
+        if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
+            log_error "Nettoyage DPR échoué. Voir $dpr_log"
+            exit 1
+        fi
+        log_ok "Nettoyage DPR terminé"
+        return
+    elif [[ "${DPR_MODE:-}" == "all" ]]; then
         log_step "  → Génération de TOUTES les configurations (dpr-all)"
         RUN make -C "$ROOT_DIR/dpr" dpr-all 2>&1 | tee "$dpr_log"
     elif [[ "${DPR_MODE:-}" == "static" ]]; then
         log_step "  → Génération de la base statique uniquement"
-        RUN make -C "$ROOT_DIR/dpr" dpr-static 2>&1 | tee "$dpr_log"
+        local force_flag=""
+        [[ "${FORCE_FPGA:-0}" == "1" ]] && force_flag="FORCE_STATIC=1"
+        RUN make -C "$ROOT_DIR/dpr" dpr-static $force_flag 2>&1 | tee "$dpr_log"
     else
         log_step "  → Génération de la config partielle : $rm_to_build"
         RUN make -C "$ROOT_DIR/dpr" dpr-partial RM="$rm_to_build" 2>&1 | tee "$dpr_log"
@@ -204,7 +211,6 @@ do_fpga_dpr() {
     # Vérifie le code de retour (tee masque l'erreur du make)
     if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
         log_error "Flux DPR échoué. Voir $dpr_log"
-        # Affiche les dernières erreurs Vivado
         grep "^ERROR:\|^CRITICAL" "$dpr_log" | tail -20
         exit 1
     fi
@@ -221,11 +227,6 @@ do_fpga_dpr() {
 
 do_baremetal() {
     log_step "Compilation des guests baremetal"
-
-    # Copie du source principal depuis trust_gw
-    #copy_if_changed \
-     #   "$ROOT_DIR/trust_gw/bao-baremetal-guest/src/main.c" \
-      #  "$ROOT_DIR/bao-baremetal-guest/src/main.c"
 
     log_step "  → Guest baremetal principal"
     RUN make -C "$ROOT_DIR/bao-baremetal-guest" \
@@ -291,7 +292,6 @@ do_program() {
 
     source "$VIVADO_DIR/settings64.sh"
 
-    # Écriture du script TCL dans un fichier temporaire
     local tcl_script
     tcl_script=$(mktemp /tmp/program_fpga_XXXXXX.tcl)
     trap "rm -f $tcl_script" EXIT
@@ -333,26 +333,22 @@ do_sdcard() {
     local fw="$ROOT_DIR/opensbi/build/platform/fpga/ariane/firmware/fw_payload.bin"
     local device="${SDCARD_DEV:-}"
 
-    # Vérification du firmware
     if [[ ! -f "$fw" ]]; then
         log_error "Firmware introuvable : $fw (lancer 'do_opensbi' d'abord)"
         exit 1
     fi
 
-    # Détection automatique si SDCARD_DEV non défini
     if [[ -z "$device" ]]; then
         log_step "  → Détection de la carte SD"
         sudo fdisk -l 2>/dev/null | grep -E "^Disk /dev/sd" || true
         read -rp "Entrer le device SD (ex: /dev/sdc) : " device
     fi
 
-    # Vérification que le device existe
     if [[ ! -b "$device" ]]; then
         log_error "Device introuvable ou non-bloc : $device"
         exit 1
     fi
 
-    # Confirmation de sécurité
     log_warn "ATTENTION : $device va être entièrement réécrit !"
     read -rp "Confirmer (oui/NON) : " confirm
     if [[ "$confirm" != "oui" ]]; then
@@ -374,9 +370,7 @@ do_sdcard() {
     log_ok "Carte SD flashée sur $device"
 }
 
-
 do_all() {
-    #init_submodules
     create_dirs
     do_fpga
     do_baremetal
@@ -410,7 +404,7 @@ case "$TARGET" in
     all)       do_all ;;
     clean)     do_clean ;;
     fpga)      create_dirs; do_fpga ;;
-    fpga-dpr)  create_dirs; do_fpga_dpr ;; 
+    fpga-dpr)  create_dirs; do_fpga_dpr ;;
     baremetal) create_dirs; do_baremetal ;;
     bao)       create_dirs; do_bao ;;
     opensbi)   create_dirs; do_opensbi ;;
@@ -424,22 +418,26 @@ case "$TARGET" in
         echo "Targets disponibles :"
         echo "  all        — build complet (défaut)"
         echo "  clean      — supprime tous les artefacts"
-        echo "  fpga       — synthèse CVA6 uniquement (ajouter --force pour resynthétiser)"
+        echo "  fpga       — synthèse CVA6 uniquement"
+        echo "               FORCE_FPGA=1 ./2build_HB.sh fpga    # forcer via variable"
+        echo "               ./2build_HB.sh fpga --force         # forcer via flag"
         echo ""
-        echo     "  FORCE_FPGA=1 ./build.sh fpga           # forcer via variable"
-        echo "  ./build.sh fpga --force                # forcer via flag"
-        echo "  fpga-dpr   — synthèse avec Reconfiguration Partielle"
+        echo "  fpga-dpr   — synthèse avec Reconfiguration Partielle Dynamique"
         echo ""
         echo "Exemples DPR :"
-        echo "  RM=accel_A ./build.sh fpga-dpr        # Compile la config A"
-        echo "  DPR_MODE=all ./build.sh fpga-dpr      # Compile tout (A, B, default)"
-        echo "  DPR_MODE=static ./build.sh fpga-dpr   # Génère uniquement le checkpoint statique"
+        echo "  DPR_MODE=clean  ./2build_HB.sh fpga-dpr          # nettoie tous les artefacts DPR"
+        echo "  DPR_MODE=static ./2build_HB.sh fpga-dpr          # génère le checkpoint statique"
+        echo "  FORCE_FPGA=1 DPR_MODE=static ./2build_HB.sh fpga-dpr  # force la régénération"
+        echo "  RM=accel_A ./2build_HB.sh fpga-dpr               # compile la config A"
+        echo "  DPR_MODE=all ./2build_HB.sh fpga-dpr             # compile tout (A, B, default)"
+        echo ""
         echo "  baremetal  — guests baremetal uniquement"
         echo "  bao        — hyperviseur BAO uniquement"
         echo "  opensbi    — OpenSBI uniquement"
+        echo "  program    — charge le bitstream sur la carte"
         echo "  sdcard     — partitionne et flashe la carte SD"
-        echo "" 
-        echo "  SDCARD_DEV=/dev/sdc ./build.sh sdcard   # sans prompt interactif"
+        echo ""
+        echo "  SDCARD_DEV=/dev/sdc ./2build_HB.sh sdcard        # sans prompt interactif"
         echo ""
         echo "Variables d'environnement :"
         echo "  VIVADO_VERSION     (défaut: 2022.2)"

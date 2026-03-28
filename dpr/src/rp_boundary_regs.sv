@@ -1,8 +1,6 @@
-
 // rp_boundary_regs.sv
 // Registres pipeline à la frontière statique/RP.
 
-// Inclure la définition de l'interface AXI pour éviter "no interface AXI_BUS found"
 `include "axi/typedef.svh"
 `include "axi/assign.svh"
 
@@ -15,12 +13,31 @@ module rp_boundary_regs #(
 ) (
     input  logic clk_i,
     input  logic rst_ni,
+    // Boutons physiques (IO → RP via registres statiques)
+    input  logic btnu_i, btnd_i, btnl_i, btnr_i, btnc_i,
+    output logic btnu_o, btnd_o, btnl_o, btnr_o, btnc_o,
     AXI_BUS.Slave  s,
     AXI_BUS.Master m
 );
 
+    // Pipeline des boutons (toujours registré, même en PASS_THROUGH)
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            btnu_o <= 1'b0;
+            btnd_o <= 1'b0;
+            btnl_o <= 1'b0;
+            btnr_o <= 1'b0;
+            btnc_o <= 1'b0;
+        end else begin
+            btnu_o <= btnu_i;
+            btnd_o <= btnd_i;
+            btnl_o <= btnl_i;
+            btnr_o <= btnr_i;
+            btnc_o <= btnc_i;
+        end
+    end
+
     if (PASS_THROUGH) begin : gen_bypass
-        // Bypass combinatoire (simulation)
         assign m.aw_valid = s.aw_valid; assign m.aw_id     = s.aw_id;
         assign m.aw_addr  = s.aw_addr;  assign m.aw_len    = s.aw_len;
         assign m.aw_size  = s.aw_size;  assign m.aw_burst  = s.aw_burst;
@@ -53,7 +70,6 @@ module rp_boundary_regs #(
 
     end else begin : gen_registered
 
-        // AW : statique → RP (skid buffer)
         always_ff @(posedge clk_i or negedge rst_ni) begin
             if (!rst_ni) begin
                 m.aw_valid <= 1'b0;
@@ -75,7 +91,6 @@ module rp_boundary_regs #(
         end
         assign s.aw_ready = !m.aw_valid || m.aw_ready;
 
-        // AR : statique → RP (skid buffer)
         always_ff @(posedge clk_i or negedge rst_ni) begin
             if (!rst_ni) begin
                 m.ar_valid <= 1'b0;
@@ -96,7 +111,6 @@ module rp_boundary_regs #(
         end
         assign s.ar_ready = !m.ar_valid || m.ar_ready;
 
-        // W : statique → RP
         always_ff @(posedge clk_i or negedge rst_ni) begin
             if (!rst_ni) begin
                 m.w_valid <= 1'b0;
@@ -110,7 +124,6 @@ module rp_boundary_regs #(
         end
         assign s.w_ready = m.w_ready;
 
-        // B : RP → statique
         always_ff @(posedge clk_i or negedge rst_ni) begin
             if (!rst_ni) begin
                 s.b_valid <= 1'b0;
@@ -123,7 +136,6 @@ module rp_boundary_regs #(
         end
         assign m.b_ready = s.b_ready;
 
-        // R : RP → statique
         always_ff @(posedge clk_i or negedge rst_ni) begin
             if (!rst_ni) begin
                 s.r_valid <= 1'b0;

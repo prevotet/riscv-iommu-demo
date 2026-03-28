@@ -87,3 +87,4 @@ dpr-all: dpr-static
 dpr-clean:
 	@echo "==> Nettoyage..."
 	rm -rf $(WORK_DPR)
+	rm -f $(DPR_DIR)/constraints/pblock_accels_impl.xdc
