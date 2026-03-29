@@ -45,7 +45,7 @@ dpr-ips:
 # Nécessaire seulement si le projet n'existe pas encore
 $(CVA6_FPGA)/ariane.xpr:
 	@echo "==> Création du projet Vivado (ariane.xpr)..."
-	cd $(CVA6_FPGA) && BOARD=genesys2 $(VIVADO) -source scripts/run.tcl -e "exit 0" || true
+	cd $(CVA6_FPGA) && BOARD=genesys2 XILINX_PART=xc7k325tffg900-2 XILINX_BOARD=digilentinc.com:genesys2:part0:1.1 vivado -nojournal -nolog -mode batch -source scripts/prologue.tcl -source scripts/run.tcl || true
 	@if [ ! -f $(CVA6_FPGA)/ariane.xpr ]; then \
 		echo "ERROR: ariane.xpr non créé, vérifiez scripts/run.tcl"; \
 		exit 1; \

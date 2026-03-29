@@ -28,6 +28,16 @@ foreach f [list \
 }
 update_compile_order -fileset sources_1
 
+# 1b. AJOUT DE L'IP HWICAP AU PROJET
+puts "==> Vérification de l'IP HWICAP..."
+set hwicap_xci $cva6_fpga/xilinx/xlnx_axi_hwicap/xlnx_axi_hwicap.srcs/sources_1/ip/xlnx_axi_hwicap/xlnx_axi_hwicap.xci
+if {[llength [get_files -quiet $hwicap_xci]] == 0} {
+    add_files -norecurse $hwicap_xci
+    puts "  -> ajoutée : xlnx_axi_hwicap.xci"
+} else {
+    puts "  -> déjà présente : xlnx_axi_hwicap.xci"
+}
+
 # 2. FORÇAGE DU TOP ET OPTIONS SYNTHÈSE
 set_property top ariane_xilinx [get_filesets sources_1]
 set_property -name {STEPS.SYNTH_DESIGN.ARGS.FLATTEN_HIERARCHY} \
@@ -43,6 +53,21 @@ foreach ip {xlnx_axi_dwidth_converter_dm_master xlnx_axi_dwidth_converter_dm_sla
     } else {
         puts "  WARNING: IP non trouvée : $ip"
     }
+}
+
+# 3b. GÉNÉRATION DES CIBLES HWICAP (generate_target au lieu de synth_ip)
+puts "==> Génération des cibles HWICAP..."
+set hwicap_ip [get_ips -quiet xlnx_axi_hwicap]
+if {[llength $hwicap_ip] > 0} {
+    generate_target all [get_ips xlnx_axi_hwicap]
+    set hwicap_run [get_runs -quiet xlnx_axi_hwicap_synth_1]
+    if {[llength $hwicap_run] > 0} {
+        reset_run xlnx_axi_hwicap_synth_1
+    }
+    synth_ip [get_ips xlnx_axi_hwicap]
+    puts "  -> generate_target OK : xlnx_axi_hwicap"
+} else {
+    puts "  WARNING: xlnx_axi_hwicap non trouvée dans le projet"
 }
 
 # 4. SYNTHÈSE

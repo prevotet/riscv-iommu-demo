@@ -1,9 +1,9 @@
 #!/bin/bash
 # =============================================================================
 # 2build_HB.sh — Script de build flexible pour riscv-iommu-demo
-# Usage: [ENV_VARS] ./2_build_HB.sh [TARGET]
+# Usage: [ENV_VARS] ./2build_HB.sh [TARGET]
 #
-# Targets : all | clean | fpga | fpga-dpr | baremetal | bao | opensbi
+# Targets : all | clean | fpga | fpga-dpr | hwicap-setup | baremetal | bao | opensbi
 #
 # Variables d'environnement surchargeables :
 #   VIVADO_VERSION, VIVADO_DIR
@@ -45,6 +45,9 @@ BUILD_CVA6_DIR="${BUILD_CVA6_DIR:-$BUILD_DIR/hw}"
 CONFIG_BAREMETAL_DIR="${CONFIG_BAREMETAL_DIR:-$BUILD_DIR/vm-configs/cva6-baremetal}"
 BAO_SRCS="${BAO_SRCS:-$ROOT_DIR/bao-hypervisor}"
 
+CVA6_FPGA="$ROOT_DIR/cva6/corev_apu/fpga"
+HWICAP_DIR="$CVA6_FPGA/xilinx/xlnx_axi_hwicap"
+
 # =============================================================================
 # Utilitaires
 # =============================================================================
@@ -54,7 +57,6 @@ log_ok()    { echo -e "\e[32m[OK]\e[0m $*"; }
 log_warn()  { echo -e "\e[33m[WARN]\e[0m $*"; }
 log_error() { echo -e "\e[31m[ERROR]\e[0m $*" >&2; }
 
-# Wrapper DRY_RUN : affiche la commande sans l'exécuter si DRY_RUN=1
 RUN() {
     if [[ "$DRY_RUN" == "1" ]]; then
         echo -e "\e[90m[DRY-RUN]\e[0m $*"
@@ -63,7 +65,6 @@ RUN() {
     fi
 }
 
-# Copie uniquement si le fichier source a changé
 copy_if_changed() {
     local src="$1" dst="$2"
     if [[ ! -f "$dst" ]] || ! cmp -s "$src" "$dst"; then
@@ -139,15 +140,162 @@ create_dirs() {
 }
 
 # =============================================================================
+# HWICAP — Création de la structure IP et intégration dans le projet CVA6
+# =============================================================================
+do_hwicap_setup() {
+    log_step "Configuration de l'IP AXI HWICAP"
+
+    local CVA6_FPGA="$ROOT_DIR/cva6/corev_apu/fpga"
+    local SOC_PKG="$ROOT_DIR/cva6/corev_apu/tb/ariane_soc_pkg.sv"
+    local PERIPH="$CVA6_FPGA/src/ariane_peripherals_xilinx.sv"
+    local TOP="$CVA6_FPGA/src/ariane_xilinx.sv"
+    local HWICAP_DIR="$CVA6_FPGA/xilinx/xlnx_axi_hwicap"
+
+    # ------------------------------------------------------------------
+    # 1. Créer la structure IP
+    # ------------------------------------------------------------------
+    log_step "  → Création xilinx/xlnx_axi_hwicap/"
+    mkdir -p "$HWICAP_DIR/tcl" "$HWICAP_DIR/ip"
+
+    cat > "$HWICAP_DIR/Makefile" << 'EOF'
+PROJECT:=xlnx_axi_hwicap
+include ../common.mk
+EOF
+
+    cat > "$HWICAP_DIR/tcl/run.tcl" << 'EOF'
+set partNumber $::env(XILINX_PART)
+set boardName  $::env(XILINX_BOARD)
+set ipName xlnx_axi_hwicap
+create_project $ipName . -force -part $partNumber
+set_property board_part $boardName [current_project]
+create_ip -name axi_hwicap -vendor xilinx.com -library ip \
+    -version 3.0 -module_name $ipName
+set_property -dict [list \
+    CONFIG.C_ICAP_EXTERNAL   {0} \
+    CONFIG.C_INCLUDE_STARTUP {0} \
+] [get_ips $ipName]
+generate_target {instantiation_template} \
+    [get_files ./$ipName.srcs/sources_1/ip/$ipName/$ipName.xci]
+generate_target all \
+    [get_files ./$ipName.srcs/sources_1/ip/$ipName/$ipName.xci]
+create_ip_run \
+    [get_files -of_objects [get_fileset sources_1] \
+    ./$ipName.srcs/sources_1/ip/$ipName/$ipName.xci]
+launch_run -jobs 8 ${ipName}_synth_1
+EOF
+    log_ok "  → Fichiers IP créés"
+
+    # ------------------------------------------------------------------
+    # 2. Mettre à jour le Makefile CVA6
+    # ------------------------------------------------------------------
+    if ! grep -q "xlnx_axi_hwicap" "$CVA6_FPGA/Makefile"; then
+        sed -i \
+          's/xlnx_mig_7_ddr3\.xci/xlnx_mig_7_ddr3.xci \\\n       xlnx_axi_hwicap.xci/' \
+          "$CVA6_FPGA/Makefile"
+        log_ok "  → Makefile CVA6 mis à jour"
+    fi
+
+    # ------------------------------------------------------------------
+    # 3. ariane_soc_pkg.sv — ajouter HWICAP index + adresse
+    # ------------------------------------------------------------------
+    if ! grep -q "HWICAP" "$SOC_PKG"; then
+        # Ajouter HWICAP = 15 après Debug = 14 dans l'enum
+        sed -i 's/Debug     =  14/Debug     =  14,\n    HWICAP    =  15/' "$SOC_PKG"
+        # NB_PERIPHERALS = HWICAP + 1
+        sed -i 's/localparam NB_PERIPHERALS = Debug + 1;/localparam NB_PERIPHERALS = HWICAP + 1;/' \
+            "$SOC_PKG"
+        # Ajouter HWICAPLength
+        sed -i 's/localparam logic\[63:0\] DRAMLength/localparam logic[63:0] HWICAPLength   = 64'"'"'h1000;\n  localparam logic[63:0] DRAMLength/' \
+            "$SOC_PKG"
+        # Ajouter HWICAPBase dans l'enum des adresses (après GPIOBase)
+        sed -i 's/GPIOBase     = 64'"'"'h4000_0000,/GPIOBase     = 64'"'"'h4000_0000,\n    HWICAPBase   = 64'"'"'h4001_0000,/' \
+            "$SOC_PKG"
+        log_ok "  → ariane_soc_pkg.sv mis à jour (HWICAP=15, base=0x4001_0000)"
+    else
+        log_warn "  → HWICAP déjà dans ariane_soc_pkg.sv"
+    fi
+
+    # ------------------------------------------------------------------
+    # 4. ariane_xilinx.sv — addr_map + InclHWICAP + port + connexion
+    # ------------------------------------------------------------------
+    if ! grep -q "HWICAP" "$TOP"; then
+        # Ajouter l'entrée addr_map après GPIO
+        sed -i "s/'{ idx: ariane_soc::GPIO.*GPIOLength      },/'{ idx: ariane_soc::GPIO,      start_addr: ariane_soc::GPIOBase,     end_addr: ariane_soc::GPIOBase      + ariane_soc::GPIOLength      },\n  '{ idx: ariane_soc::HWICAP,    start_addr: ariane_soc::HWICAPBase,   end_addr: ariane_soc::HWICAPBase    + ariane_soc::HWICAPLength    },/" \
+            "$TOP"
+        # Ajouter InclHWICAP dans l'instanciation ariane_peripherals
+        sed -i 's/\.InclGPIO     ( 1'"'"'b1             ),/.InclGPIO     ( 1'"'"'b1             ),\n    .InclHWICAP   ( 1'"'"'b1             ),/' \
+            "$TOP"
+        # Ajouter le port hwicap dans l'instanciation
+        sed -i 's/\.gpio         ( master\[ariane_soc::GPIO\]     ),/.gpio         ( master[ariane_soc::GPIO]     ),\n    .hwicap       ( master[ariane_soc::HWICAP]   ),/' \
+            "$TOP"
+        log_ok "  → ariane_xilinx.sv mis à jour"
+    else
+        log_warn "  → HWICAP déjà dans ariane_xilinx.sv"
+    fi
+
+    # ------------------------------------------------------------------
+    # 5. ariane_peripherals_xilinx.sv — port + paramètre + instanciation
+    # ------------------------------------------------------------------
+    if ! grep -q "InclHWICAP" "$PERIPH"; then
+        # Ajouter le paramètre InclHWICAP
+        sed -i 's/parameter bit InclTimer    =  1,/parameter bit InclTimer    =  1,\n    parameter bit InclHWICAP   =  0,/' \
+            "$PERIPH"
+        # Ajouter le port hwicap
+        sed -i 's/AXI_BUS.Slave      timer           ,/AXI_BUS.Slave      timer           ,\n    AXI_BUS.Slave      hwicap          ,/' \
+            "$PERIPH"
+        # Ajouter l'instanciation à la fin du generate timer
+        sed -i '/InclTimer.*gen_timer/,/end.*gen_timer/ { /end.*gen_timer/a\
+\
+    \/\/ HWICAP\
+    if (InclHWICAP) begin : gen_hwicap\
+        xlnx_axi_hwicap i_hwicap (\
+            .s_axi_aclk    ( clk_i              ),\
+            .s_axi_aresetn ( rst_ni             ),\
+            .s_axi_awaddr  ( hwicap.aw_addr[8:0]),\
+            .s_axi_awvalid ( hwicap.aw_valid    ),\
+            .s_axi_awready ( hwicap.aw_ready    ),\
+            .s_axi_wdata   ( hwicap.w_data[31:0]),\
+            .s_axi_wstrb   ( hwicap.w_strb[3:0] ),\
+            .s_axi_wvalid  ( hwicap.w_valid     ),\
+            .s_axi_wready  ( hwicap.w_ready     ),\
+            .s_axi_bresp   ( hwicap.b_resp      ),\
+            .s_axi_bvalid  ( hwicap.b_valid     ),\
+            .s_axi_bready  ( hwicap.b_ready     ),\
+            .s_axi_araddr  ( hwicap.ar_addr[8:0]),\
+            .s_axi_arvalid ( hwicap.ar_valid    ),\
+            .s_axi_arready ( hwicap.ar_ready    ),\
+            .s_axi_rdata   ( hwicap.r_data[31:0]),\
+            .s_axi_rresp   ( hwicap.r_resp      ),\
+            .s_axi_rvalid  ( hwicap.r_valid     ),\
+            .s_axi_rready  ( hwicap.r_ready     ),\
+            .ip2intc_irpt  ( irq_sources[7]     )\
+        );\
+        assign hwicap.b_id   = '"'"'0;\
+        assign hwicap.b_user = '"'"'0;\
+        assign hwicap.r_id   = '"'"'0;\
+        assign hwicap.r_user = '"'"'0;\
+        assign hwicap.r_last = 1'"'"'b1;\
+    end
+}' "$PERIPH"
+        log_ok "  → ariane_peripherals_xilinx.sv mis à jour"
+    else
+        log_warn "  → InclHWICAP déjà dans ariane_peripherals_xilinx.sv"
+    fi
+
+    log_ok "HWICAP setup terminé. Séquence suivante :"
+    log_ok "  DPR_MODE=clean ./2build_HB.sh fpga-dpr"
+    log_ok "  FORCE_FPGA=1 DPR_MODE=static ./2build_HB.sh fpga-dpr"
+    log_ok "  RM=accel_default ./2build_HB.sh fpga-dpr"
+}
+# =============================================================================
 # Cibles de build
 # =============================================================================
 
 do_clean() {
     log_step "Nettoyage de tous les artefacts"
-    RUN make -C "$ROOT_DIR/bao-baremetal-guest"    clean
     RUN make -C "$ROOT_DIR/bao-baremetal-guest" clean
-    RUN make -C "$ROOT_DIR/bao-hypervisor"         clean
-    RUN make -C "$ROOT_DIR/opensbi"                clean
+    RUN make -C "$ROOT_DIR/bao-hypervisor"      clean
+    RUN make -C "$ROOT_DIR/opensbi"             clean
     log_ok "Nettoyage terminé"
 }
 
@@ -208,7 +356,6 @@ do_fpga_dpr() {
         RUN make -C "$ROOT_DIR/dpr" dpr-partial RM="$rm_to_build" 2>&1 | tee "$dpr_log"
     fi
 
-    # Vérifie le code de retour (tee masque l'erreur du make)
     if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
         log_error "Flux DPR échoué. Voir $dpr_log"
         grep "^ERROR:\|^CRITICAL" "$dpr_log" | tail -20
@@ -228,13 +375,6 @@ do_fpga_dpr() {
 do_baremetal() {
     log_step "Compilation des guests baremetal"
 
-    log_step "  → Guest baremetal principal"
-    RUN make -C "$ROOT_DIR/bao-baremetal-guest" \
-        CROSS_COMPILE="$CROSS_COMPILE" \
-        PLATFORM=cva6 \
-        -j"$JOBS"
-
-    log_step "  → Guest baremetal"
     RUN make -C "$ROOT_DIR/bao-baremetal-guest" \
         CROSS_COMPILE="$CROSS_COMPILE" \
         PLATFORM=cva6 \
@@ -288,8 +428,6 @@ do_program() {
         exit 1
     fi
 
-    log_step "  → Bitstream : $bit"
-
     source "$VIVADO_DIR/settings64.sh"
 
     local tcl_script
@@ -309,7 +447,6 @@ disconnect_hw_server
 close_hw_manager
 EOF
 
-    log_step "  → Lancement de Vivado hw_server"
     if [[ "$DRY_RUN" == "1" ]]; then
         echo -e "\e[90m[DRY-RUN]\e[0m vivado -mode batch -source $tcl_script"
     else
@@ -384,10 +521,8 @@ do_all() {
 # =============================================================================
 
 TARGET="${1:-all}"
-
 FORCE_FPGA=0
 
-# Parsing des flags optionnels
 for arg in "$@"; do
     case "$arg" in
         --force) FORCE_FPGA=1 ;;
@@ -395,49 +530,49 @@ for arg in "$@"; do
 done
 export FORCE_FPGA
 
-# Les cibles autres que clean vérifient les dépendances
 if [[ "$TARGET" != "clean" ]]; then
     check_deps
 fi
 
 case "$TARGET" in
-    all)       do_all ;;
-    clean)     do_clean ;;
-    fpga)      create_dirs; do_fpga ;;
-    fpga-dpr)  create_dirs; do_fpga_dpr ;;
-    baremetal) create_dirs; do_baremetal ;;
-    bao)       create_dirs; do_bao ;;
-    opensbi)   create_dirs; do_opensbi ;;
-    program)   create_dirs; do_program ;;
-    sdcard)    do_sdcard ;;
+    all)          do_all ;;
+    clean)        do_clean ;;
+    fpga)         create_dirs; do_fpga ;;
+    fpga-dpr)     create_dirs; do_fpga_dpr ;;
+    hwicap-setup) do_hwicap_setup ;;
+    baremetal)    create_dirs; do_baremetal ;;
+    bao)          create_dirs; do_bao ;;
+    opensbi)      create_dirs; do_opensbi ;;
+    program)      create_dirs; do_program ;;
+    sdcard)       do_sdcard ;;
     *)
         log_error "Cible inconnue : '$TARGET'"
         echo ""
         echo "Usage: [ENV_VARS] $0 [TARGET]"
         echo ""
         echo "Targets disponibles :"
-        echo "  all        — build complet (défaut)"
-        echo "  clean      — supprime tous les artefacts"
-        echo "  fpga       — synthèse CVA6 uniquement"
-        echo "               FORCE_FPGA=1 ./2build_HB.sh fpga    # forcer via variable"
-        echo "               ./2build_HB.sh fpga --force         # forcer via flag"
+        echo "  all           — build complet (défaut)"
+        echo "  clean         — supprime tous les artefacts"
+        echo "  fpga          — synthèse CVA6 uniquement"
+        echo "                  FORCE_FPGA=1 ./2build_HB.sh fpga"
+        echo "                  ./2build_HB.sh fpga --force"
         echo ""
-        echo "  fpga-dpr   — synthèse avec Reconfiguration Partielle Dynamique"
+        echo "  hwicap-setup  — crée l'IP AXI HWICAP et met à jour le Makefile CVA6"
+        echo "                  FORCE_HWICAP=1 ./2build_HB.sh hwicap-setup  # écraser"
         echo ""
-        echo "Exemples DPR :"
-        echo "  DPR_MODE=clean  ./2build_HB.sh fpga-dpr          # nettoie tous les artefacts DPR"
-        echo "  DPR_MODE=static ./2build_HB.sh fpga-dpr          # génère le checkpoint statique"
-        echo "  FORCE_FPGA=1 DPR_MODE=static ./2build_HB.sh fpga-dpr  # force la régénération"
-        echo "  RM=accel_A ./2build_HB.sh fpga-dpr               # compile la config A"
-        echo "  DPR_MODE=all ./2build_HB.sh fpga-dpr             # compile tout (A, B, default)"
+        echo "  fpga-dpr      — synthèse avec Reconfiguration Partielle Dynamique"
+        echo "  DPR_MODE=clean  ./2build_HB.sh fpga-dpr"
+        echo "  DPR_MODE=static ./2build_HB.sh fpga-dpr"
+        echo "  FORCE_FPGA=1 DPR_MODE=static ./2build_HB.sh fpga-dpr"
+        echo "  RM=accel_A ./2build_HB.sh fpga-dpr"
+        echo "  DPR_MODE=all ./2build_HB.sh fpga-dpr"
         echo ""
-        echo "  baremetal  — guests baremetal uniquement"
-        echo "  bao        — hyperviseur BAO uniquement"
-        echo "  opensbi    — OpenSBI uniquement"
-        echo "  program    — charge le bitstream sur la carte"
-        echo "  sdcard     — partitionne et flashe la carte SD"
-        echo ""
-        echo "  SDCARD_DEV=/dev/sdc ./2build_HB.sh sdcard        # sans prompt interactif"
+        echo "  baremetal     — guests baremetal uniquement"
+        echo "  bao           — hyperviseur BAO uniquement"
+        echo "  opensbi       — OpenSBI uniquement"
+        echo "  program       — charge le bitstream sur la carte"
+        echo "  sdcard        — partitionne et flashe la carte SD"
+        echo "                  SDCARD_DEV=/dev/sdc ./2build_HB.sh sdcard"
         echo ""
         echo "Variables d'environnement :"
         echo "  VIVADO_VERSION     (défaut: 2022.2)"
@@ -446,6 +581,7 @@ case "$TARGET" in
         echo "  BUILD_DIR          (défaut: <root>/build)"
         echo "  JOBS               (défaut: nproc)"
         echo "  DRY_RUN=1          (affiche les commandes sans les exécuter)"
+        echo "  FORCE_HWICAP=1     (force la recréation des fichiers HWICAP)"
         exit 1
         ;;
 esac
