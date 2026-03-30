@@ -4,19 +4,23 @@
 
 set work_dpr [lindex $argv 0]
 set rm_dir   [lindex $argv 1]
-
 set rm_name  [lindex $argv 2]
 
 set cva6_root [file normalize [file join $work_dpr ".." ".." ".."]]
 set cva6_fpga [file normalize [file join $work_dpr ".."]]
-set dpr_dir [file normalize [file join $work_dpr ".." ".." ".." ".." "dpr"]]
+set dpr_dir   [file normalize [file join $work_dpr ".." ".." ".." "dpr"]]
+
+# Checkpoints RM séparés pour accel1 (STREAM_ID=1) et accel2 (STREAM_ID=2)
+set rm_synth1 $work_dpr/${rm_name}_accel1_synth.dcp
+set rm_synth2 $work_dpr/${rm_name}_accel2_synth.dcp
 
 # =============================================================
 # 1. SYNTHÈSE DU RM DANS LE CONTEXTE DU PROJET ARIANE
+#    Deux checkpoints extraits séparément pour préserver
+#    les valeurs de STREAM_ID différentes (1 et 2)
 # =============================================================
-set rm_synth $work_dpr/${rm_name}_synth.dcp
 
-if {![file exists $rm_synth]} {
+if {![file exists $rm_synth1] || ![file exists $rm_synth2]} {
     puts "==> Synthèse du RM $rm_name dans le projet ariane..."
 
     # Copie du RM dans le projet CVA6
@@ -40,18 +44,31 @@ if {![file exists $rm_synth]} {
 
     open_run synth_1 -name synth_1
 
-    puts "==> Extraction du checkpoint RM..."
-    set cell [get_cells -quiet i_ariane_peripherals/gen_dma.i_accel1]
-    if {[llength $cell] == 0} {
-        puts "ERROR: cellule i_accel1 non trouvée dans le netlist"
+    # Extraire le checkpoint de i_accel1 (STREAM_ID=1)
+    puts "==> Extraction checkpoint accel1 (STREAM_ID=1)..."
+    set cell1_synth [get_cells -quiet i_ariane_peripherals/gen_dma.i_accel1]
+    if {[llength $cell1_synth] == 0} {
+        puts "ERROR: i_accel1 non trouvé dans le netlist"
         exit 1
     }
-    write_checkpoint -force -cell $cell $rm_synth
-    puts "  -> checkpoint RM : $rm_synth"
+    write_checkpoint -force -cell $cell1_synth $rm_synth1
+    puts "  -> checkpoint accel1 : $rm_synth1"
+
+    # Extraire le checkpoint de i_accel2 (STREAM_ID=2)
+    puts "==> Extraction checkpoint accel2 (STREAM_ID=2)..."
+    set cell2_synth [get_cells -quiet i_ariane_peripherals/gen_dma.gen_accel2.i_accel2]
+    if {[llength $cell2_synth] == 0} {
+        puts "ERROR: i_accel2 non trouvé dans le netlist"
+        exit 1
+    }
+    write_checkpoint -force -cell $cell2_synth $rm_synth2
+    puts "  -> checkpoint accel2 : $rm_synth2"
 
     close_project
 } else {
-    puts "==> RM en cache : $rm_synth"
+    puts "==> RMs en cache :"
+    puts "    $rm_synth1"
+    puts "    $rm_synth2"
 }
 
 # =============================================================
@@ -60,30 +77,33 @@ if {![file exists $rm_synth]} {
 puts "==> Ouverture du checkpoint statique..."
 open_checkpoint $work_dpr/static_routed.dcp
 
-# Suppression des pblocks automatiques créés par Vivado
-puts "==> Nettoyage des pblocks automatiques..."
-foreach pb [get_pblocks -quiet] {
-    puts "  -> suppression pblock : $pb"
-    delete_pblocks $pb
-}
-
-# Rechargement propre du XDC des pblocks DFX
+# =============================================================
+# 2b. RECHARGEMENT DU XDC DES PBLOCKS DFX
+# =============================================================
 puts "==> Rechargement du XDC des pblocks DFX..."
 set pblock_xdc $dpr_dir/constraints/pblock_accels_impl.xdc
 if {![file exists $pblock_xdc]} {
     puts "ERROR: XDC pblock introuvable : $pblock_xdc"
     exit 1
 }
+
+# Suppression des pblocks automatiques recréés par Vivado
+foreach pb [get_pblocks -quiet] {
+    delete_pblocks $pb
+}
+
 read_xdc $pblock_xdc
 set_property used_in_synthesis false [get_files $pblock_xdc]
+puts "  -> XDC chargé : $pblock_xdc"
 
-# Vérification
 foreach pb [get_pblocks] {
     puts "  PBLOCK: $pb -> [get_property GRID_RANGES $pb]"
 }
 
 # =============================================================
-# 3. CHARGEMENT DU RM DANS LES CELLULES RECONFIGURABLES
+# 3. CHARGEMENT DES RMs DANS LES CELLULES RECONFIGURABLES
+#    accel1 ← rm_synth1 (STREAM_ID=1)
+#    accel2 ← rm_synth2 (STREAM_ID=2)
 # =============================================================
 set cell1 [get_cells -quiet i_ariane_peripherals/gen_dma.i_accel1]
 set cell2 [get_cells -quiet i_ariane_peripherals/gen_dma.gen_accel2.i_accel2]
@@ -91,15 +111,18 @@ set cell2 [get_cells -quiet i_ariane_peripherals/gen_dma.gen_accel2.i_accel2]
 if {[llength $cell1] == 0} { puts "ERROR: i_accel1 non trouvé"; exit 1 }
 if {[llength $cell2] == 0} { puts "ERROR: i_accel2 non trouvé"; exit 1 }
 
-read_checkpoint -cell $cell1 $rm_synth
-puts "  -> RM chargé dans i_accel1"
+read_checkpoint -cell $cell1 $rm_synth1
+puts "  -> RM accel1 chargé (STREAM_ID=1) : $rm_synth1"
 
 # Re-capturer cell2 après modification du design
 set cell2 [get_cells -quiet i_ariane_peripherals/gen_dma.gen_accel2.i_accel2]
-if {[llength $cell2] == 0} { puts "ERROR: i_accel2 non trouvé après chargement accel1"; exit 1 }
+if {[llength $cell2] == 0} {
+    puts "ERROR: i_accel2 non trouvé après chargement accel1"
+    exit 1
+}
 
-read_checkpoint -cell $cell2 $rm_synth
-puts "  -> RM chargé dans i_accel2"
+read_checkpoint -cell $cell2 $rm_synth2
+puts "  -> RM accel2 chargé (STREAM_ID=2) : $rm_synth2"
 
 # =============================================================
 # 4. IMPLÉMENTATION PARTIELLE
