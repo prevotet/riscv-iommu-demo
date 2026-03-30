@@ -338,6 +338,7 @@ void main(void){
         timer_set(TIMER_INTERVAL);
         irq_enable(TIMER_IRQ_ID);
         master_done = true;
+        dpr_test();
     }
     irq_enable(UART_IRQ_ID);
     irq_set_prio(UART_IRQ_ID, IRQ_MAX_PRIO);
