@@ -25,6 +25,7 @@
 #include <uart.h>
 #include <timer.h>
 #include <idma.h>
+void dpr_test(void);
 
 #define TIMER_INTERVAL  (TIME_S(1))
 
@@ -350,6 +351,5 @@ void main(void){
     /*
      * Main Attack Loop
      */
-    while(1)
-        encode_fsm();
+    while(1) wfi();
 }

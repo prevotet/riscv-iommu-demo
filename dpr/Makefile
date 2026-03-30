@@ -76,7 +76,7 @@ dpr-partial:
 	@echo "==> Implémentation du module PARTIEL : $(RM)"
 	cp $(DPR_DIR)/rm/$(RM)/accel_*.sv $(CVA6_FPGA)/src/accel_wrap.sv
 	$(VIVADO) -source $(DPR_DIR)/scripts/run_partial.tcl \
-		-tclargs $(WORK_DPR) $(DPR_DIR)/rm/$(RM) $(RM)
+		-tclargs $(WORK_DPR) $(DPR_DIR)/rm/$(RM) $(RM) $(DPR_DIR)
 
 # --- Utilitaires ---
 dpr-all: dpr-static
