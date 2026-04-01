@@ -175,7 +175,7 @@ puts "  -> $dpr_dir/constraints/pblock_accels_impl.xdc"
 
 # 8. IMPLÉMENTATION
 puts "==> opt_design..."
-opt_design
+opt_design -directive Explore
 puts "==> place_design..."
 place_design
 puts "==> route_design..."

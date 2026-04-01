@@ -333,11 +333,11 @@ void main(void){
         spin_unlock(&print_lock);
 
         irq_set_handler(UART_IRQ_ID, uart_rx_handler);
-        irq_set_handler(TIMER_IRQ_ID, timer_handler);
+        //irq_set_handler(TIMER_IRQ_ID, timer_handler);
         irq_set_handler(IPI_IRQ_ID, ipi_handler);
-        uart_enable_rxirq();
-        timer_set(TIMER_INTERVAL);
-        irq_enable(TIMER_IRQ_ID);
+        //uart_enable_rxirq();
+        //timer_set(TIMER_INTERVAL);
+        //irq_enable(TIMER_IRQ_ID);
         master_done = true;
         dpr_test();
     }
