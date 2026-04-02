@@ -1,0 +1,18 @@
+CMD: make -C /home/jc/tmp/riscv-iommu-demo/bao-baremetal-guest CROSS_COMPILE=/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf- PLATFORM=cva6 SINGLE_CORE=y -j24
+DATE: mer. 01 avril 2026 23:07:11 CEST
+---
+make : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/bao-baremetal-guest »
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gcc -mcmodel=medany -march=rv64imac -mabi=lp64 -O0 -g3 -static    -I./src/inc -I./src/core/inc -I./src/platform/cva6/inc -I./src/drivers/8250_uart/inc -I./src/arch/riscv/inc -MD -MF build/cva6/dpr_test.o.d -DSINGLE_CORE=y -c src/dpr_test.c -o build/cva6/dpr_test.o
+src/dpr_test.c: In function 'hwicap_test_registers':
+src/dpr_test.c:129:29: error: 'HWICAP_CR_WRITE' undeclared (first use in this function); did you mean 'HWICAP_SR_DONE'?
+  129 |     mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
+      |                             ^~~~~~~~~~~~~~~
+      |                             HWICAP_SR_DONE
+src/dpr_test.c:129:29: note: each undeclared identifier is reported only once for each function it appears in
+src/dpr_test.c: In function 'hwicap_write_bitstream':
+src/dpr_test.c:159:33: error: 'HWICAP_CR_WRITE' undeclared (first use in this function); did you mean 'HWICAP_SR_DONE'?
+  159 |         mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
+      |                                 ^~~~~~~~~~~~~~~
+      |                                 HWICAP_SR_DONE
+make: *** [Makefile:108 : build/cva6/dpr_test.o] Erreur 1
+make : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/bao-baremetal-guest »

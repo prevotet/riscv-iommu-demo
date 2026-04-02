@@ -1,0 +1,10 @@
+CMD: make -C /home/jc/tmp/riscv-iommu-demo/bao-baremetal-guest CROSS_COMPILE=/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf- PLATFORM=cva6 SINGLE_CORE=y -j24
+DATE: jeu. 02 avril 2026 12:28:23 CEST
+---
+make : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/bao-baremetal-guest »
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gcc -mcmodel=medany -march=rv64imac -mabi=lp64 -O0 -g3 -static    -I./src/inc -I./src/core/inc -I./src/platform/cva6/inc -I./src/drivers/8250_uart/inc -I./src/arch/riscv/inc -MD -MF build/cva6/dpr_test2.o.d -DSINGLE_CORE=y -c src/dpr_test2.c -o build/cva6/dpr_test2.o
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gcc -mcmodel=medany -march=rv64imac -mabi=lp64 -O0 -g3 -static --specs=nano.specs -nostartfiles -Tbuild/cva6/linker.ld build/cva6/main.o build/cva6/dpr_test2.o build/cva6/hwicap_test.o build/cva6/core/irq.o build/cva6/core/retarget.o build/cva6/platform/cva6/cva6.o build/cva6/drivers/8250_uart/8250_uart.o build/cva6/arch/riscv/init.o build/cva6/arch/riscv/plic.o build/cva6/arch/riscv/sbi.o build/cva6/arch/riscv/exceptions.o build/cva6/arch/riscv/irq.o build/cva6/arch/riscv/timer.o build/cva6/arch/riscv/start.o -o build/cva6/baremetal.elf
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-objdump -S build/cva6/baremetal.elf > build/cva6/baremetal.asm
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-objdump -x -d --wide build/cva6/baremetal.elf > build/cva6/baremetal.lst
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-objcopy -O binary build/cva6/baremetal.elf build/cva6/baremetal.bin
+make : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/bao-baremetal-guest »

@@ -1,0 +1,82 @@
+#-----------------------------------------------------------
+# Vivado v2022.2 (64-bit)
+# SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+# IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+# Start of session at: Thu Apr  2 09:03:56 2026
+# Process ID: 8722
+# Current directory: /home/jc/tmp/riscv-iommu-demo
+# Command line: vivado -mode tcl
+# Log file: /home/jc/tmp/riscv-iommu-demo/vivado.log
+# Journal file: /home/jc/tmp/riscv-iommu-demo/vivado.jou
+# Running On: jc-VirtualBox, OS: Linux, CPU Frequency: 2995.200 MHz, CPU Physical cores: 24, Host memory: 21134 MB
+#-----------------------------------------------------------
+refresh_hw_device $dev
+can't read "dev": no such variable
+get_property REGISTER.CONFIG_STATUS $dev
+can't read "dev": no such variable
+set dev [lindex [get_hw_devices xc7k*] 0]
+WARNING: [Labtoolstcl 44-128] No matching hw_devices were found.
+refresh_hw_device $dev
+ERROR: [Labtoolstcl 44-5] Could not find current or explicit device for command
+get_property REGISTER.CONFIG_STATUS $dev
+ERROR: [Common 17-161] Invalid option value '' specified for 'object'.
+open_hw_target
+ERROR: [Labtoolstcl 44-235] The labtools system is not initialized. You must execute 'open_hw_manager' to initialize the labtools system prior using this command.
+set dev [lindex [get_hw_devices xc7k*] 0]
+WARNING: [Labtoolstcl 44-128] No matching hw_devices were found.
+current_hw_device $dev
+refresh_hw_device $dev
+ERROR: [Labtoolstcl 44-5] Could not find current or explicit device for command
+get_property REGISTER.CONFIG_STATUS $dev
+ERROR: [Common 17-161] Invalid option value '' specified for 'object'.
+get_property REGISTER.CONFIG_STATUS $de
+can't read "de": no such variable
+open_hw_target
+ERROR: [Labtoolstcl 44-235] The labtools system is not initialized. You must execute 'open_hw_manager' to initialize the labtools system prior using this command.
+set dev [lindex [get_hw_devices xc7k*] 0]
+WARNING: [Labtoolstcl 44-128] No matching hw_devices were found.
+current_hw_device $dev
+refresh_hw_device $dev
+ERROR: [Labtoolstcl 44-5] Could not find current or explicit device for command
+get_property REGISTER.CONFIG_STATUS $dev
+ERROR: [Common 17-161] Invalid option value '' specified for 'object'.
+open_hw_target
+ERROR: [Labtoolstcl 44-235] The labtools system is not initialized. You must execute 'open_hw_manager' to initialize the labtools system prior using this command.
+set dev [lindex [get_hw_devices xc7k*] 0]
+WARNING: [Labtoolstcl 44-128] No matching hw_devices were found.
+current_hw_device $dev
+refresh_hw_device $dev
+ERROR: [Labtoolstcl 44-5] Could not find current or explicit device for command
+ERROR: [Common 17-161] Invalid option value '' specified for 'object'.
+open_hw_manager
+connect_hw_server
+INFO: [Labtools 27-2285] Connecting to hw_server url TCP:localhost:3121
+INFO: [Labtools 27-3415] Connecting to cs_server url TCP:localhost:0
+INFO: [Labtools 27-3417] Launching cs_server...
+INFO: [Labtools 27-2221] Launch Output:
+
+
+******** Xilinx cs_server v2022.2.0
+  ****** Build date   : Oct 05 2022-01:25:37
+    **** Build number : 2022.2.1664925937
+      ** Copyright 2017-2026 Xilinx, Inc. All Rights Reserved.
+
+
+
+connect_hw_server: Time (s): cpu = 00:00:09 ; elapsed = 00:00:16 . Memory (MB): peak = 1426.055 ; gain = 8.180 ; free physical = 12108 ; free virtual = 19031
+localhost:3121
+open_hw_target
+INFO: [Labtoolstcl 44-466] Opening hw_target localhost:3121/xilinx_tcf/Digilent/200300BB8B2CB
+set dev [lindex [get_hw_devices xc7k*] 0]
+xc7k325t_0
+current_hw_device $dev
+xc7k325t_0
+refresh_hw_device $dev
+INFO: [Labtools 27-1434] Device xc7k325t (JTAG device index = 0) is programmed with a design that has no supported debug core(s) in it.
+refresh_hw_device: Time (s): cpu = 00:00:00 ; elapsed = 00:00:06 . Memory (MB): peak = 3342.059 ; gain = 1908.000 ; free physical = 10163 ; free virtual = 17088
+get_property REGISTER.CONFIG_STATUS $dev
+01010000000100000111110111111100
+refresh_hw_device $dev
+INFO: [Labtools 27-1434] Device xc7k325t (JTAG device index = 0) is programmed with a design that has no supported debug core(s) in it.
+get_property REGISTER.CONFIG_STATUS $dev
+01010000000100000111110111111100

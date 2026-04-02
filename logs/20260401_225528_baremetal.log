@@ -1,0 +1,18 @@
+CMD: make -C /home/jc/tmp/riscv-iommu-demo/bao-baremetal-guest CROSS_COMPILE=/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf- PLATFORM=cva6 SINGLE_CORE=y -j24
+DATE: mer. 01 avril 2026 22:55:28 CEST
+---
+make : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/bao-baremetal-guest »
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gcc -mcmodel=medany -march=rv64imac -mabi=lp64 -O0 -g3 -static    -I./src/inc -I./src/core/inc -I./src/platform/cva6/inc -I./src/drivers/8250_uart/inc -I./src/arch/riscv/inc -MD -MF build/cva6/dpr_test.o.d -DSINGLE_CORE=y -c src/dpr_test.c -o build/cva6/dpr_test.o
+src/dpr_test.c:100:1: error: unknown type name 'vvoid'; did you mean 'void'?
+  100 | vvoid hwicap_test_registers(void) {
+      | ^~~~~
+      | void
+src/dpr_test.c: In function 'hwicap_test_registers':
+src/dpr_test.c:122:9: warning: 'return' with no value, in function returning non-void
+  122 |         return;
+      |         ^~~~~~
+src/dpr_test.c:100:7: note: declared here
+  100 | vvoid hwicap_test_registers(void) {
+      |       ^~~~~~~~~~~~~~~~~~~~~
+make: *** [Makefile:108 : build/cva6/dpr_test.o] Erreur 1
+make : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/bao-baremetal-guest »
