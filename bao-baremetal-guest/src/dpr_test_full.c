@@ -91,21 +91,16 @@ static void check_accel_state(int index) {
 
 static void hwicap_diag_bridge(void) {
     printf("[HWICAP] Diagnostic Bridge 64->32...\n");
-    uint32_t sz_orig = mmio_read32(HWICAP_SZ);
-    
-    // Test d'écriture/lecture alterné
-    mmio_write32(HWICAP_SZ, 0x555);
-    uint32_t r1 = mmio_read32(HWICAP_SZ) & 0xFFF;
-    mmio_write32(HWICAP_SZ, 0xAAA);
-    uint32_t r2 = mmio_read32(HWICAP_SZ) & 0xFFF;
-    
-    mmio_write32(HWICAP_SZ, sz_orig);
-    
-    if (r1 == 0x555 && r2 == 0xAAA) {
-        printf("[HWICAP] [OK] Bridge AXI/APB opérationnel\n");
-    } else {
-        printf("[HWICAP] [FAIL] Erreur de lecture/écriture SZ (R1=0x%x, R2=0x%x)\n", r1, r2);
+    /* SZ est write-only — on utilise SR et WFV (read-only) pour tester le bridge.
+     * Après reset hardware, SR.eos=1 (bit2) et WFV=0x3F (FIFO vide). */
+    uint32_t sr  = mmio_read32(HWICAP_SR);
+    uint32_t wfv = mmio_read32(HWICAP_WFV);
+    printf("[HWICAP] SR=0x%08x WFV=0x%02x\n", sr, wfv);
+    if (wfv == 0) {
+        printf("[HWICAP] [WARN] WFV=0 au démarrage — FIFO plein ou bridge non accessible\n");
         printf("[HWICAP] Vérifiez l'alignement et la gestion AWADDR[2] dans le bridge.\n");
+    } else {
+        printf("[HWICAP] [OK] Bridge accessible (WFV=0x%02x)\n", wfv);
     }
 }
 
@@ -145,12 +140,13 @@ static void hwicap_read_idcode(void) {
 
 static int hwicap_load_bs(const uint32_t *data, uint32_t size_words, const char *name) {
     printf("[DPR] Chargement %s (%lu mots)...\n", name, (unsigned long)size_words);
-    
+    hwicap_reset();
+
     uint64_t t_start = read_cycles();
     
     uint32_t written = 0;
     while (written < size_words) {
-        uint32_t chunk = (size_words - written > 4095) ? 4095 : size_words - written;
+        uint32_t chunk = (size_words - written > HWICAP_WFV_MAX) ? HWICAP_WFV_MAX : size_words - written;
         mmio_write32(HWICAP_SZ, chunk);
         
         for (uint32_t i = 0; i < chunk; i++) {

@@ -46,11 +46,15 @@
 // =============================================================================
 
 static inline uint32_t mmio_read32(uint64_t addr) {
-    return *(volatile uint32_t *)addr;
+    uint32_t val;
+    asm volatile ("fence i, r" ::: "memory");
+    val = *(volatile uint32_t *)addr;
+    return val;
 }
 
 static inline void mmio_write32(uint64_t addr, uint32_t val) {
     *(volatile uint32_t *)addr = val;
+    asm volatile ("fence w, o" ::: "memory");
 }
 
 // =============================================================================
@@ -178,7 +182,7 @@ static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
 
         // Chunk de max 4095 mots
         uint32_t chunk = size_words - written;
-        if (chunk > 4095) chunk = 4095;
+        if (chunk > HWICAP_WFV_MAX) chunk = HWICAP_WFV_MAX;
 
         mmio_write32(HWICAP_SZ, chunk);
 
