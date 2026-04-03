@@ -39,7 +39,8 @@ dpr-ips:
 		work-fpga/xlnx_axi_quad_spi.xci \
 		work-fpga/xlnx_axi_gpio.xci \
 		work-fpga/xlnx_clk_gen.xci \
-		work-fpga/xlnx_mig_7_ddr3.xci
+		work-fpga/xlnx_mig_7_ddr3.xci \
+		work-fpga/xlnx_axi_hwicap.xci
 
 # --- Étape 0c : Création du projet Vivado (ariane.xpr) ---
 # Nécessaire seulement si le projet n'existe pas encore
