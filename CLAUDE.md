@@ -185,6 +185,21 @@ continue
 
 ---
 
+## Reproducibilité sur un autre PC
+
+```bash
+git clone --recurse-submodules -b dpr git@github.com:prevotet/riscv-iommu-demo.git
+# Toolchain : Vivado 2022.2 (VIVADO_DIR=...), cross-compiler RISC-V (RISCV_BARE=...)
+./3_build_B.sh dpr --force    # ~1h : recrée ariane.xpr + full build
+./3_build_B.sh baremetal
+./3_build_B.sh program
+```
+
+`ariane.xpr` n'est pas tracké — recréé automatiquement par `dpr-project`.  
+`xlnx_axi_hwicap.xci` est généré par `dpr-ips` (ajouté dans `dpr/Makefile`).
+
+---
+
 ## Points techniques importants
 
 ### ICAP bit-swap
@@ -204,3 +219,13 @@ Avec `C_INCLUDE_STARTUP=1`, la STARTUPE2 interne gère EOS.
 ### `arch_init` override
 Le baremetal standalone tourne en mode M sans BAO.  
 `plic_init()` et `CSRS(sie/sstatus)` causent des traps → override vide obligatoire.
+
+### Règle DFX — feedthrough nets et PPLOC (HDPostRouteDRC-02)
+
+**Symptôme** : `ERROR: HDPostRouteDRC-02: boundary net ... does not have PPLOC on it`
+
+**Cause** : dans un RM, si un port de sortie est piloté combinatoirement depuis un port d'entrée (ex. `assign b_id = aw_id`), le net entre ET sort du pblock — Vivado ne peut pas placer deux PPLOCs sur le même net avec `CONTAIN_ROUTING=true`.
+
+**Règle** : tout port de sortie d'un RM (`b_id`, `r_id`, `b_valid`, `r_valid`…) doit être piloté par un **FF interne au pblock**, avec `(* dont_touch = "true" *)`.
+
+**Correction appliquée** dans `dpr/rm/accel_default/accel_blank.sv`, `accel_A/accel_wrap.sv`, `accel_B/accel_wrap.sv` : `b_id`, `b_valid`, `r_id`, `r_valid` sont maintenant des `always_ff` internes au RM. Latence +1 cycle sur les réponses AXI cfg — sans impact fonctionnel.
