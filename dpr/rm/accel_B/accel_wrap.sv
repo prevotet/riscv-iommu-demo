@@ -20,11 +20,30 @@ module accel_wrap #(
     localparam logic [63:0] ACCEL_ID = {16'hDEAD, STREAM_ID, 24'hBBBBBB};
 
     // ----------------------------------------------------------------
-    // CFG slave — registre en lecture seule, réponse combinatoire
+    // CFG slave — registre en lecture seule
+    // r_id, r_valid, b_id, b_valid sont registrés DANS le RP pour éviter
+    // les feedthrough nets (HDPostRouteDRC-02 / PPLOC manquant).
     // ----------------------------------------------------------------
+    (* dont_touch = "true" *) logic [AXI_ID_WIDTH-1:0] r_id_ff, b_id_ff;
+    (* dont_touch = "true" *) logic                    r_valid_ff, b_valid_ff;
+
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            r_id_ff    <= '0;
+            b_id_ff    <= '0;
+            r_valid_ff <= 1'b0;
+            b_valid_ff <= 1'b0;
+        end else begin
+            r_id_ff    <= axi_cfg.ar_id;
+            r_valid_ff <= axi_cfg.ar_valid;
+            b_id_ff    <= axi_cfg.aw_id;
+            b_valid_ff <= axi_cfg.aw_valid;
+        end
+    end
+
     assign axi_cfg.ar_ready = 1'b1;
-    assign axi_cfg.r_valid  = axi_cfg.ar_valid;
-    assign axi_cfg.r_id     = axi_cfg.ar_id;
+    assign axi_cfg.r_valid  = r_valid_ff;
+    assign axi_cfg.r_id     = r_id_ff;
     assign axi_cfg.r_data   = ACCEL_ID;
     assign axi_cfg.r_resp   = 2'b00;
     assign axi_cfg.r_last   = 1'b1;
@@ -33,8 +52,8 @@ module accel_wrap #(
     // Écriture : acceptée mais ignorée
     assign axi_cfg.aw_ready = 1'b1;
     assign axi_cfg.w_ready  = 1'b1;
-    assign axi_cfg.b_valid  = axi_cfg.aw_valid;
-    assign axi_cfg.b_id     = axi_cfg.aw_id;
+    assign axi_cfg.b_valid  = b_valid_ff;
+    assign axi_cfg.b_id     = b_id_ff;
     assign axi_cfg.b_resp   = 2'b00;
     assign axi_cfg.b_user   = '0;
 

@@ -18,15 +18,36 @@ module accel_wrap #(
     AXI_BUS_MMU.Master axi_dma
 );
     // cfg slave : SLVERR
+    // b_id/r_id DOIVENT être pilotés par des FFs internes au pblock.
+    // Un assign combinatoire depuis aw_id/ar_id crée un "feedthrough net"
+    // qui entre ET sort du pblock sur le même net — Vivado ne peut pas
+    // placer les PPLOCs DFX avec CONTAIN_ROUTING=true (HDPostRouteDRC-02).
+    (* dont_touch = "true" *) logic [AXI_ID_WIDTH-1:0] b_id_ff, r_id_ff;
+    (* dont_touch = "true" *) logic                    b_valid_ff, r_valid_ff;
+
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            b_id_ff    <= '0;
+            r_id_ff    <= '0;
+            b_valid_ff <= 1'b0;
+            r_valid_ff <= 1'b0;
+        end else begin
+            b_id_ff    <= axi_cfg.aw_id;
+            r_id_ff    <= axi_cfg.ar_id;
+            b_valid_ff <= axi_cfg.aw_valid;
+            r_valid_ff <= axi_cfg.ar_valid;
+        end
+    end
+
     assign axi_cfg.aw_ready = 1'b1;
     assign axi_cfg.w_ready  = 1'b1;
     assign axi_cfg.ar_ready = 1'b1;
-    assign axi_cfg.b_valid  = axi_cfg.aw_valid;
-    assign axi_cfg.b_id     = axi_cfg.aw_id;
+    assign axi_cfg.b_valid  = b_valid_ff;
+    assign axi_cfg.b_id     = b_id_ff;
     assign axi_cfg.b_resp   = 2'b10;
     assign axi_cfg.b_user   = '0;
-    assign axi_cfg.r_valid  = axi_cfg.ar_valid;
-    assign axi_cfg.r_id     = axi_cfg.ar_id;
+    assign axi_cfg.r_valid  = r_valid_ff;
+    assign axi_cfg.r_id     = r_id_ff;
     assign axi_cfg.r_data   = '0;
     assign axi_cfg.r_resp   = 2'b10;
     assign axi_cfg.r_last   = 1'b1;
