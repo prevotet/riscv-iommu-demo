@@ -2,11 +2,11 @@
 
 ## Projet
 
-**Repo** : `gitlab.insa-rennes.fr/trust_gw/riscv-iommu-demo.git`  
+**Repo** : `github.com/prevotet/riscv-iommu-demo.git`  
 **Cible** : Genesys2 XC7K325T-2FFG900  
 **Outil** : Vivado 2022.2  
 **Script principal** : `2_build_HB.sh` (full build BAO+Linux+DPR)  
-**Script test DPR standalone** : `3_build_B.sh`
+**Script test DPR standalone** : `3_build_B.sh` / `3_build_B2.sh` (GDB automatisé)
 
 ---
 
@@ -206,11 +206,39 @@ git clone --recurse-submodules -b dpr git@github.com:prevotet/riscv-iommu-demo.g
 L'IP HWICAP fait le bit-swap interne (process `SWAP_BITS` dans le VHDL) → **pas de bswap côté logiciel**.
 
 ### Protocole d'écriture HWICAP
-1. Écrire `SZ` = nombre de mots du chunk (max 4095, 12 bits)
-2. Remplir FIFO mot par mot en attendant `WFV > 0`
-3. Écrire `CR = CR_WRITE (0x01)`
-4. Attendre `CR == 0` (la machine d'état ICAP acquitte)
-5. Répéter pour le chunk suivant
+
+**Taille de chunk : max `HWICAP_WFV_MAX` (63 mots)**
+
+Le FIFO physique est de 128 mots mais WFV plafonne à 63 (6 bits). Si chunk > 63, le FIFO se remplit entièrement avant que CR_WRITE soit envoyé → deadlock (WFV=0, state machine jamais démarrée). Le timeout intervient exactement à mot 128 (2×63+2).
+
+1. `hwicap_reset()` : écrire `CR=CR_FIFO_RST`, attendre `WFV=0x3F`
+2. Écrire `SZ` = taille du chunk (≤ 63 mots)
+3. Remplir FIFO : 63 mots, un par un, en vérifiant `WFV > 0`
+4. Écrire `CR = CR_WRITE (0x01)`
+5. Attendre `CR == 0` (la machine d'état ICAP acquitte)
+6. Répéter pour le chunk suivant
+
+**Piège** : `SZ` est **write-only** — la lire retourne 0 (normal, pas un bug de bridge).
+
+### Débogage HWICAP en cours
+
+**Symptôme actuel** (run du 2026-04-04) : le FIFO reset fonctionne, le remplissage de 63 mots passe, mais `CR_WRITE` n'est pas acquitté → timeout CR.
+
+**Hypothèse principale** : l'écriture sur `CR` (offset `0x10C`, AWADDR[2:0]=4 → upper word du bus 64 bits) pourrait ne pas atteindre l'IP si le chemin de données pour `AWADDR[2:0]=4` est incorrect dans `axi2apb_64_32` ou `apb_to_axilite`.
+
+**Test de diagnostic ajouté** dans `dpr_test_full.c` :
+- Après `hwicap_reset()` : affiche `WFV/SR/CR` réels
+- Après écriture `CR_WRITE` : lit CR en retour immédiatement
+  - Si `CR=0x00` → write sur CR échoue (mauvaise lane byte)
+  - Si `CR=0x01` et reste 0x01 → state machine bloquée (ICAP clock ? SR.hang ?)
+- Sur timeout CR : affiche `CR/SR/WFV`
+
+**Fichiers concernés** :
+- `ariane_peripherals_xilinx.sv` : `s_axi_awaddr( s_axi_hwicap_awaddr[8:0] )` — adresse correcte (absolue → bits[8:0] = offset)
+- `axi2apb_64_32` : `W_word_sel = (AWADDR[2:0]==3'h4)` — sélection upper/lower word
+- `apb_to_axilite` : `awaddr_o = paddr_i` (full 32 bits), `wstrb_o = '1`
+
+**Prochain run** : lire la sortie du debug pour trancher entre "write CR échoue" vs "state machine bloquée".
 
 ### EOS
 Avec `C_INCLUDE_STARTUP=1`, la STARTUPE2 interne gère EOS.  
