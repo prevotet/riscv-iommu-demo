@@ -1542,3 +1542,125 @@ Session : 20260403_004027 — cible : program — RM_INIT=accel_A RM_TARGET=acce
 ════════════════════════════════════════════════════════
 Session : 20260403_004151 — cible : openocd — RM_INIT=accel_A RM_TARGET=accel_B
 ════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260403_110249 — cible : all — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [12:24:08] dpr_static                          OK /home/jc/tmp/riscv-iommu-demo/logs/20260403_110249_dpr_static.log
+  [13:14:57] dpr_partial_accel_default           OK /home/jc/tmp/riscv-iommu-demo/logs/20260403_110249_dpr_partial_accel_default.log
+  [13:52:44] dpr_partial_accel_A                 OK /home/jc/tmp/riscv-iommu-demo/logs/20260403_110249_dpr_partial_accel_A.log
+  [14:28:23] dpr_partial_accel_B                 OK /home/jc/tmp/riscv-iommu-demo/logs/20260403_110249_dpr_partial_accel_B.log
+  [14:28:24] convert_accel1                      OK 2089 KB
+  [14:28:27] convert_accel2                      OK 4024 KB
+  [14:28:27] check_coherence                     OK 
+  [14:28:27] baremetal                           SKIP (binaire existant)
+  [14:28:27] check_coherence                     OK 
+  [14:28:44] program                             FAIL /home/jc/tmp/riscv-iommu-demo/logs/20260403_110249_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260403_143003 — cible : program — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [14:30:03] check_coherence                     OK 
+  [14:30:19] program                             FAIL /home/jc/tmp/riscv-iommu-demo/logs/20260403_143003_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260403_143038 — cible : program — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [14:30:38] check_coherence                     OK 
+  [14:30:59] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/20260403_143038_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260403_143133 — cible : load — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [14:31:33] check_coherence                     OK 
+
+════════════════════════════════════════════════════════
+Session : 20260403_143148 — cible : openocd — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260403_143839 — cible : baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [14:38:39] baremetal                           SKIP (binaire existant)
+
+════════════════════════════════════════════════════════
+Session : 20260403_143851 — cible : baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [14:38:51] baremetal                           SKIP (binaire existant)
+
+════════════════════════════════════════════════════════
+Session : 20260403_143859 — cible : baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [14:39:02] baremetal                           OK /home/jc/tmp/riscv-iommu-demo/logs/20260403_143859_baremetal.log
+
+════════════════════════════════════════════════════════
+Session : 20260403_144033 — cible : program — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [14:40:33] check_coherence                     OK 
+  [14:40:50] program                             FAIL /home/jc/tmp/riscv-iommu-demo/logs/20260403_144033_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260403_144109 — cible : opensbi/ — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260403_144113 — cible : openocd — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260403_144129 — cible : load — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [14:41:29] check_coherence                     OK 
+
+════════════════════════════════════════════════════════
+Session : 20260403_150421 — cible : baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [15:04:21] baremetal                           OK /home/jc/tmp/riscv-iommu-demo/logs/20260403_150421_baremetal.log
+
+════════════════════════════════════════════════════════
+Session : 20260403_150435 — cible : openocd — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260403_150447 — cible : load — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [15:04:47] check_coherence                     OK 
+
+════════════════════════════════════════════════════════
+Session : 20260403_152324 — cible : help — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260403_152837 — cible : dpr — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [15:28:37] dpr_static                          SKIP (checkpoint existant)
+  [15:28:37] dpr_partial_accel_default           SKIP (bitstream à jour)
+  [15:28:37] dpr_partial_accel_A                 SKIP (bitstream à jour)
+  [15:28:37] dpr_partial_accel_B                 SKIP (bitstream à jour)
+  [15:28:37] convert_accel1                      SKIP 
+  [15:28:37] convert_accel2                      SKIP 
+  [15:28:37] check_coherence                     OK 
+
+════════════════════════════════════════════════════════
+Session : 20260403_152921 — cible : dpr — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [15:29:38] dpr_static                          FAIL /home/jc/tmp/riscv-iommu-demo/logs/20260403_152921_dpr_static.log
+
+════════════════════════════════════════════════════════
+Session : 20260403_153420 — cible : dpr — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [15:34:37] dpr_static                          FAIL /home/jc/tmp/riscv-iommu-demo/logs/20260403_153420_dpr_static.log
+
+════════════════════════════════════════════════════════
+Session : 20260403_153653 — cible : clean — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260403_153757 — cible : dpr — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [15:38:14] dpr_static                          FAIL /home/jc/tmp/riscv-iommu-demo/logs/20260403_153757_dpr_static.log
+
+════════════════════════════════════════════════════════
+Session : 20260403_154530 — cible : dpr — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [15:46:37] dpr_static                          FAIL /home/jc/tmp/riscv-iommu-demo/logs/20260403_154530_dpr_static.log

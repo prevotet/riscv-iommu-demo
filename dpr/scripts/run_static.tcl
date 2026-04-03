@@ -18,6 +18,7 @@ foreach f [list \
     $dpr_dir/src/rp_boundary_regs.sv \
     $dpr_dir/src/rp_boundary_regs_mmu.sv \
     $cva6_fpga/src/accel_wrap.sv \
+    $cva6_fpga/src/apb_to_axilite.sv \
 ] {
     if {[llength [get_files -quiet $f]] == 0} {
         add_files -fileset sources_1 -norecurse $f

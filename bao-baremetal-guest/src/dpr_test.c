@@ -1,11 +1,8 @@
 /**
  * dpr_test.c — Test DPR + HWICAP
  *
- * Note importante sur le convertisseur AXI 64→32 bits :
- *   Le xlnx_axi_dwidth_converter bufferise le 1er mot de chaque paire 64 bits.
- *   Il faut toujours écrire par paires via write64 pour que les données
- *   arrivent effectivement dans la FIFO HWICAP.
- *   → Toutes les écritures WF se font via mmio_write64.
+ * Utilise uniquement mmio_write32 (instruction SW 32 bits)
+ * pour être compatible avec le xlnx_axi_dwidth_converter 64→32.
  */
 
 #include <stdint.h>
@@ -27,7 +24,7 @@
 #define HWICAP_WFV  (HWICAP_BASE + 0x114)
 #define HWICAP_RFO  (HWICAP_BASE + 0x118)
 
-// CR bits (Xilinx embeddedsw SDK)
+// CR bits (Xilinx embeddedsw SDK xhwicap_l.h)
 #define HWICAP_CR_WRITE    0x01
 #define HWICAP_CR_READ     0x02
 #define HWICAP_CR_FIFO_RST 0x04
@@ -44,11 +41,8 @@
 #define BS_ACCEL1_WORDS 534818UL
 #define BS_ACCEL2_WORDS 1030202UL
 
-// NOOP ICAP
-#define ICAP_NOOP 0x20000000UL
-
 // =============================================================================
-// MMIO helpers
+// MMIO helpers — uniquement 32 bits pour compatibilité avec dwidth converter
 // =============================================================================
 
 static inline uint32_t mmio_read32(uint64_t addr) {
@@ -57,12 +51,6 @@ static inline uint32_t mmio_read32(uint64_t addr) {
 
 static inline void mmio_write32(uint64_t addr, uint32_t val) {
     *(volatile uint32_t *)addr = val;
-}
-
-// Écriture 64 bits — envoie 2 mots dans la FIFO en une transaction
-// Le convertisseur 64→32 bits libère les 2 mots simultanément
-static inline void hwicap_write_pair(uint32_t w0, uint32_t w1) {
-    *(volatile uint64_t *)HWICAP_WF = ((uint64_t)w1 << 32) | w0;
 }
 
 // =============================================================================
@@ -85,11 +73,35 @@ static void print_status(const char *label) {
            (unsigned long)mmio_read32(HWICAP_RFO));
 }
 
-// Aligne le convertisseur 64→32 en envoyant une paire de NOOPs
-// À appeler au début de chaque session d'écriture
-static void hwicap_align(void) {
-    hwicap_write_pair(ICAP_NOOP, ICAP_NOOP);
-    printf("[HWICAP] align : WFV=0x%02lx\r\n",
+static void hwicap_diag(void) {
+    printf("[HWICAP] === DIAG ===\r\n");
+
+    // Test R/W sur SZ (registre safe, 12 bits, pas d'effet de bord)
+    uint32_t sz_orig = mmio_read32(HWICAP_SZ);
+    mmio_write32(HWICAP_SZ, 0xAA);
+    uint32_t sz_rb = mmio_read32(HWICAP_SZ);
+    mmio_write32(HWICAP_SZ, sz_orig);
+    printf("[HWICAP] SZ write 0xAA -> readback = 0x%08lx (%s)\r\n",
+           (unsigned long)sz_rb,
+           (sz_rb & 0xFFF) == 0xAA ? "OK" : "FAIL - shift probable");
+
+    // Dump de tous les registres 0x100..0x118
+    const char *names[] = {"WF ", "RF ", "SZ ", "CR ", "SR ", "WFV", "RFO"};
+    for (int i = 0; i < 7; i++) {
+        uint64_t addr = HWICAP_BASE + 0x100 + i * 4;
+        printf("[HWICAP] [0x%03lx] %s = 0x%08lx\r\n",
+               (unsigned long)(addr - HWICAP_BASE),
+               names[i],
+               (unsigned long)mmio_read32(addr));
+    }
+    printf("[HWICAP] === FIN DIAG ===\r\n");
+}
+
+static void hwicap_fifo_reset(void) {
+    mmio_write32(HWICAP_CR, HWICAP_CR_FIFO_RST);
+    int timeout = HWICAP_TIMEOUT;
+    while (mmio_read32(HWICAP_WFV) < HWICAP_WFV_MAX && timeout-- > 0);
+    printf("[HWICAP] FIFO reset : WFV=0x%02lx\r\n",
            (unsigned long)mmio_read32(HWICAP_WFV));
 }
 
@@ -99,11 +111,9 @@ static void hwicap_align(void) {
 
 static void hwicap_read_idcode(void) {
     printf("\r\n[HWICAP] Lecture IDCODE FPGA\r\n");
-    print_status("init");
 
-    hwicap_align();
+    hwicap_fifo_reset();
 
-    // Séquence de lecture IDCODE
     static const uint32_t seq[] = {
         0xFFFFFFFF, 0xFFFFFFFF,  // dummy words
         0xAA995566,              // sync word
@@ -115,10 +125,10 @@ static void hwicap_read_idcode(void) {
 
     uint32_t n = sizeof(seq)/sizeof(seq[0]);
     mmio_write32(HWICAP_SZ, n);
+    print_status("avant sequence");
 
-    // Envoyer par paires
-    for (uint32_t i = 0; i < n; i += 2)
-        hwicap_write_pair(seq[i], seq[i+1]);
+    for (uint32_t i = 0; i < n; i++)
+        mmio_write32(HWICAP_WF, seq[i]);
 
     mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
 
@@ -129,7 +139,7 @@ static void hwicap_read_idcode(void) {
     print_status("apres write");
     for (volatile int i = 0; i < 100000; i++);
 
-    // Déclencher la lecture
+    // Déclencher lecture
     mmio_write32(HWICAP_SZ, 1);
     mmio_write32(HWICAP_CR, HWICAP_CR_READ);
 
@@ -151,37 +161,34 @@ static void hwicap_read_idcode(void) {
 // =============================================================================
 // Écriture bitstream via HWICAP
 //
-// Protocole :
-//   - Aligner le convertisseur au début
-//   - Chunks de max 4094 mots (pair, SZ 12 bits max 4095)
-//   - Écrire SZ, remplir FIFO par paires de 2 mots (write64)
-//   - Déclencher CR_WRITE, attendre CR=0
-//   - PAS de reset FIFO entre chunks
+// Protocole (Xilinx SDK xhwicap.c) :
+//   - Chunks de max 4095 mots (SZ 12 bits)
+//   - Écrire SZ, remplir FIFO mot par mot (mmio_write32 = SW 32 bits)
+//   - Déclencher CR_WRITE, attendre CR=0 (machine d'état acquitte)
 //   - PAS de bswap (l'IP fait le bit-swap interne)
 // =============================================================================
 
 static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
-    hwicap_align();
+    hwicap_fifo_reset();
     print_status("debut write_bitstream");
 
     uint32_t written = 0;
 
     while (written < size_words) {
 
-        // Chunk pair de max 4094 mots
+        // Chunk de max 4095 mots
         uint32_t chunk = size_words - written;
-        if (chunk > 4094) chunk = 4094;
-        if (chunk % 2 != 0) chunk--;  // forcer multiple de 2
+        if (chunk > 4095) chunk = 4095;
 
         mmio_write32(HWICAP_SZ, chunk);
 
-        // Remplir FIFO par paires
+        // Remplir FIFO mot par mot
         uint32_t sent = 0;
         while (sent < chunk) {
 
-            // Attendre au moins 2 places libres
+            // Attendre WFV > 0
             int timeout = HWICAP_TIMEOUT;
-            while (mmio_read32(HWICAP_WFV) < 2 && timeout-- > 0);
+            while (mmio_read32(HWICAP_WFV) == 0 && timeout-- > 0);
             if (timeout <= 0) {
                 printf("[HWICAP] ERROR: timeout WFV mot %lu\r\n",
                        (unsigned long)(written + sent));
@@ -189,9 +196,12 @@ static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
                 return -1;
             }
 
-            hwicap_write_pair(data[written + sent],
-                              data[written + sent + 1]);
-            sent += 2;
+            uint32_t vacancy = mmio_read32(HWICAP_WFV);
+            uint32_t to_write = chunk - sent;
+            if (to_write > vacancy) to_write = vacancy;
+
+            for (uint32_t i = 0; i < to_write; i++)
+                mmio_write32(HWICAP_WF, data[written + sent++]);
         }
 
         // Déclencher
@@ -224,6 +234,7 @@ void dpr_test(void) {
     printf(" DPR Test — Lecture IDCODE + Reconfiguration\r\n");
     printf("=================================================\r\n");
 
+    hwicap_diag();
     hwicap_read_idcode();
 
     asm volatile ("fence" ::: "memory");
