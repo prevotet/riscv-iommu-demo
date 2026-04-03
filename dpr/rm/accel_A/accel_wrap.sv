@@ -24,7 +24,7 @@ module accel_wrap #(
     // r_id, r_valid, b_id, b_valid sont registrés DANS le RP pour éviter
     // les feedthrough nets (HDPostRouteDRC-02 / PPLOC manquant).
     // ----------------------------------------------------------------
-    (* dont_touch = "true" *) logic [AXI_ID_WIDTH-1:0] r_id_ff, b_id_ff;
+    (* dont_touch = "true" *) logic [AXI_SLV_ID_WIDTH-1:0] r_id_ff, b_id_ff;
     (* dont_touch = "true" *) logic                    r_valid_ff, b_valid_ff;
 
     always_ff @(posedge clk_i or negedge rst_ni) begin

@@ -22,7 +22,7 @@ module accel_wrap #(
     // Un assign combinatoire depuis aw_id/ar_id crée un "feedthrough net"
     // qui entre ET sort du pblock sur le même net — Vivado ne peut pas
     // placer les PPLOCs DFX avec CONTAIN_ROUTING=true (HDPostRouteDRC-02).
-    (* dont_touch = "true" *) logic [AXI_ID_WIDTH-1:0] b_id_ff, r_id_ff;
+    (* dont_touch = "true" *) logic [AXI_SLV_ID_WIDTH-1:0] b_id_ff, r_id_ff;
     (* dont_touch = "true" *) logic                    b_valid_ff, r_valid_ff;
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
