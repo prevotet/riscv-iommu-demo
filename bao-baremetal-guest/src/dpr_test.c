@@ -16,6 +16,8 @@
 #define ACCEL2_BASE    0x50001000ULL
 #define HWICAP_BASE    0x40010000ULL
 
+// Registres données HWICAP (HWICAP_REG_B_ADR=0x100, HWICAP_REG_H_ADR=0x11F)
+// Source: axi_hwicap_v3_0_vh_rfs.vhd dans l'IP généré
 #define HWICAP_WF   (HWICAP_BASE + 0x100)
 #define HWICAP_RF   (HWICAP_BASE + 0x104)
 #define HWICAP_SZ   (HWICAP_BASE + 0x108)
@@ -70,11 +72,11 @@ void arch_init(void) {
 // =============================================================================
 
 static void print_status(const char *label) {
-    printf("[HWICAP] %s : SR=0x%08lx WFV=0x%02lx RFO=0x%02lx\r\n",
+    printf("[HWICAP] %s : SR=0x%08x WFV=0x%02x RFO=0x%02x\r\n",
            label,
-           (unsigned long)mmio_read32(HWICAP_SR),
-           (unsigned long)mmio_read32(HWICAP_WFV),
-           (unsigned long)mmio_read32(HWICAP_RFO));
+           (unsigned int)mmio_read32(HWICAP_SR),
+           (unsigned int)mmio_read32(HWICAP_WFV),
+           (unsigned int)mmio_read32(HWICAP_RFO));
 }
 
 static void hwicap_diag(void) {
@@ -85,18 +87,18 @@ static void hwicap_diag(void) {
     mmio_write32(HWICAP_SZ, 0xAA);
     uint32_t sz_rb = mmio_read32(HWICAP_SZ);
     mmio_write32(HWICAP_SZ, sz_orig);
-    printf("[HWICAP] SZ write 0xAA -> readback = 0x%08lx (%s)\r\n",
-           (unsigned long)sz_rb,
+    printf("[HWICAP] SZ write 0xAA -> readback = 0x%08x (%s)\r\n",
+           (unsigned int)sz_rb,
            (sz_rb & 0xFFF) == 0xAA ? "OK" : "FAIL - shift probable");
 
-    // Dump de tous les registres 0x100..0x118
+    // Dump de tous les registres 0x110..0x128
     const char *names[] = {"WF ", "RF ", "SZ ", "CR ", "SR ", "WFV", "RFO"};
     for (int i = 0; i < 7; i++) {
-        uint64_t addr = HWICAP_BASE + 0x100 + i * 4;
-        printf("[HWICAP] [0x%03lx] %s = 0x%08lx\r\n",
-               (unsigned long)(addr - HWICAP_BASE),
+        uint64_t addr = HWICAP_BASE + 0x110 + i * 4;
+        printf("[HWICAP] [0x%03x] %s = 0x%08x\r\n",
+               (unsigned int)(addr - HWICAP_BASE),
                names[i],
-               (unsigned long)mmio_read32(addr));
+               (unsigned int)mmio_read32(addr));
     }
     printf("[HWICAP] === FIN DIAG ===\r\n");
 }
@@ -105,8 +107,8 @@ static void hwicap_fifo_reset(void) {
     mmio_write32(HWICAP_CR, HWICAP_CR_FIFO_RST);
     int timeout = HWICAP_TIMEOUT;
     while (mmio_read32(HWICAP_WFV) < HWICAP_WFV_MAX && timeout-- > 0);
-    printf("[HWICAP] FIFO reset : WFV=0x%02lx\r\n",
-           (unsigned long)mmio_read32(HWICAP_WFV));
+    printf("[HWICAP] FIFO reset : WFV=0x%02x\r\n",
+           (unsigned int)mmio_read32(HWICAP_WFV));
 }
 
 // =============================================================================
@@ -122,7 +124,7 @@ static void hwicap_read_idcode(void) {
         0xFFFFFFFF, 0xFFFFFFFF,  // dummy words
         0xAA995566,              // sync word
         0x20000000, 0x20000000,  // NOOP
-        0x28018001,              // Type 1 Read IDCODE (1 word)
+        0x28012001,              // Type 1 Read IDCODE Reg 9 (1 word)
         0x20000000, 0x20000000,  // NOOP
         0x20000000, 0x20000000,  // NOOP
     };
@@ -153,8 +155,8 @@ static void hwicap_read_idcode(void) {
     print_status("apres read");
 
     uint32_t idcode = mmio_read32(HWICAP_RF);
-    printf("[HWICAP] IDCODE = 0x%08lx (attendu 0x03647093)\r\n",
-           (unsigned long)idcode);
+    printf("[HWICAP] IDCODE = 0x%08x (attendu 0x03647093)\r\n",
+           (unsigned int)idcode);
 
     if (idcode == 0x03647093)
         printf("[HWICAP] [OK] IDCODE correct\r\n");
@@ -194,8 +196,8 @@ static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
             int timeout = HWICAP_TIMEOUT;
             while (mmio_read32(HWICAP_WFV) == 0 && timeout-- > 0);
             if (timeout <= 0) {
-                printf("[HWICAP] ERROR: timeout WFV mot %lu\r\n",
-                       (unsigned long)(written + sent));
+                printf("[HWICAP] ERROR: timeout WFV mot %u\r\n",
+                       (unsigned int)(written + sent));
                 print_status("timeout WFV");
                 return -1;
             }
@@ -215,8 +217,8 @@ static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
         int timeout = HWICAP_TIMEOUT;
         while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && timeout-- > 0);
         if (timeout <= 0) {
-            printf("[HWICAP] ERROR: timeout CR mot %lu\r\n",
-                   (unsigned long)written);
+            printf("[HWICAP] ERROR: timeout CR mot %u\r\n",
+                   (unsigned int)written);
             print_status("timeout CR");
             return -1;
         }
@@ -225,7 +227,7 @@ static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
     }
 
     print_status("fin write_bitstream");
-    printf("[HWICAP] %lu mots envoyés\r\n", (unsigned long)size_words);
+    printf("[HWICAP] %u mots envoyés\r\n", (unsigned int)size_words);
     return 0;
 }
 
@@ -242,13 +244,14 @@ void dpr_test(void) {
     hwicap_read_idcode();
 
     asm volatile ("fence" ::: "memory");
-    uint64_t id1 = *(volatile uint64_t *)ACCEL1_BASE;
-    uint64_t id2 = *(volatile uint64_t *)ACCEL2_BASE;
+    uint32_t id1_lo = mmio_read32(ACCEL1_BASE);
+    uint32_t id1_hi = mmio_read32(ACCEL1_BASE + 4);
+    uint32_t id2_lo = mmio_read32(ACCEL2_BASE);
+    uint32_t id2_hi = mmio_read32(ACCEL2_BASE + 4);
+
     printf("\r\n[1] IDs initiaux :\r\n");
-    printf("  accel1 = 0x%08lx%08lx\r\n",
-           (unsigned long)(id1 >> 32), (unsigned long)(id1 & 0xFFFFFFFF));
-    printf("  accel2 = 0x%08lx%08lx\r\n",
-           (unsigned long)(id2 >> 32), (unsigned long)(id2 & 0xFFFFFFFF));
+    printf("  accel1 = 0x%08x%08x\r\n", id1_hi, id1_lo);
+    printf("  accel2 = 0x%08x%08x\r\n", id2_hi, id2_lo);
 
     printf("\r\n[2] Reconfiguration accel1...\r\n");
     const uint32_t *bs_accel1 = (const uint32_t *)BS_ACCEL1_ADDR;
@@ -267,15 +270,16 @@ void dpr_test(void) {
     printf("[OK] accel2 reconfiguré\r\n");
 
     asm volatile ("fence" ::: "memory");
-    id1 = *(volatile uint64_t *)ACCEL1_BASE;
-    id2 = *(volatile uint64_t *)ACCEL2_BASE;
-    printf("\r\n[4] IDs post-reconfiguration :\r\n");
-    printf("  accel1 = 0x%08lx%08lx\r\n",
-           (unsigned long)(id1 >> 32), (unsigned long)(id1 & 0xFFFFFFFF));
-    printf("  accel2 = 0x%08lx%08lx\r\n",
-           (unsigned long)(id2 >> 32), (unsigned long)(id2 & 0xFFFFFFFF));
+    id1_lo = mmio_read32(ACCEL1_BASE);
+    id1_hi = mmio_read32(ACCEL1_BASE + 4);
+    id2_lo = mmio_read32(ACCEL2_BASE);
+    id2_hi = mmio_read32(ACCEL2_BASE + 4);
 
-    if ((id1 & 0xFFFFFF) == 0xBBBBBB && (id2 & 0xFFFFFF) == 0xBBBBBB)
+    printf("\r\n[4] IDs post-reconfiguration :\r\n");
+    printf("  accel1 = 0x%08x%08x\r\n", id1_hi, id1_lo);
+    printf("  accel2 = 0x%08x%08x\r\n", id2_hi, id2_lo);
+
+    if ((id1_lo & 0xFFFFFF) == 0xBBBBBB && (id2_lo & 0xFFFFFF) == 0xBBBBBB)
         printf("[OK] accel_B détecté — DPR réussi !\r\n");
     else
         printf("[FAIL] IDs inattendus\r\n");

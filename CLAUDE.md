@@ -209,7 +209,7 @@ L'IP HWICAP fait le bit-swap interne (process `SWAP_BITS` dans le VHDL) → **pa
 
 **Taille de chunk : max `HWICAP_WFV_MAX` (63 mots)**
 
-Le FIFO physique est de 128 mots mais WFV plafonne à 63 (6 bits). Si chunk > 63, le FIFO se remplit entièrement avant que CR_WRITE soit envoyé → deadlock (WFV=0, state machine jamais démarrée). Le timeout intervient exactement à mot 128 (2×63+2).
+Le FIFO physique est de 64 mots (`C_WRITE_FIFO_DEPTH=64` dans l'IP) mais WFV plafonne à 63 (6 bits, `wrvacancy = FIFO_DEPTH - occupancy - 1`). Si chunk > 63, le FIFO se remplit entièrement avant que CR_WRITE soit envoyé → deadlock (WFV=0, state machine jamais démarrée).
 
 1. `hwicap_reset()` : écrire `CR=CR_FIFO_RST`, attendre `WFV=0x3F`
 2. Écrire `SZ` = taille du chunk (≤ 63 mots)
@@ -220,25 +220,23 @@ Le FIFO physique est de 128 mots mais WFV plafonne à 63 (6 bits). Si chunk > 63
 
 **Piège** : `SZ` est **write-only** — la lire retourne 0 (normal, pas un bug de bridge).
 
-### Débogage HWICAP en cours
+### Bug registres HWICAP — RÉSOLU (2026-04-06)
 
-**Symptôme actuel** (run du 2026-04-04) : le FIFO reset fonctionne, le remplissage de 63 mots passe, mais `CR_WRITE` n'est pas acquitté → timeout CR.
+**Cause racine** : les offsets des registres HWICAP dans le code étaient décalés de +0x10 (WF=0x110, CR=0x11C, WFV=0x124 au lieu des valeurs correctes).
 
-**Hypothèse principale** : l'écriture sur `CR` (offset `0x10C`, AWADDR[2:0]=4 → upper word du bus 64 bits) pourrait ne pas atteindre l'IP si le chemin de données pour `AWADDR[2:0]=4` est incorrect dans `axi2apb_64_32` ou `apb_to_axilite`.
+**Preuve** : dans `axi_hwicap_v3_0_vh_rfs.vhd` (IP généré) :
+```vhdl
+constant HWICAP_REG_B_ADR : std_logic_vector := X"00000100";
+constant HWICAP_REG_H_ADR : std_logic_vector := X"0000011F";
+```
+La plage de données fait 32 octets (8 CE × 4 octets), donc CE3=CR=0x10C, CE5=WFV=0x114.
 
-**Test de diagnostic ajouté** dans `dpr_test_full.c` :
-- Après `hwicap_reset()` : affiche `WFV/SR/CR` réels
-- Après écriture `CR_WRITE` : lit CR en retour immédiatement
-  - Si `CR=0x00` → write sur CR échoue (mauvaise lane byte)
-  - Si `CR=0x01` et reste 0x01 → state machine bloquée (ICAP clock ? SR.hang ?)
-- Sur timeout CR : affiche `CR/SR/WFV`
+Le code envoyait CR_WRITE à 0x11C (CE7, registre indéfini) → la state machine ICAP n'était jamais déclenchée.  
+Le code lisait WFV depuis 0x124 (hors plage) → valeur aléatoire/0x3F.
 
-**Fichiers concernés** :
-- `ariane_peripherals_xilinx.sv` : `s_axi_awaddr( s_axi_hwicap_awaddr[8:0] )` — adresse correcte (absolue → bits[8:0] = offset)
-- `axi2apb_64_32` : `W_word_sel = (AWADDR[2:0]==3'h4)` — sélection upper/lower word
-- `apb_to_axilite` : `awaddr_o = paddr_i` (full 32 bits), `wstrb_o = '1`
-
-**Prochain run** : lire la sortie du debug pour trancher entre "write CR échoue" vs "state machine bloquée".
+**Fix appliqué** dans `dpr_test.c` et `dpr_test_full.c` :
+- WF = 0x100, RF = 0x104, SZ = 0x108, CR = 0x10C, SR = 0x110, WFV = 0x114, RFO = 0x118
+- Suppression des defines GIER/ISR/IER erronés (les registres d'interruption sont à 0x01C, 0x020, 0x028 dans la plage 0x00-0x3F)
 
 ### EOS
 Avec `C_INCLUDE_STARTUP=1`, la STARTUPE2 interne gère EOS.  

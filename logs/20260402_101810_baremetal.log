@@ -1,6 +1,0 @@
-CMD: make -C /home/jc/tmp/riscv-iommu-demo/bao-baremetal-guest CROSS_COMPILE=/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf- PLATFORM=cva6 SINGLE_CORE=y -j24
-DATE: jeu. 02 avril 2026 10:18:10 CEST
----
-make : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/bao-baremetal-guest »
-make: rien à faire pour « all ».
-make : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/bao-baremetal-guest »
