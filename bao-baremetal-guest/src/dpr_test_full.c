@@ -20,6 +20,8 @@
 #define ACCEL2_BASE    0x50001000ULL
 #define HWICAP_BASE    0x40010000ULL
 
+// Registres données HWICAP (HWICAP_REG_B_ADR=0x100, HWICAP_REG_H_ADR=0x11F)
+// Source: axi_hwicap_v3_0_vh_rfs.vhd dans l'IP généré
 #define HWICAP_WF   (HWICAP_BASE + 0x100)
 #define HWICAP_RF   (HWICAP_BASE + 0x104)
 #define HWICAP_SZ   (HWICAP_BASE + 0x108)
@@ -53,6 +55,7 @@ static inline uint32_t mmio_read32(uint64_t addr) {
 }
 
 static inline void mmio_write32(uint64_t addr, uint32_t val) {
+    // Règle d'or : Accès 32 bits alignés impératifs pour le bridge 64->32
     *(volatile uint32_t *)addr = val;
     asm volatile ("fence w, o" ::: "memory");
 }
@@ -71,21 +74,31 @@ static void hwicap_reset(void) {
     printf("[HWICAP] Reset FIFO...\n");
     mmio_write32(HWICAP_CR, HWICAP_CR_FIFO_RST);
     int timeout = HWICAP_TIMEOUT;
+    // Attendre que la FIFO soit vide (WFV = MAX)
     while (mmio_read32(HWICAP_WFV) < HWICAP_WFV_MAX && timeout-- > 0);
+
+    // CRITIQUE : cr_i est un registre tenu (CONTROL_REGISTER_PROCESS, line 445 VHDL).
+    // Tant que cr_i(2)=FIFO_RST=1, fifo_clear=1 → Ainit du FIFO est actif (reset async
+    // permanent) → toute écriture WF est immédiatement effacée.
+    // Il faut écrire 0x00 pour libérer le FIFO avant de le remplir.
+    mmio_write32(HWICAP_CR, 0x00);
+
+    uint32_t wfv = mmio_read32(HWICAP_WFV);
+    uint32_t sr  = mmio_read32(HWICAP_SR);
+    uint32_t cr  = mmio_read32(HWICAP_CR);
+
     printf("[HWICAP] Reset done: WFV=0x%02x SR=0x%02x CR=0x%02x %s\n",
-           mmio_read32(HWICAP_WFV), mmio_read32(HWICAP_SR), mmio_read32(HWICAP_CR),
-           (timeout <= 0) ? "[TIMEOUT]" : "[OK]");
+           wfv, sr, cr, (timeout <= 0) ? "[TIMEOUT]" : "[OK]");
 }
 
 static void check_accel_state(int index) {
     uint64_t base = (index == 1) ? ACCEL1_BASE : ACCEL2_BASE;
-    uint64_t id64 = *(volatile uint64_t *)base;
-    uint32_t suffix = (uint32_t)(id64 & 0xFFFFFF);
+    // INTERDICTION DES ACCÈS 64 BITS (GEMINI.md)
+    uint32_t id_lo = mmio_read32(base);
+    uint32_t id_hi = mmio_read32(base + 4);
+    uint32_t suffix = (uint32_t)(id_lo & 0xFFFFFF);
 
-    printf("[CHECK] Accel%d ID: 0x%08lx%08lx -> ",
-           index,
-           (unsigned long)(id64 >> 32),
-           (unsigned long)(id64 & 0xFFFFFFFF));
+    printf("[CHECK] Accel%d ID: 0x%08x%08x -> ", index, id_hi, id_lo);
     if (suffix == 0xAAAAAA) printf("ACCEL_A\n");
     else if (suffix == 0xBBBBBB) printf("ACCEL_B\n");
     else printf("INCONNU (Default/Blank)\n");
@@ -93,16 +106,13 @@ static void check_accel_state(int index) {
 
 static void hwicap_diag_bridge(void) {
     printf("[HWICAP] Diagnostic Bridge 64->32...\n");
-    /* SZ est write-only — on utilise SR et WFV (read-only) pour tester le bridge.
-     * Après reset hardware, SR.eos=1 (bit2) et WFV=0x3F (FIFO vide). */
     uint32_t sr  = mmio_read32(HWICAP_SR);
     uint32_t wfv = mmio_read32(HWICAP_WFV);
     printf("[HWICAP] SR=0x%08x WFV=0x%02x\n", sr, wfv);
-    if (wfv == 0) {
-        printf("[HWICAP] [WARN] WFV=0 au démarrage — FIFO plein ou bridge non accessible\n");
-        printf("[HWICAP] Vérifiez l'alignement et la gestion AWADDR[2] dans le bridge.\n");
+    if (wfv == 0 && sr == 0xFFFFFFFF) {
+        printf("[HWICAP] [ERROR] Bridge non répondant (Bus Hang?)\n");
     } else {
-        printf("[HWICAP] [OK] Bridge accessible (WFV=0x%02x)\n", wfv);
+        printf("[HWICAP] [OK] Bridge accessible\n");
     }
 }
 
@@ -114,9 +124,14 @@ static void hwicap_read_idcode(void) {
     printf("[HWICAP] Lecture IDCODE FPGA...\n");
     hwicap_reset();
 
+    // Séquence pour Kintex-7 (UG470)
     static const uint32_t seq[] = {
-        0xFFFFFFFF, 0xFFFFFFFF, 0xAA995566, 0x20000000, 
-        0x28018001, 0x20000000, 0x20000000, 0x20000000
+        0xFFFFFFFF, // Dummy
+        0xAA995566, // Sync Word
+        0x20000000, // NOOP
+        0x28012001, // Type 1 Read, Address 9 (IDCODE), 1 word
+        0x20000000, // NOOP
+        0x20000000  // NOOP
     };
 
     uint32_t n = sizeof(seq)/4;
@@ -127,6 +142,7 @@ static void hwicap_read_idcode(void) {
     int timeout = HWICAP_TIMEOUT;
     while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && timeout-- > 0);
 
+    // Lecture du résultat
     mmio_write32(HWICAP_SZ, 1);
     mmio_write32(HWICAP_CR, HWICAP_CR_READ);
     timeout = HWICAP_TIMEOUT;

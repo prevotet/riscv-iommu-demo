@@ -1,1 +1,1 @@
-src_c_srcs:= main.c dpr_test.c icap_test.c
+src_c_srcs:= main.c dpr_test_full.c
