@@ -179,15 +179,11 @@ static int hwicap_load_bs(const uint32_t *data, uint32_t size_words, const char 
         }
         
         mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
-        uint32_t cr_rb = mmio_read32(HWICAP_CR);
-        uint32_t sr_rb = mmio_read32(HWICAP_SR);
-        uint32_t wfv_rb = mmio_read32(HWICAP_WFV);
-        printf("[HWICAP] after CR_WRITE: CR=0x%02x SR=0x%02x WFV=0x%02x\n",
-               cr_rb, sr_rb, wfv_rb);
         int timeout = HWICAP_TIMEOUT;
         while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && timeout-- > 0);
         if (timeout <= 0) {
-            printf("[HWICAP] timeout CR: CR=0x%02x SR=0x%02x WFV=0x%02x\n",
+            printf("[HWICAP] timeout CR @ mot %lu: CR=0x%02x SR=0x%02x WFV=0x%02x\n",
+                   (unsigned long)written,
                    mmio_read32(HWICAP_CR), mmio_read32(HWICAP_SR), mmio_read32(HWICAP_WFV));
             return -1;
         }
