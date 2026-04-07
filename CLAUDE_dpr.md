@@ -2,10 +2,10 @@
 
 ## Projet
 
-**Repo** : `github.com/prevotet/riscv-iommu-demo.git`
-**Cible** : Genesys2 XC7K325T-2FFG900
-**Outil** : Vivado 2022.2
-**Script principal** : `2_build_HB.sh` (full build BAO+Linux+DPR)
+**Repo** : `github.com/prevotet/riscv-iommu-demo.git`  
+**Cible** : Genesys2 XC7K325T-2FFG900  
+**Outil** : Vivado 2022.2  
+**Script principal** : `2_build_HB.sh` (full build BAO+Linux+DPR)  
 **Script test DPR standalone** : `3_build_B.sh` / `3_build_B2.sh` (GDB automatisé)
 
 ---
@@ -14,7 +14,7 @@
 
 - **CVA6** RISC-V 64 bits, crossbar AXI 64 bits
 - **RISC-V IOMMU** (rv_iommu)
-- **BAO hypervisor** + Linux guest + DPR Manager guest (baremetal)
+- **BAO hypervisor** + Linux guest + baremetal guest
 - **Deux accélérateurs DPR** (`accel_wrap #1` et `#2`) dans des zones reconfigurables
 
 ### Adresses clés
@@ -26,7 +26,7 @@
 | HWICAP  | `0x40010000` |
 | DDR bitstream accel1 | `0x81000000` |
 | DDR bitstream accel2 | `0x81300000` |
-| DPR Manager / Baremetal | `0x90000000` |
+| Baremetal | `0x90000000` |
 
 ---
 
@@ -46,85 +46,6 @@
 | `accel_A` | `0xDEAD_000001_AAAAAA` | `0xDEAD_000002_AAAAAA` |
 | `accel_B` | `0xDEAD_000001_BBBBBB` | `0xDEAD_000002_BBBBBB` |
 | `accel_default` | SLVERR | SLVERR |
-
----
-
-## Configurations BAO
-
-### `cva6-baremetal` — VM unique (test standalone)
-
-- VM0 : baremetal (`baremetal.bin`) à `0x90000000`
-- Accès direct à tous les périphériques
-
-### `cva6-baremetal-linux` — Baremetal + Linux
-
-- VM0 : baremetal à `0x90000000`
-- VM1 : Linux (`linux-rv64-cva6.bin`), pa=`0x82400000`, va=`0x80200000`, 220 Mo
-- IPC partagée : shmem[0] 64 Ko, adresse VA `0xF0000000`, IRQ 52
-
-### `cva6-dpr-linux` — DPR Manager + Linux *(nouveau)*
-
-Voir section dédiée ci-dessous.
-
----
-
-## VM DPR Manager (`cva6-dpr-linux`)
-
-### Principe
-
-VM0 est un service baremetal dédié à la reconfiguration partielle. Elle a l'accès **exclusif** à l'HWICAP, aux accélérateurs et aux bitstreams en DDR. Les autres VMs (Linux…) passent par la mémoire partagée BAO pour demander une reconfiguration.
-
-### Layout mémoire (pas de chevauchement)
-
-| Plage physique | Usage | VM |
-|---|---|---|
-| `0x81000000` – `0x81700000` | Bitstreams partiels DDR | VM0 DPR Manager |
-| `0x82400000` – `0x90000000` | Linux (220 Mo) | VM1 |
-| `0x90000000` – `0x94000000` | Code DPR Manager (64 Mo) | VM0 |
-
-### Périphériques VM0
-
-| Périphérique | Adresse |
-|---|---|
-| UART (console debug) | `0x10000000` |
-| APB Timer | `0x18000000` |
-| AXI HWICAP | `0x40010000` |
-| Accel1 | `0x50000000` |
-| Accel2 | `0x50001000` |
-
-### Protocole IPC (`dpr_ipc.h`)
-
-Mémoire partagée BAO à `0xF0000000` dans chaque VM, structure `dpr_ipc_msg_t` :
-
-| Champ | Direction | Description |
-|---|---|---|
-| `cmd` | Linux → DPR Mgr | `DPR_CMD_IDLE/RECONFIG/QUERY` |
-| `accel_id` | Linux → DPR Mgr | `DPR_ACCEL_1` ou `DPR_ACCEL_2` |
-| `bs_words` | Linux → DPR Mgr | Taille du bitstream en mots 32 bits |
-| `status` | DPR Mgr → Linux | `IDLE/BUSY/DONE/ERROR` |
-| `error_code` | DPR Mgr → Linux | Code d'erreur si `ERROR` |
-| `cycles_hi/lo` | DPR Mgr → Linux | Durée de la reconfig en cycles |
-
-**Séquence côté Linux (polling) :**
-```c
-dpr_ipc_msg_t *ipc = /* mmap 0xF0000000 */;
-ipc->accel_id = DPR_ACCEL_1;
-ipc->bs_words = 534818;
-ipc->cmd      = DPR_CMD_RECONFIG;
-while (ipc->status == DPR_STATUS_BUSY || ipc->status == DPR_STATUS_IDLE);
-// lire ipc->status, ipc->error_code, ipc->cycles_*
-ipc->cmd = DPR_CMD_IDLE;
-```
-
-**Note** : la notification d'interruption (IRQ 52) entre VMs nécessite le hypercall BAO `sbi_ecall(0x424F4F00, ...)`. Non implémenté dans le MVP — polling suffisant.
-
-### Fichiers DPR Manager
-
-| Fichier | Description |
-|---|---|
-| `bao-baremetal-guest/src/dpr_ipc.h` | Protocole IPC partagé (commandes, codes) |
-| `bao-baremetal-guest/src/dpr_manager.c` | VM de service : boucle de polling + HWICAP |
-| `vm-configs/cva6-dpr-linux/config.c` | Config BAO : DPR Manager (VM0) + Linux (VM1) |
 
 ---
 
@@ -191,7 +112,7 @@ Chaîne : `AXI 64b (crossbar) → axi2apb_64_32 → APB 32b → apb_to_axilite �
 
 ---
 
-## Fichiers modifiés / créés
+## Fichiers modifiés
 
 ### RTL
 
@@ -213,63 +134,24 @@ CONFIG.C_INCLUDE_STARTUP {1}            # STARTUPE2 interne, EOS géré en inter
 CONFIG.C_OPERATION       {1}            # Pas de BUFGCTRL (horloge ICAP toujours active)
 ```
 
-### Guests baremetal
+### Baremetal (`bao-baremetal-guest/src/dpr_test.c`)
 
-| Fichier | Description |
-|---|---|
-| `bao-baremetal-guest/src/dpr_test.c` | Test DPR basique (standalone) |
-| `bao-baremetal-guest/src/dpr_test_full.c` | Test DPR complet avec perf (standalone) |
-| `bao-baremetal-guest/src/dpr_ipc.h` | **Nouveau** — protocole IPC DPR Manager ↔ Linux |
-| `bao-baremetal-guest/src/dpr_manager.c` | **Nouveau** — VM service DPR (config cva6-dpr-linux) |
-| `bao-baremetal-guest/src/sources.mk` | **Modifié** — `VARIANT=dpr_manager` sélectionne `dpr_manager.c` |
-
-- `dpr_test_full.c` définit `arch_init() {}` vide → mode standalone M sans BAO
-- `dpr_manager.c` n'override PAS `arch_init()` → utilise la version par défaut (PLIC init, S-mode IRQ)
-
-### Configs BAO
-
-| Fichier | Description |
-|---|---|
-| `vm-configs/cva6-baremetal/config.c` | Config 1 VM (baremetal seul) |
-| `vm-configs/cva6-baremetal-linux/config.c` | Config 2 VMs (baremetal + Linux) |
-| `vm-configs/cva6-dpr-linux/config.c` | **Nouveau** — Config 2 VMs (DPR Manager + Linux) |
+- `arch_init()` overridée vide (évite CSRs S-mode sans SBI)
+- `HWICAP_CR_WRITE = 0x01` (Rnc(1)=cr_i(4))
+- Attente `CR=0` après chaque chunk (machine d'état acquitte)
+- Uniquement `mmio_write32` — pas de `mmio_write64`
 
 ---
 
 ## Workflow de build
 
-### Build FPGA DPR
-
 ```bash
-./2_build_HB.sh hwicap-setup          # une seule fois : intègre HWICAP dans le projet CVA6
+# Build complet (BAO + Linux + DPR)
 FORCE_FPGA=1 DPR_MODE=static ./2_build_HB.sh fpga-dpr
 RM=accel_A ./2_build_HB.sh fpga-dpr
 RM=accel_B ./2_build_HB.sh fpga-dpr
-```
 
-### Build firmware DPR Manager + Linux
-
-```bash
-./2_build_HB.sh all-dpr
-# équivalent à :
-./2_build_HB.sh dpr-manager   # compile dpr_manager.bin (VARIANT=dpr_manager)
-./2_build_HB.sh bao-dpr       # BAO avec config cva6-dpr-linux
-./2_build_HB.sh opensbi-dpr   # OpenSBI avec payload bao-dpr.bin
-```
-
-### Build firmware Baremetal (scénario IOMMU attack)
-
-```bash
-./2_build_HB.sh baremetal     # compile baremetal.bin (main.c + dpr_test_full.c)
-./2_build_HB.sh bao           # BAO avec config cva6-baremetal
-./2_build_HB.sh opensbi       # OpenSBI avec payload bao.bin
-# ou tout en une commande :
-./2_build_HB.sh all
-```
-
-### Test DPR standalone (sans BAO, via GDB)
-
-```bash
+# Test DPR standalone
 ./3_build_B.sh dpr            # générer bitstreams (détecte obsolètes)
 ./3_build_B.sh baremetal      # compiler baremetal
 ./3_build_B.sh program        # programmer FPGA
@@ -313,7 +195,7 @@ git clone --recurse-submodules -b dpr git@github.com:prevotet/riscv-iommu-demo.g
 ./3_build_B.sh program
 ```
 
-`ariane.xpr` n'est pas tracké — recréé automatiquement par `dpr-project`.
+`ariane.xpr` n'est pas tracké — recréé automatiquement par `dpr-project`.  
 `xlnx_axi_hwicap.xci` est généré par `dpr-ips` (ajouté dans `dpr/Makefile`).
 
 ---
@@ -329,7 +211,7 @@ L'IP HWICAP fait le bit-swap interne (process `SWAP_BITS` dans le VHDL) → **pa
 
 Le FIFO physique est de 64 mots (`C_WRITE_FIFO_DEPTH=64` dans l'IP) mais WFV plafonne à 63 (6 bits, `wrvacancy = FIFO_DEPTH - occupancy - 1`). Si chunk > 63, le FIFO se remplit entièrement avant que CR_WRITE soit envoyé → deadlock (WFV=0, state machine jamais démarrée).
 
-1. `hwicap_reset()` : écrire `CR=CR_FIFO_RST`, attendre `WFV=0x3F`, puis écrire `CR=0x00`
+1. `hwicap_reset()` : écrire `CR=CR_FIFO_RST`, attendre `WFV=0x3F`
 2. Écrire `SZ` = taille du chunk (≤ 63 mots)
 3. Remplir FIFO : 63 mots, un par un, en vérifiant `WFV > 0`
 4. Écrire `CR = CR_WRITE (0x01)`
@@ -349,20 +231,20 @@ constant HWICAP_REG_H_ADR : std_logic_vector := X"0000011F";
 ```
 La plage de données fait 32 octets (8 CE × 4 octets), donc CE3=CR=0x10C, CE5=WFV=0x114.
 
-Le code envoyait CR_WRITE à 0x11C (CE7, registre indéfini) → la state machine ICAP n'était jamais déclenchée.
+Le code envoyait CR_WRITE à 0x11C (CE7, registre indéfini) → la state machine ICAP n'était jamais déclenchée.  
 Le code lisait WFV depuis 0x124 (hors plage) → valeur aléatoire/0x3F.
 
-**Fix appliqué** dans `dpr_test.c`, `dpr_test_full.c` et `dpr_manager.c` :
+**Fix appliqué** dans `dpr_test.c` et `dpr_test_full.c` :
 - WF = 0x100, RF = 0x104, SZ = 0x108, CR = 0x10C, SR = 0x110, WFV = 0x114, RFO = 0x118
 - Suppression des defines GIER/ISR/IER erronés (les registres d'interruption sont à 0x01C, 0x020, 0x028 dans la plage 0x00-0x3F)
 
 ### EOS
-Avec `C_INCLUDE_STARTUP=1`, la STARTUPE2 interne gère EOS.
+Avec `C_INCLUDE_STARTUP=1`, la STARTUPE2 interne gère EOS.  
 `eos_in=1'b1` connecté dans `ariane_peripherals_xilinx.sv`.
 
 ### `arch_init` override
-- **Mode standalone (sans BAO)** : `dpr_test_full.c` définit `void arch_init(){}` vide. Le baremetal tourne en mode M, `plic_init()` et `CSRS(sie/sstatus)` causent des traps → override obligatoire.
-- **DPR Manager sous BAO** : `dpr_manager.c` n'override **pas** `arch_init()`. La version par défaut (faible) dans `arch/riscv/init.c` s'exécute : `plic_init()` + `CSRS(sie, SIE_SEIE)` + `CSRS(sstatus, SSTATUS_SIE)`. Sous BAO, le PLIC est virtualisé → ces accès sont légaux.
+Le baremetal standalone tourne en mode M sans BAO.  
+`plic_init()` et `CSRS(sie/sstatus)` causent des traps → override vide obligatoire.
 
 ### Règle DFX — feedthrough nets et PPLOC (HDPostRouteDRC-02)
 
@@ -373,15 +255,3 @@ Avec `C_INCLUDE_STARTUP=1`, la STARTUPE2 interne gère EOS.
 **Règle** : tout port de sortie d'un RM (`b_id`, `r_id`, `b_valid`, `r_valid`…) doit être piloté par un **FF interne au pblock**, avec `(* dont_touch = "true" *)`.
 
 **Correction appliquée** dans `dpr/rm/accel_default/accel_blank.sv`, `accel_A/accel_wrap.sv`, `accel_B/accel_wrap.sv` : `b_id`, `b_valid`, `r_id`, `r_valid` sont maintenant des `always_ff` internes au RM. Latence +1 cycle sur les réponses AXI cfg — sans impact fonctionnel.
-
-### Compilation VARIANT=dpr_manager
-
-`bao-baremetal-guest/src/sources.mk` supporte la variable `VARIANT` :
-- `VARIANT=dpr_manager` → compile `dpr_manager.c` uniquement (pas de `arch_init` override)
-- (défaut) → compile `main.c` + `dpr_test_full.c` (avec `arch_init` override vide)
-
-Usage dans `2_build_HB.sh` :
-```bash
-make -C bao-baremetal-guest PLATFORM=cva6 VARIANT=dpr_manager NAME=dpr_manager
-```
-Produit : `build/cva6/dpr_manager.bin` (chargé à `0x90000000` par BAO).

@@ -1,9 +1,12 @@
 #!/bin/bash
 # =============================================================================
-# 2build_HB.sh — Script de build flexible pour riscv-iommu-demo
-# Usage: [ENV_VARS] ./2build_HB.sh [TARGET]
+# 2_build_HB.sh — Script de build flexible pour riscv-iommu-demo
+# Usage: [ENV_VARS] ./2_build_HB.sh [TARGET]
 #
-# Targets : all | clean | fpga | fpga-dpr | hwicap-setup | baremetal | bao | opensbi
+# Targets : all | clean | fpga | fpga-dpr | hwicap-setup | baremetal | bao |
+#           opensbi | dpr-manager | bao-dpr | opensbi-dpr | all-dpr |
+#           program | openocd | jtag-load | jtag-load-dpr | jtag | jtag-dpr |
+#           sdcard
 #
 # Variables d'environnement surchargeables :
 #   VIVADO_VERSION, VIVADO_DIR
@@ -12,6 +15,10 @@
 #   BUILD_DIR         (répertoire de sortie)
 #   DRY_RUN=1         (affiche les commandes sans les exécuter)
 #   JOBS              (nombre de threads make, défaut: nproc)
+#   OPENOCD_CFG       (config OpenOCD, défaut: cva6/corev_apu/fpga/ariane.cfg)
+#   OPENOCD_PORT      (port GDB OpenOCD, défaut: 3333)
+#   RM_INIT           (RM chargé au boot FPGA, défaut: accel_A)
+#   RM_TARGET         (RM dont les bitstreams partiels sont en DDR, défaut: accel_B)
 # =============================================================================
 
 set -euo pipefail
@@ -47,6 +54,25 @@ BAO_SRCS="${BAO_SRCS:-$ROOT_DIR/bao-hypervisor}"
 
 CVA6_FPGA="$ROOT_DIR/cva6/corev_apu/fpga"
 HWICAP_DIR="$CVA6_FPGA/xilinx/xlnx_axi_hwicap"
+WORK_DPR="$CVA6_FPGA/work-dpr"
+
+# JTAG / OpenOCD
+OPENOCD_CFG="${OPENOCD_CFG:-$CVA6_FPGA/ariane.cfg}"
+OPENOCD_PORT="${OPENOCD_PORT:-3333}"
+GDB="${GDB:-${CROSS_COMPILE}gdb}"
+
+# DPR — RMs pour le chargement JTAG
+RM_INIT="${RM_INIT:-accel_A}"
+RM_TARGET="${RM_TARGET:-accel_B}"
+
+# Firmware OpenSBI (chemin standard après build)
+FW_PAYLOAD="$ROOT_DIR/opensbi/build/platform/fpga/ariane/firmware/fw_payload.bin"
+FW_ENTRY="0x80000000"
+
+# Adresses DDR fixes
+ADDR_FW="0x80000000"
+ADDR_BS1="0x81000000"
+ADDR_BS2="0x81300000"
 
 # =============================================================================
 # Utilitaires
@@ -507,6 +533,284 @@ do_sdcard() {
     log_ok "Carte SD flashée sur $device"
 }
 
+# =============================================================================
+# JTAG — OpenOCD + chargement firmware via GDB (sans carte SD)
+# =============================================================================
+
+#
+# Lance OpenOCD en mode bloquant (terminal dédié).
+# Utilise ariane.cfg fourni par le dépôt CVA6.
+#
+do_openocd() {
+    log_step "Lancement OpenOCD (port GDB=$OPENOCD_PORT)"
+
+    if [[ ! -f "$OPENOCD_CFG" ]]; then
+        log_error "Config OpenOCD introuvable : $OPENOCD_CFG"
+        log_error "  → Surcharger OPENOCD_CFG=<chemin>"
+        exit 1
+    fi
+
+    log_ok "Config : $OPENOCD_CFG"
+    log_warn "Ctrl+C pour arrêter OpenOCD"
+    echo ""
+
+    if [[ "$DRY_RUN" == "1" ]]; then
+        echo -e "\e[90m[DRY-RUN]\e[0m openocd -f $OPENOCD_CFG"
+    else
+        openocd -f "$OPENOCD_CFG"
+    fi
+}
+
+#
+# _openocd_start_bg — démarre OpenOCD en arrière-plan, retourne son PID.
+# Attend que le port GDB soit prêt (max 10 s).
+#
+_openocd_start_bg() {
+    if [[ ! -f "$OPENOCD_CFG" ]]; then
+        log_error "Config OpenOCD introuvable : $OPENOCD_CFG"
+        exit 1
+    fi
+
+    log_step "  → Démarrage OpenOCD en arrière-plan..."
+    if [[ "$DRY_RUN" == "1" ]]; then
+        echo -e "\e[90m[DRY-RUN]\e[0m openocd -f $OPENOCD_CFG &"
+        echo "0"   # PID fictif
+        return
+    fi
+
+    openocd -f "$OPENOCD_CFG" &>/tmp/openocd_bg.log &
+    local ocd_pid=$!
+    echo "$ocd_pid"
+
+    # Attendre que le port GDB soit ouvert
+    local retries=20
+    while ! nc -z localhost "$OPENOCD_PORT" 2>/dev/null; do
+        sleep 0.5
+        retries=$(( retries - 1 ))
+        if [[ $retries -le 0 ]]; then
+            log_error "OpenOCD ne répond pas sur le port $OPENOCD_PORT après 10 s"
+            log_error "  → Log : /tmp/openocd_bg.log"
+            kill "$ocd_pid" 2>/dev/null || true
+            exit 1
+        fi
+    done
+    log_ok "  → OpenOCD prêt (PID $ocd_pid, port $OPENOCD_PORT)"
+}
+
+#
+# _gdb_run FILE_GDB — exécute un script GDB en mode batch et affiche le résultat.
+#
+_gdb_run() {
+    local gdb_script="$1"
+
+    if [[ ! -x "$(command -v "$GDB")" ]] 2>/dev/null && \
+       [[ ! -f "$GDB" ]]; then
+        log_error "GDB introuvable : $GDB"
+        log_error "  → Surcharger GDB=<chemin complet>"
+        exit 1
+    fi
+
+    log_step "  → Exécution du script GDB : $gdb_script"
+    if [[ "$DRY_RUN" == "1" ]]; then
+        echo -e "\e[90m[DRY-RUN]\e[0m $GDB -batch -x $gdb_script"
+        cat "$gdb_script" | sed 's/^/  /'
+    else
+        "$GDB" -batch -x "$gdb_script"
+    fi
+}
+
+#
+# do_jtag_load — charge fw_payload.bin via JTAG (sans carte SD).
+#
+# Pré-requis : OpenOCD déjà lancé (./2_build_HB.sh openocd dans un autre terminal).
+# Layout DDR après chargement :
+#   0x80000000 : fw_payload.bin  (OpenSBI + BAO + Linux)
+#
+do_jtag_load() {
+    log_step "Chargement firmware via JTAG (sans carte SD)"
+
+    if [[ ! -f "$FW_PAYLOAD" ]]; then
+        log_error "Firmware introuvable : $FW_PAYLOAD"
+        log_error "  → Lancer './2_build_HB.sh opensbi' ou './2_build_HB.sh opensbi-dpr' d'abord"
+        exit 1
+    fi
+
+    local fw_size
+    fw_size=$(stat -c%s "$FW_PAYLOAD")
+    log_ok "Firmware : $FW_PAYLOAD ($fw_size octets)"
+    log_ok "Cible    : $ADDR_FW"
+
+    local gdb_script
+    gdb_script=$(mktemp /tmp/jtag_load_XXXXXX.gdb)
+    trap "rm -f $gdb_script" EXIT
+
+    cat > "$gdb_script" << EOF
+# Connexion à OpenOCD
+set arch riscv:rv64
+target remote localhost:${OPENOCD_PORT}
+monitor halt
+
+# Chargement firmware OpenSBI + BAO
+restore ${FW_PAYLOAD} binary ${ADDR_FW}
+
+# Mise à jour du PC et démarrage
+set \$pc = ${ADDR_FW}
+monitor resume
+disconnect
+quit
+EOF
+
+    _gdb_run "$gdb_script"
+    log_ok "Firmware chargé — CVA6 en cours d'exécution depuis $ADDR_FW"
+}
+
+#
+# do_jtag_load_dpr — charge fw_payload.bin + bitstreams partiels via JTAG.
+#
+# Pré-requis : OpenOCD déjà lancé.
+# Layout DDR après chargement :
+#   0x80000000 : fw_payload.bin            (OpenSBI + BAO DPR Manager + Linux)
+#   0x81000000 : partial_${RM_TARGET}_accel1.bin
+#   0x81300000 : partial_${RM_TARGET}_accel2.bin
+#
+do_jtag_load_dpr() {
+    log_step "Chargement firmware DPR + bitstreams via JTAG"
+
+    local bs1="$WORK_DPR/partial_${RM_TARGET}_accel1.bin"
+    local bs2="$WORK_DPR/partial_${RM_TARGET}_accel2.bin"
+
+    if [[ ! -f "$FW_PAYLOAD" ]]; then
+        log_error "Firmware introuvable : $FW_PAYLOAD"
+        log_error "  → Lancer './2_build_HB.sh opensbi-dpr' d'abord"
+        exit 1
+    fi
+    if [[ ! -f "$bs1" ]]; then
+        log_error "Bitstream accel1 introuvable : $bs1"
+        log_error "  → Lancer 'RM_TARGET=$RM_TARGET ./2_build_HB.sh fpga-dpr' puis la conversion .bit→.bin"
+        exit 1
+    fi
+    if [[ ! -f "$bs2" ]]; then
+        log_error "Bitstream accel2 introuvable : $bs2"
+        exit 1
+    fi
+
+    local sz1=$(( $(stat -c%s "$bs1") / 4 ))
+    local sz2=$(( $(stat -c%s "$bs2") / 4 ))
+    log_ok "Firmware  : $FW_PAYLOAD"
+    log_ok "Bitstream1: $bs1 ($sz1 mots) → $ADDR_BS1"
+    log_ok "Bitstream2: $bs2 ($sz2 mots) → $ADDR_BS2"
+
+    local gdb_script
+    gdb_script=$(mktemp /tmp/jtag_load_dpr_XXXXXX.gdb)
+    trap "rm -f $gdb_script" EXIT
+
+    cat > "$gdb_script" << EOF
+# Connexion à OpenOCD
+set arch riscv:rv64
+target remote localhost:${OPENOCD_PORT}
+monitor halt
+
+# Chargement firmware OpenSBI + BAO (DPR Manager + Linux)
+restore ${FW_PAYLOAD} binary ${ADDR_FW}
+
+# Chargement des bitstreams partiels (RM_TARGET=${RM_TARGET})
+restore ${bs1} binary ${ADDR_BS1}
+restore ${bs2} binary ${ADDR_BS2}
+
+# Mise à jour du PC et démarrage
+set \$pc = ${ADDR_FW}
+monitor resume
+disconnect
+quit
+EOF
+
+    _gdb_run "$gdb_script"
+    log_ok "Firmware + bitstreams chargés — CVA6 en cours d'exécution"
+    log_ok "  IPC DPR Manager disponible à 0xF0000000 dans chaque VM"
+}
+
+#
+# do_jtag — séquence complète JTAG (sans carte SD) pour le firmware standard.
+# Lance OpenOCD en arrière-plan, charge le firmware, arrête OpenOCD.
+#
+do_jtag() {
+    log_step "Séquence JTAG complète (firmware standard)"
+    local ocd_pid
+    ocd_pid=$(_openocd_start_bg)
+    do_jtag_load
+    if [[ "$DRY_RUN" != "1" ]] && [[ -n "$ocd_pid" ]]; then
+        kill "$ocd_pid" 2>/dev/null || true
+        log_ok "OpenOCD arrêté (PID $ocd_pid)"
+    fi
+}
+
+#
+# do_jtag_dpr — séquence complète JTAG pour la config DPR Manager + Linux.
+# Lance OpenOCD en arrière-plan, charge firmware + bitstreams, arrête OpenOCD.
+#
+do_jtag_dpr() {
+    log_step "Séquence JTAG complète (DPR Manager + Linux)"
+    local ocd_pid
+    ocd_pid=$(_openocd_start_bg)
+    do_jtag_load_dpr
+    if [[ "$DRY_RUN" != "1" ]] && [[ -n "$ocd_pid" ]]; then
+        kill "$ocd_pid" 2>/dev/null || true
+        log_ok "OpenOCD arrêté (PID $ocd_pid)"
+    fi
+}
+
+# =============================================================================
+# DPR Manager
+# =============================================================================
+
+do_dpr_manager() {
+    log_step "Compilation du guest DPR Manager"
+
+    RUN make -C "$ROOT_DIR/bao-baremetal-guest" \
+        CROSS_COMPILE="$CROSS_COMPILE" \
+        PLATFORM=cva6 \
+        VARIANT=dpr_manager \
+        NAME=dpr_manager \
+        -j"$JOBS"
+
+    copy_if_changed \
+        "$ROOT_DIR/bao-baremetal-guest/build/cva6/dpr_manager.bin" \
+        "$BUILD_GUESTS_DIR/dpr_manager.bin"
+
+    log_ok "DPR Manager compilé → $BUILD_GUESTS_DIR/dpr_manager.bin"
+}
+
+do_bao_dpr_linux() {
+    log_step "Compilation de BAO (config cva6-dpr-linux)"
+
+    RUN cp -R "$ROOT_DIR/vm-configs/"*  "$BAO_SRCS/configs/"
+    RUN cp -R "$ROOT_DIR/plat-configs/"* "$BAO_SRCS/src/platform/"
+
+    RUN make -C "$BAO_SRCS" \
+        CROSS_COMPILE="$CROSS_COMPILE" \
+        PLATFORM=cva6 \
+        CONFIG=cva6-dpr-linux \
+        CPPFLAGS="-DBAO_WRKDIR_IMGS=$BUILD_GUESTS_DIR -DLOGLEVEL=TRACE" \
+        -j"$JOBS"
+
+    copy_if_changed \
+        "$BAO_SRCS/bin/cva6/cva6-dpr-linux/bao.bin" \
+        "$BUILD_BAO_DIR/bao-dpr.bin"
+
+    log_ok "BAO DPR compilé → $BUILD_BAO_DIR/bao-dpr.bin"
+}
+
+do_opensbi_dpr() {
+    log_step "Compilation de OpenSBI (payload DPR Manager + Linux)"
+    RUN make -C "$ROOT_DIR/opensbi" \
+        CROSS_COMPILE="$CROSS_COMPILE" \
+        PLATFORM=fpga/ariane \
+        FW_PAYLOAD=y \
+        FW_PAYLOAD_PATH="$BUILD_BAO_DIR/bao-dpr.bin" \
+        -j"$JOBS"
+    log_ok "OpenSBI DPR compilé"
+}
+
 do_all() {
     create_dirs
     do_fpga
@@ -514,6 +818,17 @@ do_all() {
     do_bao
     do_opensbi
     log_ok "Build complet terminé. Artefacts dans : $BUILD_DIR"
+}
+
+do_all_dpr() {
+    create_dirs
+    do_dpr_manager
+    do_bao_dpr_linux
+    do_opensbi_dpr
+    log_ok "Build DPR terminé. Artefacts dans : $BUILD_DIR"
+    log_ok "  DPR Manager : $BUILD_GUESTS_DIR/dpr_manager.bin"
+    log_ok "  BAO DPR     : $BUILD_BAO_DIR/bao-dpr.bin"
+    log_ok "  Firmware    : opensbi/build/platform/fpga/ariane/firmware/fw_payload.bin"
 }
 
 # =============================================================================
@@ -543,8 +858,17 @@ case "$TARGET" in
     baremetal)    create_dirs; do_baremetal ;;
     bao)          create_dirs; do_bao ;;
     opensbi)      create_dirs; do_opensbi ;;
-    program)      create_dirs; do_program ;;
-    sdcard)       do_sdcard ;;
+    dpr-manager)   create_dirs; do_dpr_manager ;;
+    bao-dpr)       create_dirs; do_bao_dpr_linux ;;
+    opensbi-dpr)   create_dirs; do_opensbi_dpr ;;
+    all-dpr)       do_all_dpr ;;
+    program)       create_dirs; do_program ;;
+    openocd)       do_openocd ;;
+    jtag-load)     do_jtag_load ;;
+    jtag-load-dpr) do_jtag_load_dpr ;;
+    jtag)          do_jtag ;;
+    jtag-dpr)      do_jtag_dpr ;;
+    sdcard)        do_sdcard ;;
     *)
         log_error "Cible inconnue : '$TARGET'"
         echo ""
@@ -568,9 +892,33 @@ case "$TARGET" in
         echo "  DPR_MODE=all ./2build_HB.sh fpga-dpr"
         echo ""
         echo "  baremetal     — guests baremetal uniquement"
-        echo "  bao           — hyperviseur BAO uniquement"
+        echo "  bao           — hyperviseur BAO uniquement (config cva6-baremetal)"
         echo "  opensbi       — OpenSBI uniquement"
-        echo "  program       — charge le bitstream sur la carte"
+        echo ""
+        echo "  dpr-manager   — compiler le guest DPR Manager (VM de service HWICAP)"
+        echo "  bao-dpr       — BAO avec config cva6-dpr-linux (DPR Manager + Linux)"
+        echo "  opensbi-dpr   — OpenSBI avec payload bao-dpr.bin"
+        echo "  all-dpr       — dpr-manager + bao-dpr + opensbi-dpr"
+        echo ""
+        echo "  program       — charge le bitstream FPGA via Vivado JTAG"
+        echo ""
+        echo "Démarrage via JTAG (sans carte SD) :"
+        echo "  openocd       — lancer OpenOCD (bloquant, terminal dédié)"
+        echo "  jtag-load     — charger fw_payload.bin via GDB → $ADDR_FW"
+        echo "                  OPENOCD déjà lancé requis"
+        echo "  jtag-load-dpr — charger fw_payload.bin + bitstreams DPR via GDB"
+        echo "                  RM_TARGET=$RM_TARGET  (bitstreams à $ADDR_BS1 / $ADDR_BS2)"
+        echo "  jtag          — OpenOCD bg + jtag-load (tout-en-un)"
+        echo "  jtag-dpr      — OpenOCD bg + jtag-load-dpr (tout-en-un)"
+        echo ""
+        echo "Workflow JTAG typique :"
+        echo "  Terminal 1 : ./2_build_HB.sh openocd"
+        echo "  Terminal 2 : ./2_build_HB.sh jtag-load        # firmware standard"
+        echo "             : ./2_build_HB.sh jtag-load-dpr     # DPR Manager + Linux"
+        echo "  Ou tout-en-un :"
+        echo "             : ./2_build_HB.sh jtag"
+        echo "             : ./2_build_HB.sh jtag-dpr"
+        echo ""
         echo "  sdcard        — partitionne et flashe la carte SD"
         echo "                  SDCARD_DEV=/dev/sdc ./2build_HB.sh sdcard"
         echo ""
@@ -582,6 +930,11 @@ case "$TARGET" in
         echo "  JOBS               (défaut: nproc)"
         echo "  DRY_RUN=1          (affiche les commandes sans les exécuter)"
         echo "  FORCE_HWICAP=1     (force la recréation des fichiers HWICAP)"
+        echo "  OPENOCD_CFG        (défaut: cva6/corev_apu/fpga/ariane.cfg)"
+        echo "  OPENOCD_PORT       (défaut: 3333)"
+        echo "  GDB                (défaut: \${CROSS_COMPILE}gdb)"
+        echo "  RM_INIT            (défaut: accel_A — RM programmé dans le FPGA)"
+        echo "  RM_TARGET          (défaut: accel_B — RM dont les .bin sont en DDR)"
         exit 1
         ;;
 esac
