@@ -341,7 +341,7 @@ void main(void){
         //timer_set(TIMER_INTERVAL);
         //irq_enable(TIMER_IRQ_ID);
         master_done = true;
-        dpr_test_full();
+        dpr_test_full_debug();
         //icap_test();
     }
     irq_enable(UART_IRQ_ID);

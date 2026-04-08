@@ -217,14 +217,14 @@ CONFIG.C_OPERATION       {1}            # Pas de BUFGCTRL (horloge ICAP toujours
 
 | Fichier | Description |
 |---|---|
-| `bao-baremetal-guest/src/dpr_test.c` | Test DPR basique (standalone) |
-| `bao-baremetal-guest/src/dpr_test_full.c` | Test DPR complet avec perf (standalone) |
+| `bao-baremetal-guest/src/dpr_test.c` | Test DPR basique (standalone M-mode, sans BAO) |
+| `bao-baremetal-guest/src/dpr_test_full.c` | Test DPR ping-pong — standalone OU single-VM sous BAO (`VARIANT=dpr_full`) |
 | `bao-baremetal-guest/src/dpr_ipc.h` | **Nouveau** — protocole IPC DPR Manager ↔ Linux |
 | `bao-baremetal-guest/src/dpr_manager.c` | **Nouveau** — VM service DPR (config cva6-dpr-linux) |
-| `bao-baremetal-guest/src/sources.mk` | **Modifié** — `VARIANT=dpr_manager` sélectionne `dpr_manager.c` |
+| `bao-baremetal-guest/src/sources.mk` | **Modifié** — `VARIANT=dpr_manager/dpr_full/dpr_client` sélectionne la source |
 
-- `dpr_test_full.c` définit `arch_init() {}` vide → mode standalone M sans BAO
-- `dpr_manager.c` n'override PAS `arch_init()` → utilise la version par défaut (PLIC init, S-mode IRQ)
+- `dpr_test_full.c` définit `void arch_init(){}` vide → **obligatoire dans tous les cas** (standalone ET sous BAO single-VM). Voir section `arch_init` override ci-dessous.
+- `dpr_manager.c` n'override PAS `arch_init()` → utilise la version par défaut (PLIC init, S-mode IRQ). Sous BAO multi-VM avec Linux, le PLIC est nécessaire pour la communication inter-VMs.
 
 ### Configs BAO
 
@@ -233,6 +233,7 @@ CONFIG.C_OPERATION       {1}            # Pas de BUFGCTRL (horloge ICAP toujours
 | `vm-configs/cva6-baremetal/config.c` | Config 1 VM (baremetal seul) |
 | `vm-configs/cva6-baremetal-linux/config.c` | Config 2 VMs (baremetal + Linux) |
 | `vm-configs/cva6-dpr-linux/config.c` | **Nouveau** — Config 2 VMs (DPR Manager + Linux) |
+| `vm-configs/cva6-dpr-baremetal/config.c` | **Nouveau** — Config 1 VM (DPR Manager + test fusionnés, `VARIANT=dpr_full`) |
 
 ---
 
@@ -255,6 +256,14 @@ RM=accel_B ./2_build_HB.sh fpga-dpr
 ./2_build_HB.sh dpr-manager   # compile dpr_manager.bin (VARIANT=dpr_manager)
 ./2_build_HB.sh bao-dpr       # BAO avec config cva6-dpr-linux
 ./2_build_HB.sh opensbi-dpr   # OpenSBI avec payload bao-dpr.bin
+```
+
+### Build firmware DPR Single VM (DPR Manager + test fusionnés)
+
+```bash
+./2_build_HB_jtag.sh all-dpr-bm    # dpr-full + bao-dpr-bm + opensbi-dpr-bm
+./2_build_HB_jtag.sh program       # programme static_full.bit (obligatoire, voir ci-dessous)
+./2_build_HB_jtag.sh jtag-dpr-bm   # OpenOCD bg + charge fw + 4 bitstreams + démarre
 ```
 
 ### Build firmware Baremetal (scénario IOMMU attack)
@@ -357,12 +366,56 @@ Le code lisait WFV depuis 0x124 (hors plage) → valeur aléatoire/0x3F.
 - Suppression des defines GIER/ISR/IER erronés (les registres d'interruption sont à 0x01C, 0x020, 0x028 dans la plage 0x00-0x3F)
 
 ### EOS
-Avec `C_INCLUDE_STARTUP=1`, la STARTUPE2 interne gère EOS.
-`eos_in=1'b1` connecté dans `ariane_peripherals_xilinx.sv`.
+Avec `C_INCLUDE_STARTUP=1`, la STARTUPE2 interne gère EOS — le port `eos_in` **n'est pas exposé**.
+**Ne pas** connecter `.eos_in(1'b1)` dans `ariane_peripherals_xilinx.sv` avec ce paramètre (erreur de compilation).
+Avec `C_INCLUDE_STARTUP=0` (ancienne config), `eos_in=1'b1` devait être connecté explicitement.
 
 ### `arch_init` override
-- **Mode standalone (sans BAO)** : `dpr_test_full.c` définit `void arch_init(){}` vide. Le baremetal tourne en mode M, `plic_init()` et `CSRS(sie/sstatus)` causent des traps → override obligatoire.
-- **DPR Manager sous BAO** : `dpr_manager.c` n'override **pas** `arch_init()`. La version par défaut (faible) dans `arch/riscv/init.c` s'exécute : `plic_init()` + `CSRS(sie, SIE_SEIE)` + `CSRS(sstatus, SSTATUS_SIE)`. Sous BAO, le PLIC est virtualisé → ces accès sont légaux.
+
+| Contexte | Override ? | Raison |
+|---|---|---|
+| `dpr_test.c` standalone (M-mode) | **OUI** — `void arch_init(){}` | `plic_init()` + CSRs S-mode causent des traps en M-mode sans SBI |
+| `dpr_test_full.c` standalone (M-mode) | **OUI** — `void arch_init(){}` | Même raison |
+| `dpr_test_full.c` BAO single-VM (`VARIANT=dpr_full`) | **OUI** — `void arch_init(){}` | `plic_init()` + `sie/sstatus` activent les interruptions → interruptions pendant les longues séquences HWICAP (534K mots ≈ plusieurs dizaines de ms) → IDCODE faux + DPR silencieusement ignoré par l'ICAP |
+| `dpr_manager.c` BAO multi-VM (`cva6-dpr-linux`) | **NON** | Sous BAO multi-VM, le PLIC virtualisé est nécessaire pour les IPC inter-VMs avec Linux |
+
+**Règle** : tout guest qui fait des séquences HWICAP longues doit avoir `arch_init(){}` vide pour éviter toute interruption pendant l'écriture du bitstream.
+
+### accel_blank (accel_default) et SLVERR sous BAO
+
+`accel_default` retourne AXI SLVERR sur toute lecture/écriture. Le comportement diverge selon le mode :
+
+- **M-mode standalone** : CVA6 absorbe le SLVERR et retourne une valeur garbage (0xbadcab1e, 0xffffffff…) sans exception → le code continue.
+- **S-mode sous BAO (VS-mode)** : SLVERR → load/store access fault (mcause=5/7) → exception non gérée dans le guest baremetal → **hang silencieux**.
+
+**Conséquence** : ne jamais lire les registres des accels avant une DPR réussie sous BAO. Le RM initial du `static_full.bit` est `accel_blank` (SLVERR). Seuls `accel_A` et `accel_B` répondent correctement.
+
+**Symptôme observé** : le programme s'arrête sans message après un `mmio_read32(0x50000000)` ou `mmio_read32(0x50001000)` si le RM est `accel_blank`.
+
+### Bitstream FPGA à programmer pour DPR
+
+**`do_program()` doit charger `static_full.bit`, pas `ariane_xilinx.bit`.**
+
+`ariane_xilinx.bit` = bitstream CVA6 standard sans HWICAP ni zones DPR.
+`static_full.bit` = bitstream DPR statique avec HWICAP, pblocks DPR et RM initial.
+
+Si `ariane_xilinx.bit` est chargé → HWICAP renvoie `0xbadcab1e` (default slave AXI) sur toutes les lectures → les boucles de polling WFV/CR court-circuitent immédiatement (valeur sentinel ≠ 0) → la "reconfiguration" part dans le vide → accel_blank persistant → hang sur lecture accel.
+
+**Fix appliqué dans `2_build_HB_jtag.sh`** : `do_program()` donne priorité à `static_full.bit` sur `ariane_xilinx.bit`. Un warning est émis si `ariane_xilinx.bit` est plus récent (rebuild DPR recommandé).
+
+### Paramètres IP HWICAP (`C_OPERATION`, `C_INCLUDE_STARTUP`, `C_DEVICE_ID`)
+
+Ces trois paramètres sont **tous obligatoires** dans le TCL. Sans eux, l'ICAP ne fonctionne pas silencieusement :
+
+| Paramètre | Valeur | Effet si absent/incorrect |
+|---|---|---|
+| `C_DEVICE_ID` | `0x03647093` | ICAP ne correspond pas au device → configuration refusée |
+| `C_INCLUDE_STARTUP` | `1` | Sans STARTUPE2 interne, l'ICAP peut rester en état indéfini après boot |
+| `C_OPERATION` | `1` | Sans ce flag, BUFGCTRL peut couper l'horloge ICAP après startup → ICAP accepte les données (WFV/CR cycle normalement) mais **n'exécute rien** → IDCODE faux, DPR silencieusement ignoré |
+
+**Symptôme de `C_OPERATION=0`** : HWICAP se comporte normalement côté AXI (WFV = 0x3F, CR_WRITE acquitté, SR = 0x00000001) mais l'ICAP ne reconfigure pas le fabric. IDCODE retourne une valeur incorrecte (ex. `0x020035e5`).
+
+**Fix appliqué dans `2_build_HB_jtag.sh` `do_hwicap_setup()`** : TCL complété avec les trois paramètres. Régénérer l'IP et rebuilder `static_full.bit` si ces paramètres étaient manquants.
 
 ### Règle DFX — feedthrough nets et PPLOC (HDPostRouteDRC-02)
 

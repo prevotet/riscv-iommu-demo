@@ -195,7 +195,9 @@ create_ip -name axi_hwicap -vendor xilinx.com -library ip \
     -version 3.0 -module_name $ipName
 set_property -dict [list \
     CONFIG.C_ICAP_EXTERNAL   {0} \
-    CONFIG.C_INCLUDE_STARTUP {0} \
+    CONFIG.C_DEVICE_ID       {0x03647093} \
+    CONFIG.C_INCLUDE_STARTUP {1} \
+    CONFIG.C_OPERATION       {1} \
 ] [get_ips $ipName]
 generate_target {instantiation_template} \
     [get_files ./$ipName.srcs/sources_1/ip/$ipName/$ipName.xci]
@@ -499,18 +501,25 @@ do_all_dpr_bm() {
 
 do_program() {
     log_step "Chargement du bitstream sur Genesys2"
-    local bit="$BUILD_CVA6_DIR/ariane_xilinx.bit"
+    local dpr_bit="$BUILD_CVA6_DIR/dpr/static_full.bit"
+    local std_bit="$BUILD_CVA6_DIR/ariane_xilinx.bit"
+    local bit=""
 
-    if [[ ! -f "$bit" ]]; then
-        local fallback="$BUILD_CVA6_DIR/dpr/static_full.bit"
-        if [[ -f "$fallback" ]]; then
-            log_warn "ariane_xilinx.bit absent — utilisation du fallback DPR : $fallback"
-            bit="$fallback"
-        else
-            log_error "Bitstream introuvable : $bit"
-            exit 1
+    # Priorité : static_full.bit (DPR) > ariane_xilinx.bit (standard)
+    # Le bitstream DPR contient l'HWICAP — nécessaire pour tout scénario DPR.
+    if [[ -f "$dpr_bit" ]]; then
+        bit="$dpr_bit"
+        if [[ -f "$std_bit" ]] && [[ "$std_bit" -nt "$dpr_bit" ]]; then
+            log_warn "ariane_xilinx.bit est plus récent que static_full.bit — pensez à rebuilder DPR"
         fi
+    elif [[ -f "$std_bit" ]]; then
+        log_warn "static_full.bit absent — utilisation du bitstream standard (sans HWICAP/DPR)"
+        bit="$std_bit"
+    else
+        log_error "Aucun bitstream trouvé (ni $dpr_bit ni $std_bit)"
+        exit 1
     fi
+    log_ok "Bitstream sélectionné : $bit"
 
     source "$VIVADO_DIR/settings64.sh"
 
@@ -866,8 +875,7 @@ EOF
 
     _gdb_run "$gdb_script"
     log_ok "Chargement terminé — CVA6 démarré depuis $ADDR_FW"
-    log_ok "  VM0 DPR Manager attend des commandes IPC à 0xF0000000"
-    log_ok "  VM1 DPR Client lance le test ping-pong automatiquement"
+    log_ok "  VM0 DPR Service (manager+test fusionné) lance le ping-pong automatiquement"
 }
 
 #
@@ -945,7 +953,7 @@ case "$TARGET" in
         echo "  dpr-client    — compile dpr_client.bin (VM ping-pong baremetal)"
         echo "  bao-dpr-bm    — compile BAO (config cva6-dpr-baremetal)"
         echo "  opensbi-dpr-bm — compile OpenSBI (payload bao-dpr-bm.bin)"
-        echo "  all-dpr-bm    — dpr-manager + dpr-client + bao-dpr-bm + opensbi-dpr-bm"
+        echo "  all-dpr-bm    — dpr-full (service+test fusionné) + bao-dpr-bm + opensbi-dpr-bm"
         echo ""
         echo "Targets de déploiement JTAG :"
         echo "  program            — programme le bitstream FPGA via Vivado JTAG"

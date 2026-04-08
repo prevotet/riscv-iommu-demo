@@ -1,3 +1,55 @@
+
+
+# Script usage of 3_build_B2.sh
+
+### Full automated flow
+./3_build_B2.sh all
+
+This will:
+
+1. Generate bitstreams
+2. Compile software
+3. Program FPGA
+4. Ask you to start OpenOCD
+5. Load everything via GDB and start execution
+
+### Generate FPGA bitstreams
+./3_build_B2.sh dpr
+
+#### Compile software
+./3_build_B2.sh baremetal
+
+#### Program FPGA
+./3_build_B2.sh program
+
+#### Start debug server (in another terminal)
+./3_build_B2.sh openocd
+
+#### Load and run
+./3_build_B2.sh load
+
+## . FPGA artifacts
+Static checkpoint:
+work-dpr/static_routed.dcp
+Bitstreams:
+full_<RM>.bit
+partial_<RM>_accel*.bit
+Binary bitstreams (DDR-ready):
+partial_<RM>_accel*.bin
+
+## . Software artifacts
+Baremetal executable:
+baremetal.elf
+baremetal.bin
+
+
+---------------------------------------------------------------------------------------
+
+
+
+
+
+
 # RISC-V IOMMU Demo
 
 ## License

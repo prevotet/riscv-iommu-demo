@@ -1,0 +1,10 @@
+Open On-Chip Debugger 0.11.0
+Licensed under GNU GPL v2
+For bug reports, read
+	http://openocd.org/doc/doxygen/bugs.html
+DEPRECATED! use 'adapter speed' not 'adapter_khz'
+DEPRECATED! use 'adapter driver' not 'interface'
+Info : auto-selecting first available session transport "jtag". To override use 'transport select <transport>'.
+Error: libusb_claim_interface() failed with LIBUSB_ERROR_BUSY
+Error: unable to open ftdi device with vid 0403, pid 6010, description '*', serial '*' at bus location '*'
+
