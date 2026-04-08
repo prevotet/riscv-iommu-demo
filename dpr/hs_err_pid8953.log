@@ -1,0 +1,28 @@
+#
+# An unexpected error has occurred (11)
+#
+Stack:
+/lib/x86_64-linux-gnu/libc.so.6(+0x42520) [0x74d6b6042520]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_project.so(HAPRDesignSpec::getDcpReader() const+0) [0x74d6906b3d90]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_tcltasks.so(+0x24821e2) [0x74d6a7c821e2]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_common.so(+0xb9430f) [0x74d6b779430f]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(+0x3356f) [0x74d6b0e3356f]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(+0x34bf8) [0x74d6b0e34bf8]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(Tcl_EvalEx+0x13) [0x74d6b0e35163]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(Tcl_FSEvalFileEx+0x1da) [0x74d6b0e99d2a]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_commontasks.so(+0x2752c0) [0x74d6a9e752c0]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_common.so(+0xb9430f) [0x74d6b779430f]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(+0x3356f) [0x74d6b0e3356f]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(Tcl_EvalObjv+0x32) [0x74d6b0e336a2]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(TclEvalObjEx+0x322) [0x74d6b0e354c2]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_commontasks.so(+0x2bb7f8) [0x74d6a9ebb7f8]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_commontasks.so(+0x2bcdff) [0x74d6a9ebcdff]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_common.so(+0xb9430f) [0x74d6b779430f]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(+0x3356f) [0x74d6b0e3356f]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(Tcl_EvalObjv+0x32) [0x74d6b0e336a2]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(TclEvalObjEx+0x322) [0x74d6b0e354c2]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_commonmain.so(+0xc3d8) [0x74d6b83d73d8]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(Tcl_Main+0x1d0) [0x74d6b0ea02f0]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_common.so(+0xbc17ab) [0x74d6b77c17ab]
+/lib/x86_64-linux-gnu/libc.so.6(+0x94ac3) [0x74d6b6094ac3]
+/lib/x86_64-linux-gnu/libc.so.6(+0x1268d0) [0x74d6b61268d0]

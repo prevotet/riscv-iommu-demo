@@ -227,8 +227,8 @@ void main(void)
     printf("\n");
     printf("##############################################\n");
     printf("#   DPR Client VM — RISC-V IOMMU Demo       #\n");
-    printf("#   IPC @ 0x%08llx                      #\n",
-           (unsigned long long)DPR_IPC_BASE_VA);
+    printf("#   IPC @ 0x%08lx                      #\n",
+           (unsigned long)DPR_IPC_BASE_VA);
     printf("##############################################\n\n");
 
     dpr_ipc_msg_t *ipc = (dpr_ipc_msg_t *)DPR_IPC_BASE_VA;

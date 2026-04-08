@@ -434,9 +434,9 @@ do_all_dpr() {
 # =============================================================================
 
 do_dpr_client() {
-    log_step "Compilation DPR Client (VARIANT=dpr_client)"
+    log_step "Compilation DPR Client (VARIANT=dpr_client, PLATFORM=cva6-dpr-client)"
     RUN make -C "$ROOT_DIR/bao-baremetal-guest" \
-        PLATFORM=cva6 VARIANT=dpr_client NAME=dpr_client \
+        PLATFORM=cva6-dpr-client VARIANT=dpr_client NAME=dpr_client \
         CROSS_COMPILE="$CROSS_COMPILE" \
         -j"$JOBS"
     local bin="$ROOT_DIR/bao-baremetal-guest/build/cva6/dpr_client.bin"
@@ -470,15 +470,25 @@ do_opensbi_dpr_bm() {
     log_ok "OpenSBI DPR-BM compilé → $FW_PAYLOAD_DPR_BM"
 }
 
+do_dpr_full() {
+    log_step "Compilation du guest DPR Full (Service + Test)"
+    RUN make -C "$ROOT_DIR/bao-baremetal-guest" \
+        CROSS_COMPILE="$CROSS_COMPILE" PLATFORM=cva6 \
+        VARIANT=dpr_full NAME=dpr_manager \
+        -j"$JOBS"
+    copy_if_changed \
+        "$ROOT_DIR/bao-baremetal-guest/build/cva6/dpr_manager.bin" \
+        "$BUILD_GUESTS_DIR/dpr_manager.bin"
+    log_ok "DPR Full compilé → $BUILD_GUESTS_DIR/dpr_manager.bin"
+}
+
 do_all_dpr_bm() {
     create_dirs
-    do_dpr_manager
-    do_dpr_client
+    do_dpr_full
     do_bao_dpr_bm
     do_opensbi_dpr_bm
-    log_ok "Build DPR baremetal terminé."
+    log_ok "Build DPR baremetal (Single VM) terminé."
     log_ok "  DPR Manager : $BUILD_GUESTS_DIR/dpr_manager.bin"
-    log_ok "  DPR Client  : $BUILD_GUESTS_DIR/dpr_client.bin"
     log_ok "  BAO         : $BUILD_BAO_DIR/bao-dpr-bm.bin"
     log_ok "  Firmware    : $FW_PAYLOAD_DPR_BM"
 }
@@ -492,8 +502,14 @@ do_program() {
     local bit="$BUILD_CVA6_DIR/ariane_xilinx.bit"
 
     if [[ ! -f "$bit" ]]; then
-        log_error "Bitstream introuvable : $bit"
-        exit 1
+        local fallback="$BUILD_CVA6_DIR/dpr/static_full.bit"
+        if [[ -f "$fallback" ]]; then
+            log_warn "ariane_xilinx.bit absent — utilisation du fallback DPR : $fallback"
+            bit="$fallback"
+        else
+            log_error "Bitstream introuvable : $bit"
+            exit 1
+        fi
     fi
 
     source "$VIVADO_DIR/settings64.sh"
@@ -563,6 +579,15 @@ _openocd_start_bg() {
 
     log_step "  → Démarrage OpenOCD en arrière-plan..."
 
+    # Tuer tout OpenOCD résiduel sur le port JTAG/GDB
+    local old_pid
+    old_pid=$(lsof -ti tcp:"$OPENOCD_PORT" 2>/dev/null || true)
+    if [[ -n "$old_pid" ]]; then
+        log_warn "  → OpenOCD résiduel détecté (PID $old_pid) — arrêt..."
+        kill "$old_pid" 2>/dev/null || true
+        sleep 1
+    fi
+
     if [[ "$DRY_RUN" == "1" ]]; then
         echo -e "\e[90m[DRY-RUN]\e[0m openocd -f $OPENOCD_CFG &"
         echo "0"
@@ -584,6 +609,15 @@ _openocd_start_bg() {
             exit 1
         fi
     done
+    # Vérifier que l'examen du target a réussi
+    sleep 0.5
+    if grep -q "examination failed\|Fatal:\|unable to halt" /tmp/openocd_bg.log 2>/dev/null; then
+        log_error "OpenOCD a démarré mais l'examen du target a échoué :"
+        grep "Error\|Fatal\|Warn.*fail\|unable" /tmp/openocd_bg.log >&2 || true
+        log_error "  → Vérifiez que le FPGA est bien programmé et power-cyclé"
+        kill "$ocd_pid" 2>/dev/null || true
+        exit 1
+    fi
     log_ok "  → OpenOCD prêt (PID $ocd_pid, port $OPENOCD_PORT)"
 }
 
@@ -634,10 +668,11 @@ do_jtag_load() {
     trap "rm -f $gdb_script" EXIT
 
     cat > "$gdb_script" << EOF
-# Connexion à OpenOCD
 set arch riscv:rv64
+set remotetimeout 30
 target remote localhost:${OPENOCD_PORT}
-monitor halt
+monitor reset halt
+monitor sleep 200
 
 # Chargement firmware OpenSBI + BAO
 restore ${FW_PAYLOAD} binary ${ADDR_FW}
@@ -702,10 +737,11 @@ do_jtag_load_dpr() {
     trap "rm -f $gdb_script" EXIT
 
     cat > "$gdb_script" << EOF
-# Connexion à OpenOCD
 set arch riscv:rv64
+set remotetimeout 30
 target remote localhost:${OPENOCD_PORT}
-monitor halt
+monitor reset halt
+monitor sleep 200
 
 # Firmware OpenSBI + BAO (DPR Manager + Linux)
 restore ${FW_PAYLOAD} binary ${ADDR_FW}
@@ -762,7 +798,7 @@ do_jtag_dpr() {
 # Pré-requis : OpenOCD déjà lancé, 'all-dpr-bm' exécuté.
 #
 # Layout DDR résultant :
-#   0x70000000 : (BAO mappe dpr_client.bin ici au démarrage)
+#   0x82000000 : (BAO mappe dpr_client.bin ici au démarrage)
 #   0x80000000 : fw_payload_dpr_bm.bin  (OpenSBI + BAO)
 #   0x81000000 : partial_accel_A_accel1.bin  (slot 3 Mo)
 #   0x81300000 : partial_accel_B_accel1.bin  (slot 3 Mo)
@@ -808,8 +844,10 @@ do_jtag_load_dpr_bm() {
 
     cat > "$gdb_script" << EOF
 set arch riscv:rv64
+set remotetimeout 30
 target remote localhost:${OPENOCD_PORT}
-monitor halt
+monitor reset halt
+monitor sleep 200
 
 # Firmware OpenSBI + BAO (DPR Manager + Client baremetal)
 restore ${FW_PAYLOAD_DPR_BM} binary ${ADDR_FW}

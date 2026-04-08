@@ -230,8 +230,8 @@ static void process_ipc_cmd(dpr_ipc_msg_t *ipc)
     const uint32_t *bs = (const uint32_t *)bs_pa;
 
     const char *rm_name = (rm == DPR_RM_ACCEL_A) ? "accel_A" : "accel_B";
-    printf("[DPR] Reconfiguration Accel%u → %s (%lu mots depuis 0x%llx)...\n",
-           accel, rm_name, (unsigned long)bswords, (unsigned long long)bs_pa);
+    printf("[DPR] Reconfiguration Accel%u -> %s (%lu mots depuis 0x%lx)...\n",
+           accel, rm_name, (unsigned long)bswords, (unsigned long)bs_pa);
 
     ipc->status = DPR_STATUS_BUSY;
 
@@ -270,16 +270,14 @@ void main(void)
     printf("\n");
     printf("##############################################\n");
     printf("#   DPR Manager VM — RISC-V IOMMU Demo      #\n");
-    printf("#   IPC @ 0x%08llx  HWICAP @ 0x%08llx  #\n",
-           (unsigned long long)DPR_IPC_BASE_VA,
-           (unsigned long long)HWICAP_BASE);
+    printf("#   IPC @ 0x%08lx  HWICAP @ 0x%08lx  #\n",
+           (unsigned long)DPR_IPC_BASE_VA,
+           (unsigned long)HWICAP_BASE);
     printf("##############################################\n\n");
 
     hwicap_diag();
 
-    printf("[DPR] Etat initial des accélérateurs :\n");
-    check_accel_state(1);
-    check_accel_state(2);
+    printf("[DPR] Etat initial des accélérateurs : (RM default — lecture ignorée)\n");
 
     /* Initialisation de la région IPC */
     dpr_ipc_msg_t *ipc = (dpr_ipc_msg_t *)DPR_IPC_BASE_VA;
@@ -300,8 +298,11 @@ void main(void)
     while (1) {
         if (ipc->cmd != DPR_CMD_IDLE && ipc->status == DPR_STATUS_IDLE) {
             process_ipc_cmd(ipc);
+        } else {
+            /* Petit délai pour favoriser le scheduling */
+            for (volatile int i = 0; i < 1000; i++);
+            /* WFI : permet à BAO de scheduler les autres VMs (DPR Client...) */
+            wfi();
         }
-        /* Petite pause pour éviter la saturation du bus AXI sur l'accès IPC */
-        for (volatile int i = 0; i < 1000; i++);
     }
 }
