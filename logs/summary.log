@@ -2264,3 +2264,54 @@ Session : 20260409_152356 — cible : dpr — RM_INIT=accel_A RM_TARGET=accel_B
 Session : 20260409_170418 — cible : dpr — RM_INIT=accel_A RM_TARGET=accel_B
 ════════════════════════════════════════════════════════
   [18:55:57] dpr_static                          FAIL /home/jc/tmp/riscv-iommu-demo/logs/20260409_170418_dpr_static.log
+
+════════════════════════════════════════════════════════
+Session : 20260409_223632 — cible : dpr — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [23:13:02] dpr_static                          OK /home/jc/tmp/riscv-iommu-demo/logs/20260409_223632_dpr_static.log
+
+════════════════════════════════════════════════════════
+Session : 20260409_232307 — cible : baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [23:23:07] baremetal                           SKIP (binaire existant)
+
+════════════════════════════════════════════════════════
+Session : 20260409_232324 — cible : baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [23:23:24] baremetal                           OK /home/jc/tmp/riscv-iommu-demo/logs/20260409_232324_baremetal.log
+
+════════════════════════════════════════════════════════
+Session : 20260409_232530 — cible : baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [23:25:31] baremetal                           OK /home/jc/tmp/riscv-iommu-demo/logs/20260409_232530_baremetal.log
+  [23:25:53] dpr_partial_accel_default           FAIL /home/jc/tmp/riscv-iommu-demo/logs/20260409_223632_dpr_partial_accel_default.log
+
+════════════════════════════════════════════════════════
+Session : 20260409_232931 — cible : dpr — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [23:29:31] dpr_static                          SKIP (checkpoint existant)
+  [23:38:17] dpr_partial_accel_default           FAIL /home/jc/tmp/riscv-iommu-demo/logs/20260409_232931_dpr_partial_accel_default.log
+
+════════════════════════════════════════════════════════
+Session : 20260409_234022 — cible : dpr — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [23:40:22] dpr_static                          SKIP (checkpoint existant)
+  [23:56:46] dpr_partial_accel_default           FAIL /home/jc/tmp/riscv-iommu-demo/logs/20260409_234022_dpr_partial_accel_default.log
+
+════════════════════════════════════════════════════════
+Session : 20260410_000429 — cible : dpr — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [00:04:29] dpr_static                          SKIP (checkpoint existant)
+  [00:17:40] dpr_partial_accel_default           FAIL /home/jc/tmp/riscv-iommu-demo/logs/20260410_000429_dpr_partial_accel_default.log
+
+════════════════════════════════════════════════════════
+Session : 20260410_002922 — cible : dpr — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [00:29:22] dpr_static                          SKIP (checkpoint existant)
+  [00:44:43] dpr_partial_accel_default           FAIL /home/jc/tmp/riscv-iommu-demo/logs/20260410_002922_dpr_partial_accel_default.log
+
+════════════════════════════════════════════════════════
+Session : 20260410_005756 — cible : dpr — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [00:57:56] dpr_static                          SKIP (checkpoint existant)
+  [00:58:40] dpr_partial_accel_default           FAIL /home/jc/tmp/riscv-iommu-demo/logs/20260410_005756_dpr_partial_accel_default.log
