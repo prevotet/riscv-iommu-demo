@@ -19,45 +19,26 @@ module accel_wrap #(
 );
 
     // -------------------------------------------------------------------------
-    // SINK DFX : Pour forcer la création de PPLOCs sur TOUTES les pins d'entrée.
-    // Chaque signal d'entrée doit contribuer à un fanout interne au pblock.
+    // rst_n_local : capture rst_ni via pin D (FDRE sans pin CLR/R).
+    // Évite le LUT1 ~rst_ni externe au pblock qui cause Route 35-54.
+    // rst_ni entre dans le pblock comme donnée (PPLOC auto).
+    // L'inverseur ~rst_n_local pour les FDRE internes est dans le pblock. ✓
     // -------------------------------------------------------------------------
-    (* dont_touch = "true" *) logic dfx_sink_ff;
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-        if (!rst_ni) dfx_sink_ff <= 1'b0;
-        else dfx_sink_ff <= ^{
-            // Entrées Config Slave (axi_cfg)
-            axi_cfg.aw_id, axi_cfg.aw_addr, axi_cfg.aw_len, axi_cfg.aw_size, axi_cfg.aw_burst,
-            axi_cfg.aw_lock, axi_cfg.aw_cache, axi_cfg.aw_prot, axi_cfg.aw_qos,
-            axi_cfg.aw_region, axi_cfg.aw_atop, axi_cfg.aw_user, axi_cfg.aw_valid,
-            axi_cfg.ar_id, axi_cfg.ar_addr, axi_cfg.ar_len, axi_cfg.ar_size, axi_cfg.ar_burst,
-            axi_cfg.ar_lock, axi_cfg.ar_cache, axi_cfg.ar_prot, axi_cfg.ar_qos,
-            axi_cfg.ar_region, axi_cfg.ar_user, axi_cfg.ar_valid,
-            axi_cfg.w_valid, axi_cfg.w_data, axi_cfg.w_strb, axi_cfg.w_last, axi_cfg.w_user,
-            axi_cfg.b_ready, axi_cfg.r_ready,
-            // Entrées DMA Master (axi_dma)
-            axi_dma.aw_ready, axi_dma.w_ready, axi_dma.ar_ready,
-            axi_dma.b_id, axi_dma.b_resp, axi_dma.b_user, axi_dma.b_valid,
-            axi_dma.r_id, axi_dma.r_data, axi_dma.r_resp, axi_dma.r_last, axi_dma.r_user, axi_dma.r_valid,
-            // Autres
-            testmode_i, btnu_i, btnd_i, btnl_i, btnr_i, btnc_i
-        };
+    (* dont_touch = "true" *) logic rst_n_local;
+    always_ff @(posedge clk_i) begin
+        rst_n_local <= rst_ni;
     end
 
     // -------------------------------------------------------------------------
     // CFG slave — SLVERR
-    // Règle DFX : tous les ports de sortie doivent être pilotés par des FFs
-    // internes au pblock. UNIQUEMENT des FFs reset-to-0 (FDCE) pour éviter
-    // le mélange FDCE/FDSE dans un même SLICE → LUT _i_1 placée hors pblock
-    // → net SR non routable (HDPostRouteDRC-02 / Route 35-54).
-    // Les signaux ready (toujours 1) sont des constantes : Vivado les tire sur
-    // VCC global, pas de net cross-boundary, pas de PPLOC nécessaire.
+    // b_id/r_id DOIVENT être pilotés par des FFs internes au pblock
+    // (HDPostRouteDRC-02). Reset synchrone → pas de LUT hors pblock.
     // -------------------------------------------------------------------------
     (* dont_touch = "true" *) logic [AXI_SLV_ID_WIDTH-1:0] b_id_ff, r_id_ff;
     (* dont_touch = "true" *) logic b_valid_ff, r_valid_ff;
 
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-        if (!rst_ni) begin
+    always_ff @(posedge clk_i) begin
+        if (!rst_n_local) begin
             b_id_ff    <= '0;
             r_id_ff    <= '0;
             b_valid_ff <= 1'b0;
@@ -85,7 +66,7 @@ module accel_wrap #(
     assign axi_cfg.r_user   = '0;
 
     // -------------------------------------------------------------------------
-    // DMA master — idle (constantes uniquement, pas de FF reset-to-1)
+    // DMA master — idle (constantes, pas de FF)
     // -------------------------------------------------------------------------
     assign axi_dma.aw_valid        = 1'b0;
     assign axi_dma.aw_id           = '0;
