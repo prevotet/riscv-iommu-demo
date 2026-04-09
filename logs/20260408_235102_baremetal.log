@@ -1,0 +1,23 @@
+CMD: make -C /home/jc/tmp/riscv-iommu-demo/baremetal-dpr CROSS_COMPILE=/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf- PLATFORM=cva6 SINGLE_CORE=y -j24
+DATE: mer. 08 avril 2026 23:51:03 CEST
+---
+make : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/baremetal-dpr »
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gcc -mcmodel=medany -march=rv64imac -mabi=lp64 -O0 -g3 -static    -I./src/inc -I./src/core/inc -I./src/platform/cva6/inc -I./src/drivers/8250_uart/inc -I./src/arch/riscv/inc -MD -MF build/cva6/main.o.d -DSINGLE_CORE=y -c src/main.c -o build/cva6/main.o
+src/main.c:63:5: warning: data definition has no type or storage class
+   63 |     *dma_intf = DMA_FRONTEND_INTF_ALL_BUTTONS_MASK;*/
+      |     ^
+src/main.c:63:6: warning: type defaults to 'int' in declaration of 'dma_intf' [-Wimplicit-int]
+   63 |     *dma_intf = DMA_FRONTEND_INTF_ALL_BUTTONS_MASK;*/
+      |      ^~~~~~~~
+In file included from src/main.c:27:
+./src/arch/riscv/inc/idma.h:70:45: warning: initialization of 'int *' from 'long long unsigned int' makes pointer from integer without a cast [-Wint-conversion]
+   70 | #define DMA_FRONTEND_INTF_ALL_BUTTONS_MASK  0x1FULL
+      |                                             ^~~~~~~
+src/main.c:63:17: note: in expansion of macro 'DMA_FRONTEND_INTF_ALL_BUTTONS_MASK'
+   63 |     *dma_intf = DMA_FRONTEND_INTF_ALL_BUTTONS_MASK;*/
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/main.c:63:53: error: expected identifier or '(' before '/' token
+   63 |     *dma_intf = DMA_FRONTEND_INTF_ALL_BUTTONS_MASK;*/
+      |                                                     ^
+make: *** [Makefile:108 : build/cva6/main.o] Erreur 1
+make : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/baremetal-dpr »

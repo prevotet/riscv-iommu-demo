@@ -1,0 +1,46 @@
+/** 
+ * Bao, a Lightweight Static Partitioning Hypervisor 
+ *
+ * Copyright (c) Bao Project (www.bao-project.org), 2019-
+ *
+ * Authors:
+ *      Jose Martins <jose.martins@bao-project.org>
+ *      Sandro Pinto <sandro.pinto@bao-project.org>
+ *
+ * Bao is free software; you can redistribute it and/or modify it under the
+ * terms of the GNU General Public License version 2 as published by the Free
+ * Software Foundation, with a special exception exempting guest code from such
+ * license. See the COPYING file in the top-level directory for details. 
+ *
+ */
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <cpu.h>
+#include <wfi.h>
+#include <spinlock.h>
+#include <plat.h>
+#include <irq.h>
+#include <uart.h>
+#include <timer.h>
+#include <idma.h>
+
+extern void dpr_test(void);
+
+
+
+
+
+
+/*********************************** MAIN ************************************/
+
+void main(void){
+
+    static volatile bool master_done = false;
+
+   
+        dpr_test();
+     
+    }
+  
