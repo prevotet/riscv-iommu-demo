@@ -1,0 +1,63 @@
+CMD: make -C /home/jc/tmp/riscv-iommu-demo/dpr dpr-static FORCE_STATIC=1
+DATE: jeu. 09 avril 2026 10:54:45 CEST
+---
+make : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/dpr »
+==> Préparation des sources DPR...
+mkdir -p /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src
+cp /home/jc/tmp/riscv-iommu-demo/dpr/src/rp_boundary_regs.sv /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/
+cp /home/jc/tmp/riscv-iommu-demo/dpr/src/rp_boundary_regs_mmu.sv /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/
+cp /home/jc/tmp/riscv-iommu-demo/dpr/rm/accel_default/accel_blank.sv /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/accel_wrap.sv
+==> Génération des IPs Xilinx...
+make -C /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga \
+	work-fpga/xlnx_axi_clock_converter.xci \
+	work-fpga/xlnx_axi_dwidth_converter.xci \
+	work-fpga/xlnx_axi_dwidth_converter_dm_master.xci \
+	work-fpga/xlnx_axi_dwidth_converter_dm_slave.xci \
+	work-fpga/xlnx_axi_quad_spi.xci \
+	work-fpga/xlnx_axi_gpio.xci \
+	work-fpga/xlnx_clk_gen.xci \
+	work-fpga/xlnx_mig_7_ddr3.xci \
+	work-fpga/xlnx_axi_hwicap.xci
+make[1] : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga »
+make[1]: « work-fpga/xlnx_axi_clock_converter.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_dwidth_converter.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_dwidth_converter_dm_master.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_dwidth_converter_dm_slave.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_quad_spi.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_gpio.xci » est à jour.
+make[1]: « work-fpga/xlnx_clk_gen.xci » est à jour.
+make[1]: « work-fpga/xlnx_mig_7_ddr3.xci » est à jour.
+mkdir -p work-fpga
+Generating xlnx_axi_hwicap.xci
+make[2] : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/xilinx/xlnx_axi_hwicap »
+rm -rf ip/*
+mkdir -p ip
+rm -rf xlnx_axi_hwicap.*
+rm -rf component.xml
+rm -rf vivado*.jou
+rm -rf vivado*.log
+rm -rf vivado*.str
+rm -rf xgui
+rm -rf .Xil
+make[2] : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/xilinx/xlnx_axi_hwicap »
+make[2] : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/xilinx/xlnx_axi_hwicap »
+vivado -mode batch -source tcl/run.tcl
+
+****** Vivado v2022.2 (64-bit)
+  **** SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+  **** IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+
+source tcl/run.tcl
+no such variable
+    (read trace on "::env(XILINX_PART)")
+    invoked from within
+"set partNumber $::env(XILINX_PART)"
+    (file "tcl/run.tcl" line 1)
+INFO: [Common 17-206] Exiting Vivado at Thu Apr  9 10:55:36 2026...
+make[2]: *** [../common.mk:2 : all] Erreur 1
+make[2] : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/xilinx/xlnx_axi_hwicap »
+make[1]: *** [Makefile:35 : work-fpga/xlnx_axi_hwicap.xci] Erreur 2
+make[1] : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga »
+make: *** [Makefile:34 : dpr-ips] Erreur 2
+make : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/dpr »

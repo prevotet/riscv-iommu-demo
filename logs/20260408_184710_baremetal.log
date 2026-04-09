@@ -1,0 +1,6 @@
+CMD: make -C /home/jc/tmp/riscv-iommu-demo/baremetal CROSS_COMPILE=/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf- PLATFORM=cva6 SINGLE_CORE=y -j8
+DATE: mer. 08 avril 2026 18:47:10 CEST
+---
+make : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/baremetal »
+Makefile:38: *** unsupported platform cva6. Arrêt.
+make : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/baremetal »

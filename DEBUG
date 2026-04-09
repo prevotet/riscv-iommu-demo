@@ -1,0 +1,5 @@
+# ajout du fichier dpr_test_full_debug.c 
+# modification de sources.mk
+
+# Pb éventuel détecté
+les adresses physiques (DPR_BS_ACCEL1_A_PA, etc.) au hwicap_write_bitstream. En S-mode sous BAO, ces adresses ne sont pas automatiquement mappées, donc l’accès provoque des valeurs incohérentes (comme ton IDCODE 0x020035e5).

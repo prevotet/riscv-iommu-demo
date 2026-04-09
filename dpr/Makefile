@@ -9,6 +9,11 @@ DPR_DIR         := $(ROOT)/dpr
 WORK_DPR        := $(CVA6_FPGA)/work-dpr
 VIVADO          := vivado -mode batch -nojournal -nolog
 
+XILINX_PART     ?= xc7k325tffg900-2
+XILINX_BOARD    ?= digilentinc.com:genesys2:part0:1.1
+export XILINX_PART
+export XILINX_BOARD
+
 RM              ?= accel_default
 RMS             := accel_default accel_A accel_B
 FORCE_STATIC    ?= 0

@@ -23,12 +23,20 @@ J'ai la réponse définitive.
   compensent exactement pour donner le bon ordre d'octets à l'ICAP2 qui traite I[7:0] en
    premier.                                                                             
                   
-  Action requise : rebuild FPGA avec le apb_to_axilite.sv corrigé.                      
+  A  
   
-  FORCE_FPGA=1 DPR_MODE=static ./2_build_HB.sh fpga-dpr   # rebuild static              
-  RM=accel_A ./2_build_HB.sh fpga-dpr                      # rebuild partial A          
-  RM=accel_B ./2_build_HB.sh fpga-dpr                      # rebuild partial B          
-  ./3_build_B2.sh program                                   # programmer le FPGA        
-                                                                                        
-  Puis retester. Le DPR devrait fonctionner.  
-  
+
+  La cible dpr fait exactement ça — elle génère dans l'ordre :                  
+                                                                              
+  1. Le checkpoint statique (static_routed.dcp)                                 
+  2. Les bitstreams full pour accel_default, accel_A, accel_B
+  3. Les partiels .bit → .bin pour accel_B (RM_TARGET)                          
+                                                                                
+  # Premier build (tout forcer) :
+  ./3_build_B2.sh dpr --force-static                                            
+                                                                                
+  # Si checkpoint statique déjà présent, juste régénérer les RMs :              
+  ./3_build_B2.sh dpr                                                           
+                                                                                
+  Les variables d'environnement par défaut sont RM_INIT=accel_A et              
+  RM_TARGET=accel_B, donc les fichiers produits sont

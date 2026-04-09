@@ -19,6 +19,7 @@ export CROSS_COMPILE="${CROSS_COMPILE:-$RISCV_BARE}"
 
 WORK_DPR="$ROOT_DIR/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr"
 BAREMETAL_DIR="$ROOT_DIR/baremetal-dpr"
+
 BAREMETAL_BIN="$BAREMETAL_DIR/build/cva6/baremetal.bin"
 BAREMETAL_ELF="$BAREMETAL_DIR/build/cva6/baremetal.elf"
 OPENOCD_CFG="$ROOT_DIR/cva6/corev_apu/fpga/ariane.cfg"
@@ -108,7 +109,11 @@ check_file() {
 # Vérification de cohérence des bitstreams
 # =============================================================================
 
+_COHERENCE_CHECKED=0
+
 check_coherence() {
+    [[ "$_COHERENCE_CHECKED" == "1" ]] && return
+
     local static_dcp="$WORK_DPR/static_routed.dcp"
     local full_init="$WORK_DPR/full_${RM_INIT}.bit"
     local partial_b1="$WORK_DPR/partial_${RM_TARGET}_accel1.bit"
@@ -162,6 +167,8 @@ check_coherence() {
         log_ok "Bitstreams cohérents avec le checkpoint statique"
         _log_summary "check_coherence" "OK" ""
     fi
+
+    _COHERENCE_CHECKED=1
 }
 
 # =============================================================================
@@ -183,7 +190,7 @@ do_dpr() {
     else
         log_step "  → Génération du checkpoint statique..."
         log_step "  → Log : $logfile_static"
-        if _run_logged "$logfile_static" make -C "$DPR_DIR" dpr-static FORCE_STATIC=1; then
+        if _run_logged "$logfile_static" make -C "$DPR_DIR" dpr-static FORCE_STATIC=1 WORK_DPR="$WORK_DPR"; then
             log_ok "  → Checkpoint statique généré"
             _log_summary "dpr_static" "OK" "$logfile_static"
         else
@@ -213,7 +220,7 @@ do_dpr() {
             fi
             log_step "  → Génération RM : $rm"
             log_step "  → Log : $logfile_rm"
-            if _run_logged "$logfile_rm" make -C "$DPR_DIR" dpr-partial RM="$rm"; then
+            if _run_logged "$logfile_rm" make -C "$DPR_DIR" dpr-partial RM="$rm" WORK_DPR="$WORK_DPR"; then
                 log_ok "  → Bitstreams $rm générés"
                 _log_summary "dpr_partial_${rm}" "OK" "$logfile_rm"
             else
@@ -413,14 +420,17 @@ do_load() {
     check_file "$bs1"
     check_file "$bs2"
     check_file "$BAREMETAL_BIN"
+    check_file "$BAREMETAL_ELF"
 
     check_coherence
 
     local sz1=$(( $(stat -c%s "$bs1") / 4 ))
     local sz2=$(( $(stat -c%s "$bs2") / 4 ))
 
-    # Calcul de taille max (en hex via bash)
-    local max_sz1=$(( ADDR_BS2 - ADDR_BS1 ))
+    # Calcul de taille max
+    local addr_bs1=$(( ADDR_BS1 ))
+    local addr_bs2=$(( ADDR_BS2 ))
+    local max_sz1=$(( addr_bs2 - addr_bs1 ))
     if [[ $(( sz1 * 4 )) -gt $max_sz1 ]]; then
         log_error "Bitstream accel1 trop grand : $(( sz1*4 )) > $max_sz1"
         exit 1
@@ -438,7 +448,10 @@ do_load() {
         [[ "$resp" != "y" ]] && exit 1
     fi
 
-    local gdb_script="/tmp/riscv_load_$$.gdb"
+    local gdb_script
+    gdb_script=$(mktemp /tmp/riscv_load_XXXXXX.gdb)
+    trap "rm -f '$gdb_script'" EXIT INT TERM
+
     cat <<EOF > "$gdb_script"
 target remote localhost:3333
 set confirm off
@@ -458,6 +471,7 @@ EOF
     # Utilisation de exec pour passer le contrôle à GDB
     ${RISCV_BARE}gdb -x "$gdb_script" "$BAREMETAL_ELF"
     rm -f "$gdb_script"
+    trap - EXIT INT TERM
 
     echo ""
     echo "=== Constantes pour dpr_test.c (si nécessaire) ==="
@@ -487,15 +501,16 @@ do_all() {
 # Dispatch
 # =============================================================================
 
-TARGET="${1:-all}"
-
+TARGET=""
 for arg in "$@"; do
     case "$arg" in
         --force)           FORCE_STATIC=1; FORCE_BAREMETAL=1 ;;
         --force-static)    FORCE_STATIC=1 ;;
         --force-baremetal) FORCE_BAREMETAL=1 ;;
+        *)                 [[ -z "$TARGET" ]] && TARGET="$arg" ;;
     esac
 done
+TARGET="${TARGET:-all}"
 
 _session_start
 
@@ -514,8 +529,29 @@ case "$TARGET" in
         log_step "Historique des sessions"
         cat "$SUMMARY_LOG" 2>/dev/null || log_warn "Aucun log disponible"
         ;;
+    help)
+        echo "Usage: $0 [TARGET] [OPTIONS]"
+        echo ""
+        echo "Targets:"
+        echo "  all          dpr + baremetal + program + load (défaut)"
+        echo "  dpr          Génère les bitstreams"
+        echo "  baremetal    Compile le firmware baremetal"
+        echo "  convert-bin  Convertit .bit → .bin"
+        echo "  bitstreams   Vérifie les bitstreams"
+        echo "  program      Programme le FPGA via Vivado JTAG"
+        echo "  openocd      Lance OpenOCD"
+        echo "  load         Charge via GDB"
+        echo "  logs         Historique des sessions"
+        echo "  help         Affiche cette aide"
+        echo ""
+        echo "Options:"
+        echo "  --force            Force rebuild bitstreams + baremetal"
+        echo "  --force-static     Force rebuild checkpoint statique"
+        echo "  --force-baremetal  Force rebuild baremetal"
+        ;;
     *)
         log_error "Cible inconnue : '$TARGET'"
+        log_error "Utiliser '$0 help' pour la liste des cibles disponibles."
         exit 1
         ;;
 esac

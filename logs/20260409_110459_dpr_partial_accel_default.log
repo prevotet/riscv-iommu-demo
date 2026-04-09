@@ -1,0 +1,86 @@
+CMD: make -C /home/jc/tmp/riscv-iommu-demo/dpr dpr-partial RM=accel_default WORK_DPR=/home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr
+DATE: jeu. 09 avril 2026 12:22:41 CEST
+---
+make : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/dpr »
+==> Implémentation du module PARTIEL : accel_default
+cp /home/jc/tmp/riscv-iommu-demo/dpr/rm/accel_default/accel_*.sv /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/accel_wrap.sv
+vivado -mode batch -nojournal -nolog -source /home/jc/tmp/riscv-iommu-demo/dpr/scripts/run_partial.tcl \
+	-tclargs /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr /home/jc/tmp/riscv-iommu-demo/dpr/rm/accel_default accel_default /home/jc/tmp/riscv-iommu-demo/dpr
+
+****** Vivado v2022.2 (64-bit)
+  **** SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+  **** IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+
+source /home/jc/tmp/riscv-iommu-demo/dpr/scripts/run_partial.tcl
+# set work_dpr [lindex $argv 0]
+# set rm_dir   [lindex $argv 1]
+# set rm_name  [lindex $argv 2]
+# set cva6_root [file normalize [file join $work_dpr ".." ".." ".."]]
+# set cva6_fpga [file normalize [file join $work_dpr ".."]]
+# set dpr_dir   [lindex $argv 3]
+# set rm_synth1 $work_dpr/${rm_name}_accel1_synth.dcp
+# set rm_synth2 $work_dpr/${rm_name}_accel2_synth.dcp
+# if {![file exists $rm_synth1] || ![file exists $rm_synth2]} {
+#     puts "==> Synthèse du RM $rm_name dans le projet ariane..."
+# 
+#     # Copie du RM dans le projet CVA6
+#     set rm_sv [lindex [glob $rm_dir/*.sv] 0]
+#     file copy -force $rm_sv $cva6_fpga/src/accel_wrap.sv
+#     puts "  -> RM copié : [file tail $rm_sv] -> accel_wrap.sv"
+# 
+#     open_project $cva6_fpga/ariane.xpr
+# 
+#     set_property -name {STEPS.SYNTH_DESIGN.ARGS.FLATTEN_HIERARCHY} \
+#         -value {none} -objects [get_runs synth_1]
+# 
+#     puts "==> Lancement synthèse..."
+#     reset_run synth_1
+#     launch_runs synth_1 -jobs 8
+#     wait_on_run synth_1
+#     if {[get_property PROGRESS [get_runs synth_1]] != "100%"} {
+#         puts "ERROR: Synthèse échouée."
+#         exit 1
+#     }
+# 
+#     open_run synth_1 -name synth_1
+# 
+#     # Extraire le checkpoint de i_accel1 (STREAM_ID=1)
+#     puts "==> Extraction checkpoint accel1 (STREAM_ID=1)..."
+#     set cell1_synth [get_cells -quiet i_ariane_peripherals/gen_dma.i_accel1]
+#     if {[llength $cell1_synth] == 0} {
+#         puts "ERROR: i_accel1 non trouvé dans le netlist"
+#         exit 1
+#     }
+#     write_checkpoint -force -cell $cell1_synth $rm_synth1
+#     puts "  -> checkpoint accel1 : $rm_synth1"
+# 
+#     # Extraire le checkpoint de i_accel2 (STREAM_ID=2)
+#     puts "==> Extraction checkpoint accel2 (STREAM_ID=2)..."
+#     set cell2_synth [get_cells -quiet i_ariane_peripherals/gen_dma.gen_accel2.i_accel2]
+#     if {[llength $cell2_synth] == 0} {
+#         puts "ERROR: i_accel2 non trouvé dans le netlist"
+#         exit 1
+#     }
+#     write_checkpoint -force -cell $cell2_synth $rm_synth2
+#     puts "  -> checkpoint accel2 : $rm_synth2"
+# 
+#     close_project
+# } else {
+#     puts "==> RMs en cache :"
+#     puts "    $rm_synth1"
+#     puts "    $rm_synth2"
+# }
+==> Synthèse du RM accel_default dans le projet ariane...
+error copying "/home/jc/tmp/riscv-iommu-demo/dpr/rm/accel_default/accel_blank.sv" to "/home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/src/accel_wrap.sv": no such file or directory
+    while executing
+"file copy -force $rm_sv $cva6_fpga/src/accel_wrap.sv"
+    invoked from within
+"if {![file exists $rm_synth1] || ![file exists $rm_synth2]} {
+    puts "==> Synthèse du RM $rm_name dans le projet ariane..."
+
+    # Copie du RM dans..."
+    (file "/home/jc/tmp/riscv-iommu-demo/dpr/scripts/run_partial.tcl" line 23)
+INFO: [Common 17-206] Exiting Vivado at Thu Apr  9 12:22:47 2026...
+make: *** [Makefile:81 : dpr-partial] Erreur 1
+make : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/dpr »

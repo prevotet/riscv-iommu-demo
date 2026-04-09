@@ -6,9 +6,10 @@ set work_dpr [lindex $argv 0]
 set rm_dir   [lindex $argv 1]
 set rm_name  [lindex $argv 2]
 
-set cva6_root [file normalize [file join $work_dpr ".." ".." ".."]]
-set cva6_fpga [file normalize [file join $work_dpr ".."]]
 set dpr_dir   [lindex $argv 3]
+set project_root [file normalize [file join $dpr_dir ".."]]
+set cva6_fpga [file join $project_root "cva6" "corev_apu" "fpga"]
+set cva6_root [file join $project_root "cva6"]
 
 # Checkpoints RM séparés pour accel1 (STREAM_ID=1) et accel2 (STREAM_ID=2)
 set rm_synth1 $work_dpr/${rm_name}_accel1_synth.dcp
