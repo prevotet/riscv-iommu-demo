@@ -129,16 +129,16 @@ puts "  -> RM accel2 chargé (STREAM_ID=2) : $rm_synth2"
 # 4. IMPLÉMENTATION PARTIELLE
 # =============================================================
 puts "==> opt_design..."
-opt_design -directive RuntimeOptimized
+opt_design
 
 puts "==> place_design..."
-place_design -directive RuntimeOptimized
+place_design
 
 puts "==> phys_opt_design..."
 phys_opt_design
 
 puts "==> route_design..."
-route_design -directive NoTimingRelaxation
+route_design
 
 # =============================================================
 # 5. EXPORT DES BITSTREAMS

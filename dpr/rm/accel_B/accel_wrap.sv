@@ -45,34 +45,30 @@ module accel_wrap #(
 
     // -------------------------------------------------------------------------
     // CFG slave — registre identifiant en lecture seule
+    // UNIQUEMENT des FFs reset-to-0 (FDCE) : pas de mélange FDCE/FDSE dans un
+    // même SLICE → pas de LUT _i_1 de polarité mixte hors pblock.
+    // Les signaux ready (toujours 1) sont des constantes (VCC global).
     // -------------------------------------------------------------------------
     (* dont_touch = "true" *) logic [AXI_SLV_ID_WIDTH-1:0] cfg_r_id_ff, cfg_b_id_ff;
     (* dont_touch = "true" *) logic cfg_r_valid_ff, cfg_b_valid_ff;
-    (* dont_touch = "true" *) logic cfg_aw_ready_ff, cfg_ar_ready_ff, cfg_w_ready_ff;
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
-            cfg_r_id_ff     <= '0;
-            cfg_b_id_ff     <= '0;
-            cfg_r_valid_ff  <= 1'b0;
-            cfg_b_valid_ff  <= 1'b0;
-            cfg_aw_ready_ff <= 1'b1;
-            cfg_ar_ready_ff <= 1'b1;
-            cfg_w_ready_ff  <= 1'b1;
+            cfg_r_id_ff    <= '0;
+            cfg_b_id_ff    <= '0;
+            cfg_r_valid_ff <= 1'b0;
+            cfg_b_valid_ff <= 1'b0;
         end else begin
-            cfg_r_id_ff     <= axi_cfg.ar_id;
-            cfg_r_valid_ff  <= axi_cfg.ar_valid;
-            cfg_b_id_ff     <= axi_cfg.aw_id;
-            cfg_b_valid_ff  <= axi_cfg.aw_valid;
-            cfg_aw_ready_ff <= 1'b1;
-            cfg_ar_ready_ff <= 1'b1;
-            cfg_w_ready_ff  <= 1'b1;
+            cfg_r_id_ff    <= axi_cfg.ar_id;
+            cfg_r_valid_ff <= axi_cfg.ar_valid;
+            cfg_b_id_ff    <= axi_cfg.aw_id;
+            cfg_b_valid_ff <= axi_cfg.aw_valid;
         end
     end
 
-    assign axi_cfg.aw_ready = cfg_aw_ready_ff;
-    assign axi_cfg.ar_ready = cfg_ar_ready_ff;
-    assign axi_cfg.w_ready  = cfg_w_ready_ff;
+    assign axi_cfg.aw_ready = 1'b1;
+    assign axi_cfg.ar_ready = 1'b1;
+    assign axi_cfg.w_ready  = 1'b1;
     assign axi_cfg.b_valid  = cfg_b_valid_ff;
     assign axi_cfg.b_id     = cfg_b_id_ff;
     assign axi_cfg.b_resp   = 2'b00;
@@ -85,28 +81,9 @@ module accel_wrap #(
     assign axi_cfg.r_user   = '0;
 
     // -------------------------------------------------------------------------
-    // DMA master — idle
+    // DMA master — idle (constantes uniquement, pas de FF reset-to-1)
     // -------------------------------------------------------------------------
-    (* dont_touch = "true" *) logic dma_aw_valid_ff, dma_ar_valid_ff, dma_w_valid_ff;
-    (* dont_touch = "true" *) logic dma_b_ready_ff, dma_r_ready_ff;
-
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-        if (!rst_ni) begin
-            dma_aw_valid_ff <= 1'b0;
-            dma_ar_valid_ff <= 1'b0;
-            dma_w_valid_ff  <= 1'b0;
-            dma_b_ready_ff  <= 1'b1;
-            dma_r_ready_ff  <= 1'b1;
-        end else begin
-            dma_aw_valid_ff <= 1'b0;
-            dma_ar_valid_ff <= 1'b0;
-            dma_w_valid_ff  <= 1'b0;
-            dma_b_ready_ff  <= 1'b1;
-            dma_r_ready_ff  <= 1'b1;
-        end
-    end
-
-    assign axi_dma.aw_valid        = dma_aw_valid_ff;
+    assign axi_dma.aw_valid        = 1'b0;
     assign axi_dma.aw_id           = '0;
     assign axi_dma.aw_addr         = '0;
     assign axi_dma.aw_len          = '0;
@@ -123,15 +100,15 @@ module accel_wrap #(
     assign axi_dma.aw_ss_id_valid  = 1'b0;
     assign axi_dma.aw_substream_id = '0;
 
-    assign axi_dma.w_valid         = dma_w_valid_ff;
+    assign axi_dma.w_valid         = 1'b0;
     assign axi_dma.w_data          = '0;
     assign axi_dma.w_strb          = '0;
     assign axi_dma.w_last          = 1'b0;
     assign axi_dma.w_user          = '0;
 
-    assign axi_dma.b_ready         = dma_b_ready_ff;
+    assign axi_dma.b_ready         = 1'b1;
 
-    assign axi_dma.ar_valid        = dma_ar_valid_ff;
+    assign axi_dma.ar_valid        = 1'b0;
     assign axi_dma.ar_id           = '0;
     assign axi_dma.ar_addr         = '0;
     assign axi_dma.ar_len          = '0;
@@ -147,6 +124,6 @@ module accel_wrap #(
     assign axi_dma.ar_ss_id_valid  = 1'b0;
     assign axi_dma.ar_substream_id = '0;
 
-    assign axi_dma.r_ready         = dma_r_ready_ff;
+    assign axi_dma.r_ready         = 1'b1;
 
 endmodule
