@@ -138,7 +138,7 @@ puts "==> phys_opt_design..."
 phys_opt_design
 
 puts "==> route_design..."
-route_design
+route_design -directive Explore
 
 # =============================================================
 # 5. EXPORT DES BITSTREAMS

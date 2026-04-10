@@ -1,4 +1,4 @@
-// accel_A — registre identifiant (lecture seule)
+// accel_A — registre identifiant
 // r_data = { 0xDEAD, STREAM_ID[23:0], 0xAAAAAA }
 // accel1 (STREAM_ID=1) -> 0xDEAD_000001_AAAAAA
 // accel2 (STREAM_ID=2) -> 0xDEAD_000002_AAAAAA
@@ -16,56 +16,50 @@ module accel_wrap #(
     AXI_BUS.Slave      axi_cfg,
     AXI_BUS_MMU.Master axi_dma
 );
+    // Constante identifiant : RM=A, instance identifiée par STREAM_ID
     localparam logic [63:0] ACCEL_ID = {16'hDEAD, STREAM_ID, 24'hAAAAAA};
 
-    // -------------------------------------------------------------------------
-    // rst_n_local : capture rst_ni via pin D (FDRE sans pin CLR/R).
-    // Évite le LUT1 ~rst_ni externe au pblock qui cause Route 35-54.
-    // -------------------------------------------------------------------------
-    (* dont_touch = "true" *) logic rst_n_local;
-    always_ff @(posedge clk_i) begin
-        rst_n_local <= rst_ni;
-    end
+    // ----------------------------------------------------------------
+    // CFG slave — registre en lecture seule
+    // r_id, r_valid, b_id, b_valid sont registrés DANS le RP pour éviter
+    // les feedthrough nets (HDPostRouteDRC-02 / PPLOC manquant).
+    // ----------------------------------------------------------------
+    (* dont_touch = "true" *) logic [AXI_SLV_ID_WIDTH-1:0] r_id_ff, b_id_ff;
+    (* dont_touch = "true" *) logic                    r_valid_ff, b_valid_ff;
 
-    // -------------------------------------------------------------------------
-    // CFG slave — registre identifiant en lecture seule
-    // b_id/r_id pilotés par FFs internes (HDPostRouteDRC-02).
-    // Reset synchrone → ~rst_n_local calculé dans le pblock.
-    // -------------------------------------------------------------------------
-    (* dont_touch = "true" *) logic [AXI_SLV_ID_WIDTH-1:0] cfg_r_id_ff, cfg_b_id_ff;
-    (* dont_touch = "true" *) logic cfg_r_valid_ff, cfg_b_valid_ff;
-
-    always_ff @(posedge clk_i) begin
-        if (!rst_n_local) begin
-            cfg_r_id_ff    <= '0;
-            cfg_b_id_ff    <= '0;
-            cfg_r_valid_ff <= 1'b0;
-            cfg_b_valid_ff <= 1'b0;
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            r_id_ff    <= '0;
+            b_id_ff    <= '0;
+            r_valid_ff <= 1'b0;
+            b_valid_ff <= 1'b0;
         end else begin
-            cfg_r_id_ff    <= axi_cfg.ar_id;
-            cfg_r_valid_ff <= axi_cfg.ar_valid;
-            cfg_b_id_ff    <= axi_cfg.aw_id;
-            cfg_b_valid_ff <= axi_cfg.aw_valid;
+            r_id_ff    <= axi_cfg.ar_id;
+            r_valid_ff <= axi_cfg.ar_valid;
+            b_id_ff    <= axi_cfg.aw_id;
+            b_valid_ff <= axi_cfg.aw_valid;
         end
     end
 
-    assign axi_cfg.aw_ready = 1'b1;
     assign axi_cfg.ar_ready = 1'b1;
-    assign axi_cfg.w_ready  = 1'b1;
-    assign axi_cfg.b_valid  = cfg_b_valid_ff;
-    assign axi_cfg.b_id     = cfg_b_id_ff;
-    assign axi_cfg.b_resp   = 2'b00;
-    assign axi_cfg.b_user   = '0;
-    assign axi_cfg.r_valid  = cfg_r_valid_ff;
-    assign axi_cfg.r_id     = cfg_r_id_ff;
+    assign axi_cfg.r_valid  = r_valid_ff;
+    assign axi_cfg.r_id     = r_id_ff;
     assign axi_cfg.r_data   = ACCEL_ID;
     assign axi_cfg.r_resp   = 2'b00;
     assign axi_cfg.r_last   = 1'b1;
     assign axi_cfg.r_user   = '0;
 
-    // -------------------------------------------------------------------------
-    // DMA master — idle (constantes, pas de FF)
-    // -------------------------------------------------------------------------
+    // Écriture : acceptée mais ignorée
+    assign axi_cfg.aw_ready = 1'b1;
+    assign axi_cfg.w_ready  = 1'b1;
+    assign axi_cfg.b_valid  = b_valid_ff;
+    assign axi_cfg.b_id     = b_id_ff;
+    assign axi_cfg.b_resp   = 2'b00;
+    assign axi_cfg.b_user   = '0;
+
+    // ----------------------------------------------------------------
+    // DMA master — idle
+    // ----------------------------------------------------------------
     assign axi_dma.aw_valid        = 1'b0;
     assign axi_dma.aw_id           = '0;
     assign axi_dma.aw_addr         = '0;
@@ -79,18 +73,15 @@ module accel_wrap #(
     assign axi_dma.aw_region       = '0;
     assign axi_dma.aw_atop         = '0;
     assign axi_dma.aw_user         = '0;
-    assign axi_dma.aw_stream_id    = STREAM_ID;
+    assign axi_dma.aw_stream_id    = '0;
     assign axi_dma.aw_ss_id_valid  = 1'b0;
     assign axi_dma.aw_substream_id = '0;
-
     assign axi_dma.w_valid         = 1'b0;
     assign axi_dma.w_data          = '0;
     assign axi_dma.w_strb          = '0;
     assign axi_dma.w_last          = 1'b0;
     assign axi_dma.w_user          = '0;
-
-    assign axi_dma.b_ready         = 1'b1;
-
+    assign axi_dma.b_ready         = 1'b0;
     assign axi_dma.ar_valid        = 1'b0;
     assign axi_dma.ar_id           = '0;
     assign axi_dma.ar_addr         = '0;
@@ -103,10 +94,9 @@ module accel_wrap #(
     assign axi_dma.ar_qos          = '0;
     assign axi_dma.ar_region       = '0;
     assign axi_dma.ar_user         = '0;
-    assign axi_dma.ar_stream_id    = STREAM_ID;
+    assign axi_dma.ar_stream_id    = '0;
     assign axi_dma.ar_ss_id_valid  = 1'b0;
     assign axi_dma.ar_substream_id = '0;
-
-    assign axi_dma.r_ready         = 1'b1;
+    assign axi_dma.r_ready         = 1'b0;
 
 endmodule

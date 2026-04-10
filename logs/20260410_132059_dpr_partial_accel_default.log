@@ -1,0 +1,9 @@
+CMD: make -C /home/jc/tmp/riscv-iommu-demo/dpr dpr-partial RM=accel_default WORK_DPR=/home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr
+DATE: ven. 10 avril 2026 13:20:59 CEST
+---
+make : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/dpr »
+==> Implémentation du module PARTIEL : accel_default
+cp /home/jc/tmp/riscv-iommu-demo/dpr/rm/accel_default/accel_*.sv /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/accel_wrap.sv
+cp: la cible '/home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/accel_wrap.sv' n'est pas un répertoire
+make: *** [Makefile:80 : dpr-partial] Erreur 1
+make : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/dpr »
