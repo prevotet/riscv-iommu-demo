@@ -5,6 +5,11 @@ set work_dpr  [lindex $argv 2]
 
 open_project $cva6_fpga/ariane.xpr
 
+# Désactiver la synthèse incrémentale (évite segfault dans run_partial)
+set_property AUTO_INCREMENTAL_CHECKPOINT 0 [get_runs synth_1]
+set_property INCREMENTAL_CHECKPOINT {} [get_runs synth_1]
+file delete -force [file join $cva6_fpga ariane.srcs utils_1 imports synth_1 ariane_xilinx.dcp]
+
 # 0. NETTOYAGE COMPLET DE TOUS LES ANCIENS XDC PBLOCK
 puts "==> Nettoyage des anciens XDC pblock..."
 foreach f [get_files -quiet -filter {NAME =~ *pblock*}] {

@@ -1,0 +1,63 @@
+CMD: make -C /home/jc/tmp/riscv-iommu-demo/dpr dpr-static FORCE_STATIC=1 WORK_DPR=/home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr
+DATE: lun. 20 avril 2026 14:19:33 CEST
+---
+make : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/dpr »
+==> Préparation des sources DPR...
+mkdir -p /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src
+cp /home/jc/tmp/riscv-iommu-demo/dpr/src/rp_boundary_regs.sv /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/
+cp /home/jc/tmp/riscv-iommu-demo/dpr/src/rp_boundary_regs_mmu.sv /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/
+cp /home/jc/tmp/riscv-iommu-demo/dpr/rm/accel_default/accel_blank.sv /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/accel_wrap.sv
+==> Génération des IPs Xilinx...
+make -C /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga \
+	work-fpga/xlnx_axi_clock_converter.xci \
+	work-fpga/xlnx_axi_dwidth_converter.xci \
+	work-fpga/xlnx_axi_dwidth_converter_dm_master.xci \
+	work-fpga/xlnx_axi_dwidth_converter_dm_slave.xci \
+	work-fpga/xlnx_axi_quad_spi.xci \
+	work-fpga/xlnx_axi_gpio.xci \
+	work-fpga/xlnx_clk_gen.xci \
+	work-fpga/xlnx_mig_7_ddr3.xci \
+	work-fpga/xlnx_axi_hwicap.xci
+make[1] : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga »
+make[1]: « work-fpga/xlnx_axi_clock_converter.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_dwidth_converter.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_dwidth_converter_dm_master.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_dwidth_converter_dm_slave.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_quad_spi.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_gpio.xci » est à jour.
+make[1]: « work-fpga/xlnx_clk_gen.xci » est à jour.
+make[1]: « work-fpga/xlnx_mig_7_ddr3.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_hwicap.xci » est à jour.
+make[1] : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga »
+==> Lancement de la synthèse STATIQUE (Vivado)...
+
+****** Vivado v2022.2 (64-bit)
+  **** SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+  **** IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+
+source /home/jc/tmp/riscv-iommu-demo/dpr/scripts/run_static.tcl
+# set cva6_fpga [lindex $argv 0]
+# set dpr_dir   [lindex $argv 1]
+# set work_dpr  [lindex $argv 2]
+# open_project $cva6_fpga/ariane.xpr
+INFO: [filemgmt 56-3] Default IP Output Path : Could not find the directory '/home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/ariane.gen/sources_1'.
+CRITICAL WARNING: [Project 1-19] Could not find the file '/home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/xilinx/xlnx_axi_hwicap/xlnx_axi_hwicap.srcs/sources_1/ip/xlnx_axi_hwicap/xlnx_axi_hwicap.xci'.
+CRITICAL WARNING: [Project 1-19] Could not find the file '/home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/ariane.srcs/utils_1/imports/synth_1/ariane_xilinx.dcp'.
+WARNING: [Project 1-865] Could not find the file /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/ariane.srcs/utils_1/imports/synth_1/ariane_xilinx.dcp
+Scanning sources...
+Finished scanning sources
+WARNING: [Project 1-865] Could not find the file /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/ariane.srcs/utils_1/imports/synth_1/ariane_xilinx.dcp
+INFO: [IP_Flow 19-234] Refreshing IP repositories
+INFO: [IP_Flow 19-1704] No user IP repositories specified
+INFO: [IP_Flow 19-2313] Loaded Vivado IP repository '/tools/Xilinx/Vivado/2022.2/data/ip'.
+ERROR: [IP_Flow 19-993] Could not find IP file for IP 'xlnx_axi_hwicap'.
+CRITICAL WARNING: [IP_Flow 19-3933] Unable to construct an IP Instance xlnx_axi_hwicap using VLNV :::.
+ERROR: [Common 17-39] 'open_project' failed due to earlier errors.
+
+    while executing
+"open_project $cva6_fpga/ariane.xpr"
+    (file "/home/jc/tmp/riscv-iommu-demo/dpr/scripts/run_static.tcl" line 6)
+INFO: [Common 17-206] Exiting Vivado at Mon Apr 20 14:19:40 2026...
+make: *** [Makefile:64 : dpr-static] Erreur 1
+make : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/dpr »

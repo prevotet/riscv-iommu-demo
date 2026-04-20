@@ -27,18 +27,11 @@ module accel_wrap #(
     (* dont_touch = "true" *) logic [AXI_SLV_ID_WIDTH-1:0] r_id_ff, b_id_ff;
     (* dont_touch = "true" *) logic                    r_valid_ff, b_valid_ff;
 
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-        if (!rst_ni) begin
-            r_id_ff    <= '0;
-            b_id_ff    <= '0;
-            r_valid_ff <= 1'b0;
-            b_valid_ff <= 1'b0;
-        end else begin
-            r_id_ff    <= axi_cfg.ar_id;
-            r_valid_ff <= axi_cfg.ar_valid;
-            b_id_ff    <= axi_cfg.aw_id;
-            b_valid_ff <= axi_cfg.aw_valid;
-        end
+    always_ff @(posedge clk_i) begin
+        r_id_ff    <= axi_cfg.ar_id;
+        r_valid_ff <= axi_cfg.ar_valid;
+        b_id_ff    <= axi_cfg.aw_id;
+        b_valid_ff <= axi_cfg.aw_valid;
     end
 
     assign axi_cfg.ar_ready = 1'b1;

@@ -184,6 +184,13 @@ do_dpr() {
     local logfile_static
     logfile_static=$(_logfile "dpr_static")
 
+    # Forcer rebuild si une IP est plus récente que le checkpoint statique
+    local hwicap_xci="$ROOT_DIR/cva6/corev_apu/fpga/xilinx/xlnx_axi_hwicap/xlnx_axi_hwicap.srcs/sources_1/ip/xlnx_axi_hwicap/xlnx_axi_hwicap.xci"
+    if [[ -f "$static_dcp" ]] && [[ -f "$hwicap_xci" ]] && [[ "$hwicap_xci" -nt "$static_dcp" ]]; then
+        log_warn "IP HWICAP plus récente que le checkpoint statique → rebuild forcé"
+        FORCE_STATIC=1
+    fi
+
     if [[ -f "$static_dcp" ]] && [[ "$FORCE_STATIC" != "1" ]]; then
         log_skip "Checkpoint statique déjà présent — FORCE_STATIC=1 pour forcer"
         _log_summary "dpr_static" "SKIP" "(checkpoint existant)"

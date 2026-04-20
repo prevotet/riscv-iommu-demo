@@ -32,7 +32,7 @@
 #define HWICAP_CR_FIFO_RST 0x04
 
 #define HWICAP_WFV_MAX   0x3F
-#define HWICAP_TIMEOUT   10000000
+#define HWICAP_TIMEOUT   100000
 
 // =============================================================================
 // Bitstreams partiels (DDR)
@@ -108,6 +108,24 @@ static void hwicap_diag(void) {
     printf("[HWICAP] === FIN DIAG ===\r\n");
 }
 
+static void hwicap_desync(void) {
+    static const uint32_t seq[] = {
+        0x20000000, 0x20000000,  // NOOP
+        0x30008001,              // Type 1 Write CMD (1 word)
+        0x0000000D,              // DESYNC
+        0x20000000, 0x20000000,  // NOOP
+    };
+    uint32_t n = sizeof(seq)/sizeof(seq[0]);
+    mmio_write32(HWICAP_SZ, n);
+    for (uint32_t i = 0; i < n; i++)
+        mmio_write32(HWICAP_WF, seq[i]);
+    mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
+    int timeout = HWICAP_TIMEOUT;
+    while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && timeout-- > 0) delay(10);
+    delay(100);
+    printf("[HWICAP] desync : SR=0x%08x\r\n", (unsigned int)mmio_read32(HWICAP_SR));
+}
+
 static void hwicap_fifo_reset(void) {
     mmio_write32(HWICAP_CR, HWICAP_CR_FIFO_RST);
     delay(100);
@@ -134,7 +152,7 @@ static void hwicap_read_idcode(void) {
         0xFFFFFFFF, 0xFFFFFFFF,  // dummy words
         0xAA995566,              // sync word
         0x20000000, 0x20000000,  // NOOP
-        0x28012001,              // Type 1 Read IDCODE Reg 9 (1 word)
+        0x28018001,              // Type 1 Read IDCODE Reg 12 (0x0C) (1 word)
         0x20000000, 0x20000000,  // NOOP
         0x20000000, 0x20000000,  // NOOP
     };
@@ -173,6 +191,9 @@ static void hwicap_read_idcode(void) {
         printf("[HWICAP] [OK] IDCODE correct\r\n");
     else
         printf("[HWICAP] [FAIL] IDCODE inattendu\r\n");
+
+    hwicap_fifo_reset();
+    hwicap_desync();
 }
 
 // =============================================================================
@@ -217,13 +238,16 @@ static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
             if (to_write > (chunk - sent)) to_write = chunk - sent;
 
             for (uint32_t i = 0; i < to_write; i++) {
-                mmio_write32(HWICAP_WF, data[written + sent]);
+                mmio_write32(HWICAP_WF, __builtin_bswap32(data[written + sent]));
                 sent++;
             }
         }
 
         // Déclencher
+        printf("[HWICAP] chunk %u: %u mots ecrits, envoi CR_WRITE\r\n",
+               (unsigned int)(written/63), (unsigned int)chunk);
         mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
+        printf("[HWICAP] CR_WRITE envoye, attente...\r\n");
 
         // Attendre CR_WRITE remis à 0
         int timeout = HWICAP_TIMEOUT;

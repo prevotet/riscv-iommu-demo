@@ -79,6 +79,21 @@ dpr-partial:
 		echo "ERREUR : checkpoint statique manquant. Lancez 'make dpr-static' d'abord."; \
 		exit 1; \
 	fi
+	@echo "==> Désactivation synthèse incrémentale dans ariane.xpr..."
+	@python3 -c "\
+import re, sys; \
+f='$(CVA6_FPGA)/ariane.xpr'; \
+c=open(f).read(); \
+c=re.sub(r'\s*<File Path=\"\$$PSRCDIR/utils_1/imports/synth_1/ariane_xilinx\.dcp\">.*?</File>', '', c, flags=re.DOTALL); \
+c=re.sub(r' AutoIncrementalCheckpoint=\"true\"', ' AutoIncrementalCheckpoint=\"false\"', c); \
+c=re.sub(r' IncrementalCheckpoint=\"[^\"]*\"', '', c); \
+c=re.sub(r' AutoIncrementalDir=\"[^\"]*\"', '', c); \
+c=re.sub(r' AutoRQSDir=\"[^\"]*\"', '', c); \
+open(f,'w').write(c); \
+print('  -> ariane.xpr patché')"
+	@rm -f $(CVA6_FPGA)/ariane.srcs/utils_1/imports/synth_1/ariane_xilinx.dcp
+	@echo "==> Suppression des checkpoints RM cachés (force resynthèse)..."
+	@rm -f $(WORK_DPR)/$(RM)_accel1_synth.dcp $(WORK_DPR)/$(RM)_accel2_synth.dcp
 	@echo "==> Implémentation du module PARTIEL : $(RM)"
 	cp $(DPR_DIR)/rm/$(RM)/accel_*.sv $(CVA6_FPGA)/src/accel_wrap.sv
 	$(VIVADO) -source $(DPR_DIR)/scripts/run_partial.tcl \
