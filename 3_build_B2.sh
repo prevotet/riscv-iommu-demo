@@ -29,7 +29,12 @@ RM_INIT="${RM_INIT:-accel_A}"
 RM_TARGET="${RM_TARGET:-accel_B}"
 FORCE_STATIC="${FORCE_STATIC:-0}"
 FORCE_BAREMETAL="${FORCE_BAREMETAL:-0}"
+FORCE_HWICAP="${FORCE_HWICAP:-0}"
 DRY_RUN="${DRY_RUN:-0}"
+
+XILINX_PART="${XILINX_PART:-xc7k325tffg900-2}"
+XILINX_BOARD="${XILINX_BOARD:-digilentinc.com:genesys2:part0:1.1}"
+HWICAP_IP_DIR="$ROOT_DIR/cva6/corev_apu/fpga/xilinx/xlnx_axi_hwicap"
 
 # Adresses fixes DDR (format hex pour GDB et shell)
 ADDR_BAREMETAL="0x90000000"
@@ -172,6 +177,42 @@ check_coherence() {
 }
 
 # =============================================================================
+# Régénération de l'IP AXI HWICAP
+# =============================================================================
+
+do_hwicap_ip() {
+    local tcl="$HWICAP_IP_DIR/tcl/run.tcl"
+    local xci="$HWICAP_IP_DIR/xlnx_axi_hwicap.srcs/sources_1/ip/xlnx_axi_hwicap/xlnx_axi_hwicap.xci"
+
+    if [[ -f "$xci" ]] && [[ "$xci" -nt "$tcl" ]] && [[ "$FORCE_HWICAP" != "1" ]]; then
+        log_skip "IP HWICAP à jour — FORCE_HWICAP=1 pour forcer"
+        _log_summary "hwicap_ip" "SKIP" "(xci plus récent que run.tcl)"
+        return
+    fi
+
+    log_step "Régénération IP AXI HWICAP (DEVICE_ID=$XILINX_PART)"
+    source "$VIVADO_DIR/settings64.sh"
+
+    local logfile
+    logfile=$(_logfile "hwicap_ip")
+    log_step "  → Log : $logfile"
+
+    if _run_logged "$logfile" bash -c "
+        cd '$HWICAP_IP_DIR' && \
+        export XILINX_PART='$XILINX_PART' && \
+        export XILINX_BOARD='$XILINX_BOARD' && \
+        make clean && make
+    "; then
+        log_ok "IP HWICAP régénérée"
+        _log_summary "hwicap_ip" "OK" "$logfile"
+    else
+        log_error "Régénération IP HWICAP échouée — voir $logfile"
+        _log_summary "hwicap_ip" "FAIL" "$logfile"
+        exit 1
+    fi
+}
+
+# =============================================================================
 # Flow DPR — génération des bitstreams
 # =============================================================================
 
@@ -179,13 +220,16 @@ do_dpr() {
     log_step "Flow DPR (statique + partiels)"
     source "$VIVADO_DIR/settings64.sh"
 
+    # --- Étape 0 : IP HWICAP ---
+    do_hwicap_ip
+
     # --- Étape 1 : Checkpoint statique ---
     local static_dcp="$WORK_DPR/static_routed.dcp"
     local logfile_static
     logfile_static=$(_logfile "dpr_static")
 
-    # Forcer rebuild si une IP est plus récente que le checkpoint statique
-    local hwicap_xci="$ROOT_DIR/cva6/corev_apu/fpga/xilinx/xlnx_axi_hwicap/xlnx_axi_hwicap.srcs/sources_1/ip/xlnx_axi_hwicap/xlnx_axi_hwicap.xci"
+    # Forcer rebuild statique si l'IP HWICAP vient d'être régénérée
+    local hwicap_xci="$HWICAP_IP_DIR/xlnx_axi_hwicap.srcs/sources_1/ip/xlnx_axi_hwicap/xlnx_axi_hwicap.xci"
     if [[ -f "$static_dcp" ]] && [[ -f "$hwicap_xci" ]] && [[ "$hwicap_xci" -nt "$static_dcp" ]]; then
         log_warn "IP HWICAP plus récente que le checkpoint statique → rebuild forcé"
         FORCE_STATIC=1
@@ -242,8 +286,47 @@ do_dpr() {
     # --- Étape 3 : Conversion .bit → .bin ---
     do_convert_bin
 
-    # --- Étape 4 : Vérification finale ---
+    # --- Étape 4 : Mise à jour des constantes dans dpr_test.c ---
+    do_update_bs_constants
+
+    # --- Étape 5 : Vérification finale ---
     check_coherence
+}
+
+# =============================================================================
+# Mise à jour automatique des constantes BS_ACCEL*_WORDS dans dpr_test.c
+# =============================================================================
+
+DPR_TEST_C="$ROOT_DIR/baremetal-dpr/src/dpr_test.c"
+
+do_update_bs_constants() {
+    local bs1="$WORK_DPR/partial_${RM_TARGET}_accel1.bin"
+    local bs2="$WORK_DPR/partial_${RM_TARGET}_accel2.bin"
+
+    [[ -f "$bs1" ]] || return
+    [[ -f "$bs2" ]] || return
+    [[ -f "$DPR_TEST_C" ]] || return
+
+    local sz1=$(( $(stat -c%s "$bs1") / 4 ))
+    local sz2=$(( $(stat -c%s "$bs2") / 4 ))
+
+    local cur1 cur2
+    cur1=$(grep -oP '(?<=BS_ACCEL1_WORDS )\d+' "$DPR_TEST_C" || echo 0)
+    cur2=$(grep -oP '(?<=BS_ACCEL2_WORDS )\d+' "$DPR_TEST_C" || echo 0)
+
+    if [[ "$cur1" != "$sz1" ]] || [[ "$cur2" != "$sz2" ]]; then
+        log_warn "Mise à jour BS_ACCEL*_WORDS dans dpr_test.c"
+        log_warn "  accel1 : $cur1 → $sz1"
+        log_warn "  accel2 : $cur2 → $sz2"
+        sed -i "s/#define BS_ACCEL1_WORDS [0-9]*UL/#define BS_ACCEL1_WORDS ${sz1}UL/" "$DPR_TEST_C"
+        sed -i "s/#define BS_ACCEL2_WORDS [0-9]*UL/#define BS_ACCEL2_WORDS ${sz2}UL/" "$DPR_TEST_C"
+        FORCE_BAREMETAL=1
+        log_ok "dpr_test.c mis à jour → rebuild baremetal forcé"
+        _log_summary "update_bs_constants" "UPDATED" "accel1=$sz1 accel2=$sz2"
+    else
+        log_ok "BS_ACCEL*_WORDS à jour (accel1=$sz1 accel2=$sz2)"
+        _log_summary "update_bs_constants" "OK" ""
+    fi
 }
 
 # =============================================================================
@@ -263,6 +346,9 @@ do_baremetal() {
     fi
 
     log_step "  → Log : $logfile"
+    if [[ "$FORCE_BAREMETAL" == "1" ]]; then
+        make -C "$BAREMETAL_DIR" CROSS_COMPILE="$CROSS_COMPILE" PLATFORM=cva6 SINGLE_CORE=y clean 2>/dev/null || true
+    fi
     if _run_logged "$logfile" make -C "$BAREMETAL_DIR" \
         CROSS_COMPILE="$CROSS_COMPILE" \
         PLATFORM=cva6 \
@@ -512,9 +598,10 @@ do_all() {
 TARGET=""
 for arg in "$@"; do
     case "$arg" in
-        --force)           FORCE_STATIC=1; FORCE_BAREMETAL=1 ;;
+        --force)           FORCE_STATIC=1; FORCE_BAREMETAL=1; FORCE_HWICAP=1 ;;
         --force-static)    FORCE_STATIC=1 ;;
         --force-baremetal) FORCE_BAREMETAL=1 ;;
+        --force-hwicap)    FORCE_HWICAP=1 ;;
         *)                 [[ -z "$TARGET" ]] && TARGET="$arg" ;;
     esac
 done
@@ -527,6 +614,7 @@ echo "Logs : $LOG_DIR/"
 case "$TARGET" in
     all)          do_all ;;
     dpr)          source "$VIVADO_DIR/settings64.sh"; do_dpr ;;
+    hwicap-ip)    source "$VIVADO_DIR/settings64.sh"; do_hwicap_ip ;;
     baremetal)    do_baremetal ;;
     convert-bin)  do_convert_bin ;;
     bitstreams)   do_check_bitstreams ;;
@@ -542,7 +630,8 @@ case "$TARGET" in
         echo ""
         echo "Targets:"
         echo "  all          dpr + baremetal + program + load (défaut)"
-        echo "  dpr          Génère les bitstreams"
+        echo "  hwicap-ip    Régénère l'IP AXI HWICAP (Vivado batch)"
+        echo "  dpr          Régénère l'IP HWICAP si besoin + bitstreams"
         echo "  baremetal    Compile le firmware baremetal"
         echo "  convert-bin  Convertit .bit → .bin"
         echo "  bitstreams   Vérifie les bitstreams"
@@ -553,7 +642,8 @@ case "$TARGET" in
         echo "  help         Affiche cette aide"
         echo ""
         echo "Options:"
-        echo "  --force            Force rebuild bitstreams + baremetal"
+        echo "  --force            Force rebuild HWICAP IP + bitstreams + baremetal"
+        echo "  --force-hwicap     Force rebuild IP HWICAP seulement"
         echo "  --force-static     Force rebuild checkpoint statique"
         echo "  --force-baremetal  Force rebuild baremetal"
         ;;

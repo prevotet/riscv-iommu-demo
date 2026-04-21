@@ -210,9 +210,9 @@ Paramètres TCL (`xilinx/xlnx_axi_hwicap/tcl/run.tcl`) :
 
 ```tcl
 CONFIG.C_ICAP_EXTERNAL   {0}
-CONFIG.C_DEVICE_ID       {0x03647093}   # XC7K325T
+CONFIG.C_DEVICE_ID       {0x0362D093}   # XC7K325T
 CONFIG.C_INCLUDE_STARTUP {1}            # STARTUPE2 interne, EOS géré en interne
-CONFIG.C_OPERATION       {1}            # Pas de BUFGCTRL (horloge ICAP toujours active)
+CONFIG.C_OPERATION       {1}            # C_OPERATION=1 : BUFGCTRL (gate désactivée en write → OK) ; C_OPERATION=0 : horloge directe sans BUFGCTRL
 ```
 
 ### Guests baremetal

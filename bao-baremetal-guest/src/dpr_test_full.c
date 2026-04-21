@@ -190,9 +190,26 @@ static void hwicap_read_idcode(void) {
     while ((mmio_read32(HWICAP_CR) & HWICAP_CR_READ) && t-- > 0);
 
     uint32_t idcode = mmio_read32(HWICAP_RF);
-    printf("[HWICAP] IDCODE = 0x%08x (attendu 0x03647093) -> %s\r\n",
+    printf("[HWICAP] IDCODE = 0x%08x (attendu 0x0362D093) -> %s\r\n",
            (unsigned int)idcode,
-           idcode == 0x03647093 ? "OK" : "FAIL");
+           idcode == 0x0362D093 ? "OK" : "FAIL");
+
+    // DESYNC : remet l'ICAP en état IDLE avant toute écriture de bitstream
+    static const uint32_t desync_seq[] = {
+        0x20000000,  // NOOP
+        0x30008001,  // Type 1 Write 1 word → CMD register
+        0x0000000D,  // DESYNC
+        0x20000000,  // NOOP
+        0x20000000,  // NOOP
+    };
+    uint32_t nd = sizeof(desync_seq)/sizeof(desync_seq[0]);
+    hwicap_fifo_reset();
+    mmio_write32(HWICAP_SZ, nd);
+    for (uint32_t i = 0; i < nd; i++)
+        mmio_write32(HWICAP_WF, desync_seq[i]);
+    mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
+    int td = HWICAP_TIMEOUT;
+    while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && td-- > 0);
 }
 
 /* =========================================================================

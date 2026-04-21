@@ -3916,3 +3916,1013 @@ Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
 Error: error while flushing MPSSE queue: -4
 Error: dmi_scan failed jtag scan
 Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2
+Error: libusb_handle_events() failed with LIBUSB_ERROR_NO_DEVICE
+Error: unable to purge ftdi rx buffers: LIBUSB_ERROR_NO_DEVICE
+Error: error while flushing MPSSE queue: -4
+Error: dmi_scan failed jtag scan
+Error: failed read at 0x11, status=2

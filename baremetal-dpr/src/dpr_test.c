@@ -49,14 +49,14 @@
 
 static inline uint32_t mmio_read32(uint64_t addr) {
     uint32_t val;
-    asm volatile ("fence i, r" ::: "memory");
+    asm volatile ("fence" ::: "memory");
     val = *(volatile uint32_t *)addr;
     return val;
 }
 
 static inline void mmio_write32(uint64_t addr, uint32_t val) {
     *(volatile uint32_t *)addr = val;
-    asm volatile ("fence w, o" ::: "memory");
+    asm volatile ("fence" ::: "memory");
 }
 
 static void delay(int loops) {
@@ -181,10 +181,10 @@ static void hwicap_read_idcode(void) {
     delay(100);
 
     uint32_t idcode = mmio_read32(HWICAP_RF);
-    printf("[HWICAP] IDCODE = 0x%08x (attendu 0x03647093)\r\n",
+    printf("[HWICAP] IDCODE = 0x%08x (attendu 0x0362D093)\r\n",
            (unsigned int)idcode);
 
-    if ((idcode & 0x0FFFFFFF) == 0x03647093)
+    if (idcode == 0x0362D093)
         printf("[HWICAP] [OK] IDCODE correct\r\n");
     else
         printf("[HWICAP] [FAIL] IDCODE inattendu\r\n");
@@ -203,24 +203,68 @@ static void hwicap_read_idcode(void) {
 //   - PAS de bswap (l'IP fait le bit-swap interne)
 // =============================================================================
 
+// Lecture STAT ICAP (reg 7) — WRERR_B=bit7 (0=erreur), DONE=bit16
+static void hwicap_read_stat(void) {
+    hwicap_fifo_reset();
+    static const uint32_t seq[] = {
+        0xFFFFFFFF,
+        0xAA995566,
+        0x20000000,
+        0x28018001,  // Type1 Read STAT (reg 7), 1 word
+        0x20000000, 0x20000000, 0x20000000, 0x20000000,
+    };
+    uint32_t n = sizeof(seq)/sizeof(seq[0]);
+    mmio_write32(HWICAP_SZ, n);
+    for (uint32_t i = 0; i < n; i++)
+        mmio_write32(HWICAP_WF, seq[i]);
+    mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
+    int t = HWICAP_TIMEOUT;
+    while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && t-- > 0) delay(1);
+    delay(1000);
+    mmio_write32(HWICAP_SZ, 1);
+    mmio_write32(HWICAP_CR, HWICAP_CR_READ);
+    t = HWICAP_TIMEOUT;
+    while ((mmio_read32(HWICAP_CR) & HWICAP_CR_READ) && t-- > 0) delay(1);
+    uint32_t stat = mmio_read32(HWICAP_RF);
+    printf("[ICAP] STAT=0x%08x WRERR_B=%d DONE=%d\r\n",
+           (unsigned)stat, (stat >> 7) & 1, (stat >> 16) & 1);
+    if (!((stat >> 7) & 1))
+        printf("[ICAP] [WARN] WRERR_B=0 : erreur d'ecriture ICAP\r\n");
+    if (!((stat >> 16) & 1))
+        printf("[ICAP] [WARN] DONE=0 : configuration non terminee\r\n");
+    // DESYNC
+    static const uint32_t desync[] = {
+        0x20000000, 0x30008001, 0x0000000D, 0x20000000, 0x20000000,
+    };
+    hwicap_fifo_reset();
+    mmio_write32(HWICAP_SZ, 5);
+    for (uint32_t i = 0; i < 5; i++)
+        mmio_write32(HWICAP_WF, desync[i]);
+    mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
+    t = HWICAP_TIMEOUT;
+    while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && t-- > 0) delay(1);
+}
+
 static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
     hwicap_fifo_reset();
     print_status("debut write_bitstream");
 
     printf("[HWICAP] Premiers mots bitstream (DDR -> HWICAP) :\r\n");
     for (int i = 0; i < 4; i++) {
-        printf("  [%d] DDR=0x%08x -> ICAP=0x%08x\r\n", 
+        printf("  [%d] DDR=0x%08x -> ICAP=0x%08x\r\n",
                i, (unsigned int)data[i], (unsigned int)__builtin_bswap32(data[i]));
     }
+    delay(5000);  // gap AXI entre dernier read (print_status) et premier write (SZ)
 
     uint32_t written = 0;
 
     while (written < size_words) {
 
-        // Chunk de max 4095 mots
+        // Chunk de max 63 mots
         uint32_t chunk = size_words - written;
         if (chunk > HWICAP_WFV_MAX) chunk = HWICAP_WFV_MAX;
 
+        delay(200);  // gap AXI inter-chunks (remplace la latence des printf de debug)
         mmio_write32(HWICAP_SZ, chunk);
 
         // Remplir FIFO mot par mot
@@ -241,13 +285,15 @@ static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
             if (to_write > (chunk - sent)) to_write = chunk - sent;
 
             for (uint32_t i = 0; i < to_write; i++) {
-                mmio_write32(HWICAP_WF, data[written + sent]);
+                mmio_write32(HWICAP_WF, __builtin_bswap32(data[written + sent]));
                 sent++;
             }
         }
 
         // Déclencher
         mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
+
+        delay(1000);
 
         // Attendre CR_WRITE remis à 0
         int timeout = HWICAP_TIMEOUT;
@@ -301,6 +347,7 @@ void dpr_test(void) {
         printf("[FAIL] Reconfiguration accel1 échouée\r\n");
         return;
     }
+    hwicap_read_stat();
     printf("[OK] accel1 reconfiguré\r\n");
 
     printf("\r\n[3] Reconfiguration accel2...\r\n");
@@ -309,6 +356,7 @@ void dpr_test(void) {
         printf("[FAIL] Reconfiguration accel2 échouée\r\n");
         return;
     }
+    hwicap_read_stat();
     printf("[OK] accel2 reconfiguré\r\n");
 
     asm volatile ("fence" ::: "memory");
