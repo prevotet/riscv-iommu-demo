@@ -1,0 +1,50 @@
+Open On-Chip Debugger 0.11.0
+Licensed under GNU GPL v2
+For bug reports, read
+	http://openocd.org/doc/doxygen/bugs.html
+DEPRECATED! use 'adapter speed' not 'adapter_khz'
+DEPRECATED! use 'adapter driver' not 'interface'
+Info : auto-selecting first available session transport "jtag". To override use 'transport select <transport>'.
+Info : clock speed 1000 kHz
+Info : JTAG tap: riscv.cpu tap/device found: 0x00000001 (mfg: 0x000 (<invalid>), part: 0x0000, ver: 0x0)
+Info : datacount=2 progbufsize=8
+Info : Examined RISC-V core; found 1 harts
+Info :  hart 0: XLEN=64, misa=0x80000000001411ad
+Info : starting gdb server for riscv.cpu on 3333
+Info : Listening on port 3333 for gdb connections
+Ready for Remote Connections
+Info : Listening on port 6666 for tcl connections
+Info : Listening on port 4444 for telnet connections
+Info : accepting 'gdb' connection on tcp/3333
+Warn : Prefer GDB command "target extended-remote 3333" instead of "target remote 3333"
+Info : dropped 'gdb' connection
+Info : accepting 'gdb' connection on tcp/3333
+Info : dropped 'gdb' connection
+Info : accepting 'gdb' connection on tcp/3333
+fast_load_image filename address ['bin'|'ihex'|'elf'|'s19'] [min_address [max_length]]
+load_image filename address ['bin'|'ihex'|'elf'|'s19'] [min_address] [max_length]
+
+fast_load_image filename address ['bin'|'ihex'|'elf'|'s19'] [min_address [max_length]]
+load_image filename address ['bin'|'ihex'|'elf'|'s19'] [min_address] [max_length]
+
+Info : dropped 'gdb' connection
+Info : accepting 'gdb' connection on tcp/3333
+fast_load_image filename address ['bin'|'ihex'|'elf'|'s19'] [min_address [max_length]]
+load_image filename address ['bin'|'ihex'|'elf'|'s19'] [min_address] [max_length]
+
+fast_load_image filename address ['bin'|'ihex'|'elf'|'s19'] [min_address [max_length]]
+load_image filename address ['bin'|'ihex'|'elf'|'s19'] [min_address] [max_length]
+
+Info : dropped 'gdb' connection
+Info : accepting 'gdb' connection on tcp/3333
+2139292 bytes written at address 0x81000000
+downloaded 2139292 bytes in 76.266899s (27.393 KiB/s)
+
+4120828 bytes written at address 0x81300000
+downloaded 4120828 bytes in 141.318634s (28.476 KiB/s)
+
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (3169 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1784 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (3563 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1778 ms). Workaround: increase "set remotetimeout" in GDB
+Warn : keep_alive() was not invoked in the 1000 ms timelimit. GDB alive packet not sent! (1787 ms). Workaround: increase "set remotetimeout" in GDB

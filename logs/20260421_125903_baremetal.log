@@ -1,0 +1,26 @@
+CMD: make -C /home/jc/tmp/riscv-iommu-demo/baremetal-dpr CROSS_COMPILE=/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf- PLATFORM=cva6 SINGLE_CORE=y -j8
+DATE: mar. 21 avril 2026 12:59:03 CEST
+---
+make : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/baremetal-dpr »
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gcc -mcmodel=medany -march=rv64imac -mabi=lp64 -O0 -g3 -static    -I./src/inc -I./src/core/inc -I./src/platform/cva6/inc -I./src/drivers/8250_uart/inc -I./src/arch/riscv/inc -MD -MF build/cva6/dpr_test.o.d -DSINGLE_CORE=y -c src/dpr_test.c -o build/cva6/dpr_test.o
+src/dpr_test.c:191:5: warning: data definition has no type or storage class
+  191 |     hwicap_fifo_reset();
+      |     ^~~~~~~~~~~~~~~~~
+src/dpr_test.c:191:5: warning: type defaults to 'int' in declaration of 'hwicap_fifo_reset' [-Wimplicit-int]
+src/dpr_test.c:191:5: error: conflicting types for 'hwicap_fifo_reset'
+src/dpr_test.c:124:13: note: previous definition of 'hwicap_fifo_reset' was here
+  124 | static void hwicap_fifo_reset(void) {
+      |             ^~~~~~~~~~~~~~~~~
+src/dpr_test.c:192:5: warning: data definition has no type or storage class
+  192 |     hwicap_desync();
+      |     ^~~~~~~~~~~~~
+src/dpr_test.c:192:5: warning: type defaults to 'int' in declaration of 'hwicap_desync' [-Wimplicit-int]
+src/dpr_test.c:192:5: error: conflicting types for 'hwicap_desync'
+src/dpr_test.c:106:13: note: previous definition of 'hwicap_desync' was here
+  106 | static void hwicap_desync(void) {
+      |             ^~~~~~~~~~~~~
+src/dpr_test.c:193:1: error: expected identifier or '(' before '}' token
+  193 | }
+      | ^
+make: *** [Makefile:108 : build/cva6/dpr_test.o] Erreur 1
+make : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/baremetal-dpr »

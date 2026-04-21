@@ -1,0 +1,44 @@
+CMD: vivado -mode batch -nojournal -nolog -source /tmp/program_bU8Wob.tcl
+DATE: mar. 21 avril 2026 13:02:15 CEST
+---
+
+****** Vivado v2022.2 (64-bit)
+  **** SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+  **** IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+
+source /tmp/program_bU8Wob.tcl
+# open_hw_manager
+open_hw_manager: Time (s): cpu = 00:00:05 ; elapsed = 00:00:05 . Memory (MB): peak = 1750.688 ; gain = 116.961 ; free physical = 40900 ; free virtual = 49017
+# connect_hw_server
+INFO: [Labtools 27-2285] Connecting to hw_server url TCP:localhost:3121
+INFO: [Labtools 27-2222] Launching hw_server...
+INFO: [Labtools 27-2221] Launch Output:
+
+****** Xilinx hw_server v2022.2
+  **** Build date : Oct 14 2022 at 05:10:28
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+
+
+INFO: [Labtools 27-3415] Connecting to cs_server url TCP:localhost:0
+INFO: [Labtools 27-3417] Launching cs_server...
+INFO: [Labtools 27-2221] Launch Output:
+
+
+******** Xilinx cs_server v2022.2.0
+  ****** Build date   : Oct 05 2022-01:25:37
+    **** Build number : 2022.2.1664925937
+      ** Copyright 2017-2026 Xilinx, Inc. All Rights Reserved.
+
+
+
+# open_hw_target
+INFO: [Labtoolstcl 44-466] Opening hw_target localhost:3121/xilinx_tcf/Digilent/200300BB8B2C
+WARNING: [Labtoolstcl 44-128] No matching hw_devices were found.
+# set dev [lindex [get_hw_devices xc7k*] 0]
+# current_hw_device $dev
+
+    while executing
+"current_hw_device $dev"
+    (file "/tmp/program_bU8Wob.tcl" line 5)
+INFO: [Common 17-206] Exiting Vivado at Tue Apr 21 13:02:27 2026...

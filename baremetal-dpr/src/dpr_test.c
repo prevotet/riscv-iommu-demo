@@ -32,7 +32,7 @@
 #define HWICAP_CR_FIFO_RST 0x04
 
 #define HWICAP_WFV_MAX   0x3F
-#define HWICAP_TIMEOUT   100000
+#define HWICAP_TIMEOUT   1000000
 
 // =============================================================================
 // Bitstreams partiels (DDR)
@@ -40,8 +40,8 @@
 
 #define BS_ACCEL1_ADDR  0x81000000ULL
 #define BS_ACCEL2_ADDR  0x81300000ULL
-#define BS_ACCEL1_WORDS 534818UL
-#define BS_ACCEL2_WORDS 1030202UL
+#define BS_ACCEL1_WORDS 534823UL
+#define BS_ACCEL2_WORDS 1030207UL
 
 // =============================================================================
 // MMIO helpers — uniquement 32 bits pour compatibilité avec dwidth converter
@@ -49,14 +49,14 @@
 
 static inline uint32_t mmio_read32(uint64_t addr) {
     uint32_t val;
-    asm volatile ("fence rw, rw" ::: "memory");
+    asm volatile ("fence i, r" ::: "memory");
     val = *(volatile uint32_t *)addr;
     return val;
 }
 
 static inline void mmio_write32(uint64_t addr, uint32_t val) {
     *(volatile uint32_t *)addr = val;
-    asm volatile ("fence rw, rw" ::: "memory");
+    asm volatile ("fence w, o" ::: "memory");
 }
 
 static void delay(int loops) {
@@ -87,14 +87,9 @@ static void print_status(const char *label) {
 static void hwicap_diag(void) {
     printf("[HWICAP] === DIAG ===\r\n");
 
-    // Test R/W sur SZ (registre safe, 12 bits, pas d'effet de bord)
-    uint32_t sz_orig = mmio_read32(HWICAP_SZ);
+    // Test d'écriture sur SZ (registre write-only, on vérifie juste qu'il ne bloque pas le bus)
     mmio_write32(HWICAP_SZ, 0xAA);
-    uint32_t sz_rb = mmio_read32(HWICAP_SZ);
-    mmio_write32(HWICAP_SZ, sz_orig);
-    printf("[HWICAP] SZ write 0xAA -> readback = 0x%08x (%s)\r\n",
-           (unsigned int)sz_rb,
-           (sz_rb & 0xFFF) == 0xAA ? "OK" : "FAIL - shift probable");
+    printf("[HWICAP] SZ write 0xAA (write-only, readback non testé)\r\n");
 
     // Dump de tous les registres 0x100..0x118
     const char *names[] = {"WF ", "RF ", "SZ ", "CR ", "SR ", "WFV", "RFO"};
@@ -107,9 +102,11 @@ static void hwicap_diag(void) {
     }
     printf("[HWICAP] === FIN DIAG ===\r\n");
 }
-
 static void hwicap_desync(void) {
     static const uint32_t seq[] = {
+        0x20000000, 0x20000000,  // NOOP
+        0x30008001,              // Type 1 Write CMD (1 word)
+        0x0000000A,              // GRESTORE
         0x20000000, 0x20000000,  // NOOP
         0x30008001,              // Type 1 Write CMD (1 word)
         0x0000000D,              // DESYNC
@@ -187,7 +184,7 @@ static void hwicap_read_idcode(void) {
     printf("[HWICAP] IDCODE = 0x%08x (attendu 0x03647093)\r\n",
            (unsigned int)idcode);
 
-    if (idcode == 0x03647093)
+    if ((idcode & 0x0FFFFFFF) == 0x03647093)
         printf("[HWICAP] [OK] IDCODE correct\r\n");
     else
         printf("[HWICAP] [FAIL] IDCODE inattendu\r\n");
@@ -209,6 +206,12 @@ static void hwicap_read_idcode(void) {
 static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
     hwicap_fifo_reset();
     print_status("debut write_bitstream");
+
+    printf("[HWICAP] Premiers mots bitstream (DDR -> HWICAP) :\r\n");
+    for (int i = 0; i < 4; i++) {
+        printf("  [%d] DDR=0x%08x -> ICAP=0x%08x\r\n", 
+               i, (unsigned int)data[i], (unsigned int)__builtin_bswap32(data[i]));
+    }
 
     uint32_t written = 0;
 
@@ -238,20 +241,17 @@ static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
             if (to_write > (chunk - sent)) to_write = chunk - sent;
 
             for (uint32_t i = 0; i < to_write; i++) {
-                mmio_write32(HWICAP_WF, __builtin_bswap32(data[written + sent]));
+                mmio_write32(HWICAP_WF, data[written + sent]);
                 sent++;
             }
         }
 
         // Déclencher
-        printf("[HWICAP] chunk %u: %u mots ecrits, envoi CR_WRITE\r\n",
-               (unsigned int)(written/63), (unsigned int)chunk);
         mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
-        printf("[HWICAP] CR_WRITE envoye, attente...\r\n");
 
         // Attendre CR_WRITE remis à 0
         int timeout = HWICAP_TIMEOUT;
-        while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && timeout-- > 0) delay(10);
+        while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && timeout-- > 0) delay(1);
         if (timeout <= 0) {
             printf("[HWICAP] ERROR: timeout CR mot %u\r\n",
                    (unsigned int)written);
@@ -260,11 +260,17 @@ static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
         }
 
         written += chunk;
+
+        if (written % 10000 < chunk) {
+            printf("[HWICAP] Progression : %u / %u mots...\r\n", 
+                   (unsigned int)written, (unsigned int)size_words);
+        }
     }
 
     delay(100);
     print_status("fin write_bitstream");
     printf("[HWICAP] %u mots envoyés\r\n", (unsigned int)size_words);
+
     return 0;
 }
 
@@ -278,7 +284,6 @@ void dpr_test(void) {
     printf("=================================================\r\n");
 
     hwicap_diag();
-    hwicap_read_idcode();
 
     asm volatile ("fence" ::: "memory");
     uint32_t id1_lo = mmio_read32(ACCEL1_BASE);

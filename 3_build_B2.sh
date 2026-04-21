@@ -300,7 +300,8 @@ do_convert_bin() {
         local offset
         offset=$(python3 -c "
 data = open('$bit','rb').read()
-idx = data.find(bytes.fromhex('AA995566'))
+idx = data.find(bytes.fromhex('000000BB'))
+if idx >= 4: idx -= 4  # Inclure les 4 octets de padding avant
 print(idx if idx >= 0 else -1)
 ")
         if [[ "$offset" -lt 0 ]]; then
