@@ -546,23 +546,25 @@ do_load() {
     gdb_script=$(mktemp /tmp/riscv_load_XXXXXX.gdb)
     trap "rm -f '$gdb_script'" EXIT INT TERM
 
-    cat <<EOF > "$gdb_script"
+    # 'restore file binary addr' : commande GDB native, charge un binaire brut
+    # en mémoire cible via le protocole GDB/OpenOCD. Pas besoin de Python ni de
+    # 'monitor' (non supporté par ce target).
+    cat > "$gdb_script" << EOF
 target remote localhost:3333
 set confirm off
-echo \n[GDB] Chargement bitstream 1 @ $ADDR_BS1\n
+echo \\n[GDB] Chargement bitstream accel1 @ $ADDR_BS1\\n
 restore $bs1 binary $ADDR_BS1
-echo \n[GDB] Chargement bitstream 2 @ $ADDR_BS2\n
+echo \\n[GDB] Chargement bitstream accel2 @ $ADDR_BS2\\n
 restore $bs2 binary $ADDR_BS2
-echo \n[GDB] Chargement baremetal @ $ADDR_BAREMETAL\n
+echo \\n[GDB] Chargement ELF baremetal...\\n
 load
 set \$pc = $ADDR_BAREMETAL
-echo \n[GDB] Démarrage...\n
+echo \\n[GDB] Demarrage firmware (UART pour les traces)...\\n
 continue
 EOF
 
     echo ""
     log_step "Lancement GDB..."
-    # Utilisation de exec pour passer le contrôle à GDB
     ${RISCV_BARE}gdb -x "$gdb_script" "$BAREMETAL_ELF"
     rm -f "$gdb_script"
     trap - EXIT INT TERM

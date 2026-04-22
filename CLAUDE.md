@@ -323,7 +323,22 @@ git clone --recurse-submodules -b dpr git@github.com:prevotet/riscv-iommu-demo.g
 ## Points techniques importants
 
 ### ICAP bit-swap
-L'IP HWICAP fait le bit-swap interne (process `SWAP_BITS` dans le VHDL) → **pas de bswap côté logiciel**.
+Le process `SWAP_BITS` dans le VHDL de l'IP effectue une **inversion des bits dans chaque octet** (bit-reversal par byte, PAS un byte-swap du mot 32 bits) :
+
+```vhdl
+for byte in 0 to 3 loop
+  for bit in 0 to 7 loop
+    Icap_datain(byte*8 + (7-bit)) <= icap_datain_cs(byte*8 + bit);
+  end loop;
+end loop;
+```
+
+**Règle logicielle : écrire `data[i]` directement dans HWICAP_WF, sans aucune transformation.**
+
+- ✅ `mmio_write32(HWICAP_WF, data[i])` — correct
+- ❌ `mmio_write32(HWICAP_WF, __builtin_bswap32(data[i]))` — **FAUX** : génère des paquets ICAP invalides qui déclenchent une commande PROGRAM (reset complet du FPGA, CPU repart de zéro, plus d'output UART)
+
+Le `.bin` (extrait du `.bit` en strippant le header) contient les octets dans l'ordre attendu par le HWICAP. La lecture en uint32_t little-endian depuis la DDR donne directement la valeur à écrire dans WF.
 
 ### Protocole d'écriture HWICAP
 
@@ -388,60 +403,81 @@ make -C bao-baremetal-guest PLATFORM=cva6 VARIANT=dpr_manager NAME=dpr_manager
 ```
 Produit : `build/cva6/dpr_manager.bin` (chargé à `0x90000000` par BAO).
 
-## Session débogage 2026-04-21 — ICAP silencieux                                                                         
-                                                                                                                             
-### Symptôme                                                                                                             
-Après correction des offsets registres (session 2026-04-06), le hang au chunk 70 est résolu.                             
-   Nouveau symptôme : `hwicap_write_bitstream()` se termine sans erreur (SR=0x00000005, WFV=0x3F,                           
-     +CR acquitté), mais les IDs accel ne changent pas — `accel_A` reste `accel_A` après envoi de `partial_accel_B`.           
-     +                                                                                                                         
-  ### SR=0x00000005 = état normal                                                                                          
-   - Bit 0 : `send_done` — écriture ICAP terminée                                                                           
-  - Bit 2 : `EOS` — End Of Startup (STARTUPE2 a fini)                                                                      
-  - Bit 1 = 0 : pas de `hang`                                                                                              
-                                                                                                                           
-Ce SR est **normal et correct**. L'ICAP accepte les données sans signaler d'erreur.                                      
-                                                                                                                         
-### Vérification format bitstream (GDB)                                                                                  
-```                                                                                                                      
-(gdb) x/4xw 0x81000000                                                                                                   
-  0x81000000: 0xffffffff  0xbb000000  0x44002211  0xffffffff                                                               
-```                                                                                                                      
-Format correct : bus-width detect `0x000000BB` (LE → `0xbb000000`) + sync `0xAA995566` (LE → `0x44002211` au mot suivant)
-                                                                                                                          
-Pas de bswap32 logiciel — l'IP fait SWAP_BITS interne.                                                                   
-                                                                                                                        
-### Test ambigu accel_B → accel_B                                                                                        
-En programmant `full_accel_B.bit` puis en envoyant `partial_accel_B_accel1.bin` via HWICAP :                             
-- IDs initiaux = 0xBBBBBB, IDs après DPR = 0xBBBBBB → `[OK] accel_B détecté`                                             
-- Résultat **ambigu** : RM initial = RM cible → impossible de distinguer si l'ICAP a réellement reconfiguré              
-                                                                                                                        
-### Test diagnostique requis : accel_B → accel_A                                                                         
-Pour vérifier que l'ICAP reconfigure réellement, il faut un RM initial différent du RM cible :                           
-1. FPGA : `full_accel_B.bit` chargé (IDs = 0xBBBBBB)                                                                     
-2. Générer les .bin accel_A : `RM_TARGET=accel_A ./3_build_B2.sh convert-bin`                                            
-3. Charger en DDR via GDB/OpenOCD                                                                                        
-4. Lancer le firmware → vérifier si IDs passent de 0xBBBBBB à 0xAAAAAA                                                   
-                                                                                                                        
-### Chargement GDB/OpenOCD — pièges                                                                                      
-                                                                                                                       
-**`restore <file> binary <addr>`** : syntaxe GDB native.                                                                 
-- Piège : un chemin relatif contenant `/` (ex. `cva6/corev_apu/...`) est interprété comme plusieurs tokens GDB → `Undefined command: 'cva6'`                                                                                                      
-- Solution : utiliser des **chemins absolus** ou ne pas utiliser `restore`                                               
-                                                                                                                        
-**`monitor load_image <path> <addr> bin`** : commande OpenOCD transmise via GDB.                                         
-- Exige également des **chemins absolus**                                                                                
-- Exemple fonctionnel :                                                                                                  
-``gdb                                                                                                                   
-monitor load_image /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/partial_accel_A_accel1.bin 0x
-          +81000000 bin                                                                                                             
-monitor load_image /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/partial_accel_A_accel2.bin 0x
-          +81300000 bin                                                                                                             
-load baremetal-dpr/build/cva6/baremetal.elf                                                                              
-set $pc = 0x90000000                                                                                                     
-continue                                                                                                                 
-```                                                                                                                      
-### Hypothèses non exclues                                                                                               
-1. **`C_OPERATION`** : si `C_OPERATION=0` dans le TCL HWICAP, l'ICAP accepte les données (WFV/CR cycle normalement) mais  n'exécute rien → DPR silencieusement ignoré. Vérifier dans `xilinx/xlnx_axi_hwicap/tcl/run.tcl`.                         
-2. **Cohérence static_routed.dcp** : si les bitstreams partiels ont été générés depuis un DCP statique incohérent (ex. accel_blank différent), les frames ICAP ne correspondent pas au fabric → reconfiguration silencieusement ignorée.          
-3. **Pas de desync avant DPR** : sans séquence DESYNC après le full bitstream initial, l'ICAP peut rester en état "configuré" bloquant les reconfigurations partielles. `hwicap_desync()` peut être utile en début de DPR.
+## Sessions débogage HWICAP / DPR
+
+### Chronologie des symptômes résolus
+
+| Session | Symptôme | Cause | Fix |
+|---|---|---|---|
+| 2026-04-06 | Hang au chunk 70 | Offsets registres décalés de +0x10 | Corriger WF=0x100…RFO=0x118 |
+| 2026-04-21 | CPU reset FPGA complet après quelques mots | `__builtin_bswap32()` → paquet ICAP invalide → PROGRAM | Supprimer bswap, écrire `data[i]` directement |
+| 2026-04-22 | DPR silencieux : HWICAP OK mais IDs inchangés | 3 bugs firmware (voir ci-dessous) | Corrections dans `dpr_test.c` |
+
+### SR=0x00000005 = état normal
+
+- Bit 0 : `send_done` — écriture ICAP terminée
+- Bit 2 : `EOS` — End Of Startup (STARTUPE2 a fini)
+- Bit 1 = 0 : pas de `hang`
+
+### Vérification format bitstream (GDB)
+
+```
+(gdb) x/4xw 0x81000000
+  0x81000000: 0xffffffff  0xbb000000  0x44002211  0xffffffff
+```
+
+Format correct : bus-width detect `0x000000BB` (LE → `0xbb000000`) + sync `0xAA995566` (LE → `0x44002211` au mot suivant).
+Pas de `bswap32` logiciel — l'IP fait SWAP_BITS interne. Écrire `data[i]` tel quel dans HWICAP_WF.
+
+### Chargement bitstreams via GDB — règle
+
+**`restore <fichier> binary <addr>`** : seule syntaxe supportée par cette cible OpenOCD.
+
+- `monitor load_image` : **non supporté** par cette cible → utiliser `restore`
+- Chemin relatif contenant `/` interprété comme plusieurs tokens GDB → utiliser des **chemins absolus**
+
+Séquence GDB complète (générée automatiquement par `3_build_B2.sh load`) :
+```gdb
+target remote localhost:3333
+restore /chemin/absolu/partial_accel_A_accel1.bin binary 0x81000000
+restore /chemin/absolu/partial_accel_A_accel2.bin binary 0x81300000
+load
+set $pc = 0x90000000
+continue
+```
+
+### Bugs dpr_test.c corrigés (2026-04-22)
+
+#### Bug 1 — `hwicap_read_stat` lisait IDCODE, pas STAT ✅ CORRIGÉ
+Packet header `0x28018001` = Type 1 Read reg **0x0C = IDCODE**, pas reg 7 = STAT.
+Fix : `0x28038001` (Type 1 Read reg 7 = STAT, UG470 Table 5-26).
+
+#### Bug 2 — WRERR_B bit incorrect ✅ CORRIGÉ
+`(stat >> 7) & 1` → off by one. Fix : `(stat >> 8) & 1` (WRERR_B = bit 8, UG470).
+
+#### Bug 3 — Vérification ID toujours accel_B (masquait l'échec DPR) ✅ CORRIGÉ
+Pour le test B→A, le check `0xBBBBBB` affichait `[OK] accel_B détecté` même quand DPR échouait
+(IDs inchangés = succès apparent pour le mauvais RM).
+Fix : vérification `0xAAAAAA` → `[OK] accel_A détecté — DPR réussi !`
+
+### Cohérence des bitstreams et rebuild HWICAP IP
+
+Le script `3_build_B2.sh` (ligne 233) détecte automatiquement si le XCI est plus récent que `static_routed.dcp`
+et force `FORCE_STATIC=1`. Les fichiers ne sont pas effacés mais écrasés lors du rebuild.
+
+**C_DEVICE_ID** : paramètre software stocké dans un registre AXI HWICAP (lisible par le CPU).
+N'affecte **pas** l'opération ICAP elle-même — l'ICAP vérifie l'IDCODE présent dans le header bitstream
+contre les fuses du composant. Un C_DEVICE_ID incorrect dans l'IP ne cause pas de DPR silencieux.
+
+### Hypothèses restantes (DPR silencieux, à investiguer)
+
+1. **DESYNC manquant avant DPR** : `hwicap_desync()` est défini dans `dpr_test.c` mais n'est pas appelé
+   en début de `dpr_test()`. Après un full bitstream, l'ICAP peut nécessiter un DESYNC explicite
+   avant d'accepter des frames partiels.
+
+2. **Cohérence static_routed.dcp** : si les bitstreams partiels ont été générés depuis un DCP statique
+   incohérent (accel_blank différent), les frames ICAP ne correspondent pas au fabric →
+   reconfiguration silencieusement ignorée.
+
+3. **IDCODE dans le bitstream** : si le header du bitstream partiel contient un IDCODE ≠ 0x0362D093
+   (XC7K325T), l'ICAP refuse silencieusement. Vérifiable avec `hwicap_read_idcode()` avant DPR.
