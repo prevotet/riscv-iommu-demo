@@ -371,15 +371,25 @@ do_baremetal() {
 do_convert_bin() {
     log_step "Conversion bitstreams partiels .bit → .bin"
 
+    # Convertir tous les RMs disponibles (RM_INIT, RM_TARGET, accel_default)
+    local rms_to_convert=()
+    for rm in accel_default "$RM_INIT" "$RM_TARGET"; do
+        [[ " ${rms_to_convert[*]} " == *" $rm "* ]] || rms_to_convert+=("$rm")
+    done
+
+    for rm in "${rms_to_convert[@]}"; do
     for accel in accel1 accel2; do
-        local bit="$WORK_DPR/partial_${RM_TARGET}_${accel}.bit"
-        local bin="$WORK_DPR/partial_${RM_TARGET}_${accel}.bin"
+        local bit="$WORK_DPR/partial_${rm}_${accel}.bit"
+        local bin="$WORK_DPR/partial_${rm}_${accel}.bin"
+
+        # Ignorer silencieusement si le .bit n'existe pas pour ce RM
+        [[ -f "$bit" ]] || continue
 
         check_file "$bit"
 
         if [[ -f "$bin" ]] && [[ "$bin" -nt "$bit" ]]; then
             log_skip "$(basename "$bin") déjà à jour"
-            _log_summary "convert_${accel}" "SKIP" ""
+            _log_summary "convert_${rm}_${accel}" "SKIP" ""
             continue
         fi
 
@@ -392,15 +402,16 @@ print(idx if idx >= 0 else -1)
 ")
         if [[ "$offset" -lt 0 ]]; then
             log_error "Sync word non trouvé dans $bit"
-            _log_summary "convert_${accel}" "FAIL" "sync word manquant"
+            _log_summary "convert_${rm}_${accel}" "FAIL" "sync word manquant"
             exit 1
         fi
 
-        log_step "  → $accel : header = $offset octets"
+        log_step "  → ${rm}/${accel} : header = $offset octets"
         RUN dd if="$bit" of="$bin" bs=1 skip="$offset" status=none
         check_file "$bin"
         log_ok "  → $(basename "$bin") : $(( $(stat -c%s "$bin") / 1024 )) KB"
-        _log_summary "convert_${accel}" "OK" "$(( $(stat -c%s "$bin") / 1024 )) KB"
+        _log_summary "convert_${rm}_${accel}" "OK" "$(( $(stat -c%s "$bin") / 1024 )) KB"
+    done
     done
 }
 
@@ -594,6 +605,52 @@ do_all() {
 }
 
 # =============================================================================
+# Test matériel — suite de validation HWICAP/ICAP/DPR
+# =============================================================================
+
+do_test() {
+    log_step "Validation matérielle HWICAP/ICAP/DPR"
+
+    local bs1="$WORK_DPR/partial_${RM_TARGET}_accel1.bin"
+    local bs2="$WORK_DPR/partial_${RM_TARGET}_accel2.bin"
+
+    # Compiler le firmware de test si nécessaire
+    do_baremetal
+
+    check_file "$BAREMETAL_ELF"
+    check_file "$bs1"
+
+    if ! pgrep -x "openocd" > /dev/null; then
+        log_warn "OpenOCD ne semble pas tourner."
+        log_warn "Lancer dans un autre terminal : ./3_build_B2.sh openocd"
+        echo -n "Continuer quand même ? [y/N] "
+        read -r resp; [[ "$resp" != "y" ]] && exit 1
+    fi
+
+    local gdb_script
+    gdb_script=$(mktemp /tmp/riscv_test_XXXXXX.gdb)
+    trap "rm -f '$gdb_script'" EXIT INT TERM
+
+    cat > "$gdb_script" << EOF
+target remote localhost:3333
+set confirm off
+echo \\n[TEST] Chargement bitstream de test @ $ADDR_BS1\\n
+restore $bs1 binary $ADDR_BS1
+echo \\n[TEST] Chargement ELF...\\n
+load
+set \$pc = $ADDR_BAREMETAL
+echo \\n[TEST] Demarrage suite de tests (sortie UART)...\\n
+continue
+EOF
+
+    echo ""
+    log_step "Lancement suite de tests via GDB..."
+    ${RISCV_BARE}gdb -x "$gdb_script" "$BAREMETAL_ELF"
+    rm -f "$gdb_script"
+    trap - EXIT INT TERM
+}
+
+# =============================================================================
 # Dispatch
 # =============================================================================
 
@@ -623,6 +680,7 @@ case "$TARGET" in
     program)      do_program ;;
     openocd)      do_openocd ;;
     load)         do_load ;;
+    test)         do_test ;;
     logs)
         log_step "Historique des sessions"
         cat "$SUMMARY_LOG" 2>/dev/null || log_warn "Aucun log disponible"
@@ -631,7 +689,8 @@ case "$TARGET" in
         echo "Usage: $0 [TARGET] [OPTIONS]"
         echo ""
         echo "Targets:"
-        echo "  all          dpr + baremetal + program + load (défaut)"
+        echo "  test         Suite de validation matérielle HWICAP/ICAP/DPR"
+  echo "  all          dpr + baremetal + program + load (défaut)"
         echo "  hwicap-ip    Régénère l'IP AXI HWICAP (Vivado batch)"
         echo "  dpr          Régénère l'IP HWICAP si besoin + bitstreams"
         echo "  baremetal    Compile le firmware baremetal"

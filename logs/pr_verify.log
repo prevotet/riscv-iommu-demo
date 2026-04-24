@@ -1,0 +1,181 @@
+#-----------------------------------------------------------
+# Vivado v2022.2 (64-bit)
+# SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+# IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+# Start of session at: Fri Apr 24 08:56:33 2026
+# Process ID: 8058
+# Current directory: /home/jc/tmp/riscv-iommu-demo
+# Command line: vivado -mode batch -source dpr/scripts/run_pr_verify.tcl -log logs/pr_verify.log -journal logs/pr_verify.jou
+# Log file: /home/jc/tmp/riscv-iommu-demo/logs/pr_verify.log
+# Journal file: /home/jc/tmp/riscv-iommu-demo/logs/pr_verify.jou
+# Running On: jc-VirtualBox, OS: Linux, CPU Frequency: 2995.200 MHz, CPU Physical cores: 24, Host memory: 21133 MB
+#-----------------------------------------------------------
+source dpr/scripts/run_pr_verify.tcl
+# set W /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr
+# puts "==> pr_verify: static vs accel_A / accel_B / accel_default"
+==> pr_verify: static vs accel_A / accel_B / accel_default
+# pr_verify \
+#     -initial  $W/static_routed.dcp \
+#     -additional [list \
+#         $W/accel_A_routed.dcp \
+#         $W/accel_B_routed.dcp \
+#         $W/accel_default_routed.dcp \
+#     ]
+Command: pr_verify -initial /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/static_routed.dcp -additional {/home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/accel_A_routed.dcp /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/accel_B_routed.dcp /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/accel_default_routed.dcp}
+Command: open_checkpoint /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/static_routed.dcp
+
+Starting open_checkpoint Task
+
+Time (s): cpu = 00:00:00.03 ; elapsed = 00:00:00.03 . Memory (MB): peak = 1399.371 ; gain = 0.000 ; free physical = 11309 ; free virtual = 19169
+INFO: [Device 21-403] Loading part xc7k325tffg900-2
+Netlist sorting complete. Time (s): cpu = 00:00:00.74 ; elapsed = 00:00:00.73 . Memory (MB): peak = 2012.465 ; gain = 0.000 ; free physical = 10593 ; free virtual = 18454
+INFO: [Netlist 29-17] Analyzing 9860 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-479] Netlist was created with Vivado 2022.2
+INFO: [Project 1-570] Preparing netlist for logic optimization
+WARNING: [Constraints 18-550] Could not create 'IBUF_LOW_PWR' constraint because net 'i_xlnx_clk_gen/clk_in1' is not directly connected to top level port. Synthesis is ignored for IBUF_LOW_PWR but preserved for implementation.
+INFO: [Timing 38-478] Restoring timing data from binary archive.
+INFO: [Timing 38-479] Binary timing data restore complete.
+INFO: [Project 1-856] Restoring constraints from binary archive.
+INFO: [Project 1-853] Binary constraint restore complete.
+Reading XDEF placement.
+Reading placer database...
+Reading XDEF routing.
+Read XDEF Files: Time (s): cpu = 00:00:08 ; elapsed = 00:00:08 . Memory (MB): peak = 3317.316 ; gain = 200.867 ; free physical = 9425 ; free virtual = 17286
+Restored from archive | CPU: 8.050000 secs | Memory: 177.995506 MB |
+Finished XDEF File Restore: Time (s): cpu = 00:00:08 ; elapsed = 00:00:08 . Memory (MB): peak = 3317.316 ; gain = 200.867 ; free physical = 9425 ; free virtual = 17286
+INFO: [Project 1-486] Could not resolve non-primitive black box cell 'accel_wrap__parameterized0_bb' instantiated as 'i_ariane_peripherals/gen_dma.i_accel1' [/home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/ariane_peripherals_xilinx.sv:747]
+INFO: [Project 1-486] Could not resolve non-primitive black box cell 'accel_wrap_bb' instantiated as 'i_ariane_peripherals/gen_dma.gen_accel2.i_accel2' [/home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/ariane_peripherals_xilinx.sv:992]
+Netlist sorting complete. Time (s): cpu = 00:00:00.01 ; elapsed = 00:00:00.01 . Memory (MB): peak = 3317.316 ; gain = 0.000 ; free physical = 9425 ; free virtual = 17286
+INFO: [Project 1-111] Unisim Transformation Summary:
+  A total of 355 instances were transformed.
+  IOBUF => IOBUF (IBUF, OBUFT): 1 instance 
+  IOBUFDS_DIFF_OUT_DCIEN => IOBUFDS_DIFF_OUT_DCIEN (IBUFDS_IBUFDISABLE_INT(x2), INV, OBUFTDS_DCIEN(x2)): 4 instances
+  IOBUF_DCIEN => IOBUF_DCIEN (IBUF_IBUFDISABLE, OBUFT_DCIEN): 32 instances
+  LUT6_2 => LUT6_2 (LUT5, LUT6): 17 instances
+  OBUFDS => OBUFDS_DUAL_BUF (INV, OBUFDS(x2)): 1 instance 
+  RAM32M => RAM32M (RAMD32(x6), RAMS32(x2)): 282 instances
+  RAM32X1D => RAM32X1D (RAMD32(x2)): 18 instances
+
+INFO: [Project 1-604] Checkpoint was created with Vivado v2022.2 (64-bit) build 3671981
+OpenCheckpoint Checksum | Checksum: 1312889e8
+----- Checksum: PlaceDB: a3aaaccb ShapeSum: 84db85c2 RouteDB: 08a2575b 
+open_checkpoint: Time (s): cpu = 00:00:35 ; elapsed = 00:00:37 . Memory (MB): peak = 3317.316 ; gain = 1917.945 ; free physical = 9435 ; free virtual = 17296
+INFO: [Vivado 12-3501] pr_verify /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/static_routed.dcp /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/accel_A_routed.dcp
+Netlist sorting complete. Time (s): cpu = 00:00:00.77 ; elapsed = 00:00:00.78 . Memory (MB): peak = 3543.277 ; gain = 0.000 ; free physical = 9206 ; free virtual = 17066
+INFO: [Netlist 29-17] Analyzing 9860 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-479] Netlist was created with Vivado 2022.2
+INFO: [Project 1-570] Preparing netlist for logic optimization
+WARNING: [Constraints 18-550] Could not create 'IBUF_LOW_PWR' constraint because net 'i_xlnx_clk_gen/clk_in1' is not directly connected to top level port. Synthesis is ignored for IBUF_LOW_PWR but preserved for implementation.
+INFO: [Timing 38-478] Restoring timing data from binary archive.
+INFO: [Timing 38-479] Binary timing data restore complete.
+INFO: [Project 1-856] Restoring constraints from binary archive.
+INFO: [Project 1-853] Binary constraint restore complete.
+Reading XDEF placement.
+Reading placer database...
+Reading XDEF routing.
+Read XDEF Files: Time (s): cpu = 00:00:08 ; elapsed = 00:00:08 . Memory (MB): peak = 4368.746 ; gain = 199.984 ; free physical = 8438 ; free virtual = 16298
+Restored from archive | CPU: 8.260000 secs | Memory: 178.845932 MB |
+Finished XDEF File Restore: Time (s): cpu = 00:00:08 ; elapsed = 00:00:08 . Memory (MB): peak = 4368.746 ; gain = 199.984 ; free physical = 8438 ; free virtual = 16298
+Netlist sorting complete. Time (s): cpu = 00:00:00.01 ; elapsed = 00:00:00.01 . Memory (MB): peak = 4368.746 ; gain = 0.000 ; free physical = 8444 ; free virtual = 16304
+INFO: [Project 1-604] Checkpoint was created with Vivado v2022.2 (64-bit) build 3671981
+INFO: [Constraints 18-1020] PR Verify Summary:
+DCP1: /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/static_routed.dcp
+  Number of reconfigurable modules compared = 2
+  Number of partition pins compared         = 833
+  Number of static tiles compared           = 14639
+  Number of static sites compared           = 26796
+  Number of static cells compared           = 189110
+  Number of static routed nodes compared    = 2553384
+  Number of static routed pips compared     = 2396534
+
+DCP2: /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/accel_A_routed.dcp
+  Number of reconfigurable modules compared = 2
+  Number of partition pins compared         = 833
+  Number of static tiles compared           = 14639
+  Number of static sites compared           = 26796
+  Number of static cells compared           = 189110
+  Number of static routed nodes compared    = 2553384
+  Number of static routed pips compared     = 2396534
+INFO: [Vivado 12-3253] PR_VERIFY: check points /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/static_routed.dcp and /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/accel_A_routed.dcp are compatible
+INFO: [Vivado 12-3501] pr_verify /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/static_routed.dcp /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/accel_B_routed.dcp
+Netlist sorting complete. Time (s): cpu = 00:00:00.8 ; elapsed = 00:00:00.81 . Memory (MB): peak = 5001.746 ; gain = 0.000 ; free physical = 8192 ; free virtual = 16053
+INFO: [Netlist 29-17] Analyzing 9860 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-479] Netlist was created with Vivado 2022.2
+INFO: [Project 1-570] Preparing netlist for logic optimization
+WARNING: [Constraints 18-550] Could not create 'IBUF_LOW_PWR' constraint because net 'i_xlnx_clk_gen/clk_in1' is not directly connected to top level port. Synthesis is ignored for IBUF_LOW_PWR but preserved for implementation.
+INFO: [Timing 38-478] Restoring timing data from binary archive.
+INFO: [Timing 38-479] Binary timing data restore complete.
+INFO: [Project 1-856] Restoring constraints from binary archive.
+INFO: [Project 1-853] Binary constraint restore complete.
+Reading XDEF placement.
+Reading placer database...
+Reading XDEF routing.
+Read XDEF Files: Time (s): cpu = 00:00:08 ; elapsed = 00:00:09 . Memory (MB): peak = 5425.762 ; gain = 199.984 ; free physical = 7444 ; free virtual = 15305
+Restored from archive | CPU: 8.540000 secs | Memory: 179.544342 MB |
+Finished XDEF File Restore: Time (s): cpu = 00:00:08 ; elapsed = 00:00:09 . Memory (MB): peak = 5425.762 ; gain = 199.984 ; free physical = 7444 ; free virtual = 15305
+Netlist sorting complete. Time (s): cpu = 00:00:00.02 ; elapsed = 00:00:00.01 . Memory (MB): peak = 5425.762 ; gain = 0.000 ; free physical = 7442 ; free virtual = 15303
+INFO: [Project 1-604] Checkpoint was created with Vivado v2022.2 (64-bit) build 3671981
+INFO: [Constraints 18-1020] PR Verify Summary:
+DCP1: /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/static_routed.dcp
+  Number of reconfigurable modules compared = 2
+  Number of partition pins compared         = 833
+  Number of static tiles compared           = 14639
+  Number of static sites compared           = 26796
+  Number of static cells compared           = 189110
+  Number of static routed nodes compared    = 2553384
+  Number of static routed pips compared     = 2396534
+
+DCP2: /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/accel_B_routed.dcp
+  Number of reconfigurable modules compared = 2
+  Number of partition pins compared         = 833
+  Number of static tiles compared           = 14639
+  Number of static sites compared           = 26796
+  Number of static cells compared           = 189110
+  Number of static routed nodes compared    = 2553384
+  Number of static routed pips compared     = 2396534
+INFO: [Vivado 12-3253] PR_VERIFY: check points /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/static_routed.dcp and /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/accel_B_routed.dcp are compatible
+INFO: [Vivado 12-3501] pr_verify /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/static_routed.dcp /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/accel_default_routed.dcp
+Netlist sorting complete. Time (s): cpu = 00:00:00.81 ; elapsed = 00:00:00.82 . Memory (MB): peak = 6058.762 ; gain = 0.000 ; free physical = 7178 ; free virtual = 15039
+INFO: [Netlist 29-17] Analyzing 9860 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-479] Netlist was created with Vivado 2022.2
+INFO: [Project 1-570] Preparing netlist for logic optimization
+WARNING: [Constraints 18-550] Could not create 'IBUF_LOW_PWR' constraint because net 'i_xlnx_clk_gen/clk_in1' is not directly connected to top level port. Synthesis is ignored for IBUF_LOW_PWR but preserved for implementation.
+INFO: [Timing 38-478] Restoring timing data from binary archive.
+INFO: [Timing 38-479] Binary timing data restore complete.
+INFO: [Project 1-856] Restoring constraints from binary archive.
+INFO: [Project 1-853] Binary constraint restore complete.
+Reading XDEF placement.
+Reading placer database...
+Reading XDEF routing.
+Read XDEF Files: Time (s): cpu = 00:00:09 ; elapsed = 00:00:10 . Memory (MB): peak = 6484.777 ; gain = 201.984 ; free physical = 6433 ; free virtual = 14294
+Restored from archive | CPU: 9.950000 secs | Memory: 180.243378 MB |
+Finished XDEF File Restore: Time (s): cpu = 00:00:09 ; elapsed = 00:00:10 . Memory (MB): peak = 6484.777 ; gain = 201.984 ; free physical = 6433 ; free virtual = 14294
+Netlist sorting complete. Time (s): cpu = 00:00:00.01 ; elapsed = 00:00:00.01 . Memory (MB): peak = 6484.777 ; gain = 0.000 ; free physical = 6440 ; free virtual = 14301
+INFO: [Project 1-604] Checkpoint was created with Vivado v2022.2 (64-bit) build 3671981
+INFO: [Constraints 18-1020] PR Verify Summary:
+DCP1: /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/static_routed.dcp
+  Number of reconfigurable modules compared = 2
+  Number of partition pins compared         = 833
+  Number of static tiles compared           = 14639
+  Number of static sites compared           = 26796
+  Number of static cells compared           = 189110
+  Number of static routed nodes compared    = 2553384
+  Number of static routed pips compared     = 2396534
+
+DCP2: /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/accel_default_routed.dcp
+  Number of reconfigurable modules compared = 2
+  Number of partition pins compared         = 833
+  Number of static tiles compared           = 14639
+  Number of static sites compared           = 26796
+  Number of static cells compared           = 189110
+  Number of static routed nodes compared    = 2553384
+  Number of static routed pips compared     = 2396534
+INFO: [Vivado 12-3253] PR_VERIFY: check points /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/static_routed.dcp and /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/accel_default_routed.dcp are compatible
+pr_verify: Time (s): cpu = 00:03:06 ; elapsed = 00:03:17 . Memory (MB): peak = 7108.777 ; gain = 5709.406 ; free physical = 9231 ; free virtual = 17092
+# puts "==> pr_verify done"
+==> pr_verify done
+INFO: [Common 17-206] Exiting Vivado at Fri Apr 24 08:59:52 2026...

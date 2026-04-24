@@ -1,0 +1,13 @@
+#-----------------------------------------------------------
+# Vivado v2022.2 (64-bit)
+# SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+# IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+# Start of session at: Fri Apr 24 08:56:33 2026
+# Process ID: 8058
+# Current directory: /home/jc/tmp/riscv-iommu-demo
+# Command line: vivado -mode batch -source dpr/scripts/run_pr_verify.tcl -log logs/pr_verify.log -journal logs/pr_verify.jou
+# Log file: /home/jc/tmp/riscv-iommu-demo/logs/pr_verify.log
+# Journal file: /home/jc/tmp/riscv-iommu-demo/logs/pr_verify.jou
+# Running On: jc-VirtualBox, OS: Linux, CPU Frequency: 2995.200 MHz, CPU Physical cores: 24, Host memory: 21133 MB
+#-----------------------------------------------------------
+source dpr/scripts/run_pr_verify.tcl

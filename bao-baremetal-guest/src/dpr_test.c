@@ -91,10 +91,10 @@ static void hwicap_diag(void) {
            (unsigned int)sz_rb,
            (sz_rb & 0xFFF) == 0xAA ? "OK" : "FAIL - shift probable");
 
-    // Dump de tous les registres 0x110..0x128
+    // Dump de tous les registres 0x100..0x118
     const char *names[] = {"WF ", "RF ", "SZ ", "CR ", "SR ", "WFV", "RFO"};
     for (int i = 0; i < 7; i++) {
-        uint64_t addr = HWICAP_BASE + 0x110 + i * 4;
+        uint64_t addr = HWICAP_BASE + 0x100 + i * 4;
         printf("[HWICAP] [0x%03x] %s = 0x%08x\r\n",
                (unsigned int)(addr - HWICAP_BASE),
                names[i],
@@ -125,7 +125,7 @@ static void hwicap_read_idcode(void) {
         0xFFFFFFFF, 0xFFFFFFFF,  // dummy words
         0xAA995566,              // sync word
         0x20000000, 0x20000000,  // NOOP
-        0x28012001,              // Type 1 Read IDCODE Reg 9 (1 word)
+        0x28018001,              // Type 1 Read IDCODE (reg 12), 1 word
         0x20000000, 0x20000000,  // NOOP
         0x20000000, 0x20000000,  // NOOP
     };
@@ -186,22 +186,19 @@ static void hwicap_read_idcode(void) {
 // =============================================================================
 // Écriture bitstream via HWICAP
 //
-// Les .bin Vivado sont en big-endian. RISC-V LE les lit en sens inverse →
-// bswap32 obligatoire sur chaque mot avant écriture dans WF.
-// L'IP fait ensuite le bit-swap interne (SWAP_BITS) avant d'envoyer à ICAP.
+// Les .bin Vivado sont écrits directement dans WF — PAS de bswap logiciel.
+// L'IP HWICAP fait le bit-swap interne (SWAP_BITS) avant d'envoyer à ICAP.
 // =============================================================================
 
 static void hwicap_dump_bs_header(const uint32_t *data, uint32_t nwords) {
-    printf("[BS] Premiers mots (bswap32 appliqué) :\r\n");
+    printf("[BS] Premiers mots (écrits tels quels dans WF) :\r\n");
     uint32_t n = nwords < 8 ? nwords : 8;
     for (uint32_t i = 0; i < n; i++) {
-        uint32_t raw  = data[i];
-        uint32_t swap = __builtin_bswap32(raw);
-        printf("  [%u] raw=0x%08x -> bswap=0x%08x", (unsigned)i,
-               (unsigned)raw, (unsigned)swap);
-        if (swap == 0xAA995566) printf(" <- SYNC WORD OK");
-        if (swap == 0xFFFFFFFF) printf(" <- DUMMY");
-        if (swap == 0x000000BB) printf(" <- BUS WIDTH DETECT");
+        uint32_t raw = data[i];
+        printf("  [%u] 0x%08x", (unsigned)i, (unsigned)raw);
+        if (raw == 0xAA995566) printf(" <- SYNC WORD");
+        if (raw == 0xFFFFFFFF) printf(" <- DUMMY");
+        if (raw == 0xBB000000) printf(" <- BUS WIDTH DETECT (LE)");
         printf("\r\n");
     }
 }
@@ -218,7 +215,7 @@ static void hwicap_read_stat(void) {
         0xFFFFFFFF,  // dummy
         0xAA995566,  // sync
         0x20000000,  // NOOP
-        0x28018001,  // Type1 Read STAT (reg 7), 1 word
+        0x2800E001,  // Type1 Read STAT (reg 7), 1 word
         0x20000000, 0x20000000, 0x20000000, 0x20000000,  // NOOP x4
     };
     uint32_t n = sizeof(seq)/sizeof(seq[0]);
@@ -305,7 +302,7 @@ static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
             if (to_write > vacancy) to_write = vacancy;
 
             for (uint32_t i = 0; i < to_write; i++)
-                mmio_write32(HWICAP_WF, __builtin_bswap32(data[written + sent++]));
+                mmio_write32(HWICAP_WF, data[written + sent++]);
         }
 
         // Déclencher

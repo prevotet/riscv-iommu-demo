@@ -1,544 +1,491 @@
 /**
- * dpr_test.c — Test DPR + HWICAP (diagnostic complet B→A)
+ * dpr_test.c — Diagnostic matériel HWICAP/ICAP pas à pas
  *
- * Séquence :
- *   1. Lire IDs accélérateurs (attendu : accel_B = 0xBBBBBB)
- *   2. Vérifier IDCODE ICAP (attendu : 0x0362D093 = XC7K325T)
- *   3. DESYNC + FIFO reset (nettoyer état ICAP résiduel)
- *   4. Valider bitstreams en DDR (sync word, taille)
- *   5. DPR accel1, lire STAT ICAP, vérifier ID accel1
- *   6. DPR accel2, lire STAT ICAP, vérifier ID accel2
- *   7. Bilan final
+ * Chaque test isole un niveau de la chaîne matérielle :
+ *   T0 : Bridge AXI → registres HWICAP lisibles/écrivables
+ *   T1 : FIFO Write — WFV décrémente mot par mot (accès WF confirmé)
+ *   T2 : CR_WRITE timing — nombre de cycles CPU pour N mots → fréquence ICAP
+ *   T3 : ICAP communication — IDCODE lu via config readback
+ *   T4 : RFO après CR_WRITE — ICAP a-t-il sorti des données sur O[] ?
+ *   T5 : Premier chunk bitstream — trace complète SR/WFV/RFO avant/après
+ *   T6 : DPR complet — progress + timing par tranche de 500 chunks
+ *   T7 : STAT ICAP après DPR — CFGERR / ID_ERROR / PART_DONE
+ *   T8 : Accel1 ID avant et après — verdict final
  *
- * Utilise uniquement mmio_write32 (instruction SW 32 bits).
+ * Convention bswap32 :
+ *   Séquences manuelles : écrire les mots logiques directement (0xAA995566…)
+ *   Bitstream .bin en DDR little-endian : bswap32() avant écriture dans WF
  */
 
 #include <stdint.h>
 #include <stdio.h>
 
-// =============================================================================
-// Adresses
-// =============================================================================
+/* =========================================================================
+ * Adresses
+ * ========================================================================= */
 
-#define ACCEL1_BASE    0x50000000ULL
-#define ACCEL2_BASE    0x50001000ULL
-#define HWICAP_BASE    0x40010000ULL
+#define HWICAP_BASE  0x40010000ULL
+#define HWICAP_WF    (HWICAP_BASE + 0x100)
+#define HWICAP_RF    (HWICAP_BASE + 0x104)
+#define HWICAP_SZ    (HWICAP_BASE + 0x108)
+#define HWICAP_CR    (HWICAP_BASE + 0x10C)
+#define HWICAP_SR    (HWICAP_BASE + 0x110)
+#define HWICAP_WFV   (HWICAP_BASE + 0x114)
+#define HWICAP_RFO   (HWICAP_BASE + 0x118)
+#define HWICAP_ASR   (HWICAP_BASE + 0x120)  /* Abort Status Register */
 
-// Registres données HWICAP (HWICAP_REG_B_ADR=0x100, HWICAP_REG_H_ADR=0x11F)
-// Source: axi_hwicap_v3_0_vh_rfs.vhd dans l'IP généré
-#define HWICAP_WF   (HWICAP_BASE + 0x100)
-#define HWICAP_RF   (HWICAP_BASE + 0x104)
-#define HWICAP_SZ   (HWICAP_BASE + 0x108)
-#define HWICAP_CR   (HWICAP_BASE + 0x10C)
-#define HWICAP_SR   (HWICAP_BASE + 0x110)
-#define HWICAP_WFV  (HWICAP_BASE + 0x114)
-#define HWICAP_RFO  (HWICAP_BASE + 0x118)
+#define ACCEL1_BASE  0x50000000ULL
+#define BS1_ADDR     0x81000000ULL
 
-// CR bits (Xilinx embeddedsw SDK xhwicap_l.h)
-#define HWICAP_CR_WRITE    0x01
-#define HWICAP_CR_READ     0x02
-#define HWICAP_CR_FIFO_RST 0x04
+/* partial_accel_B_accel1.bin — 3_build_B_dpr rebuild */
+#define BS1_NWORDS   534823UL
 
-#define HWICAP_WFV_MAX   0x3F
-#define HWICAP_CHUNK_MAX 32U
-#define HWICAP_TIMEOUT   1000000
+#define CR_WRITE     0x01
+#define CR_READ      0x02
+#define CR_FIFO_RST  0x04
+#define WFV_MAX      0x3F
+#define TIMEOUT      2000000
 
-// =============================================================================
-// Bitstreams partiels (DDR)
-// =============================================================================
+/* =========================================================================
+ * Primitives
+ * ========================================================================= */
 
-#define BS_ACCEL1_ADDR  0x81000000ULL
-#define BS_ACCEL2_ADDR  0x81300000ULL
-#define BS_ACCEL1_WORDS 534823UL
-#define BS_ACCEL2_WORDS 1030207UL
-
-// Sync word attendu dans le bitstream LU DEPUIS LA DDR en uint32_t little-endian.
-// Le fichier .bin stocke les octets AA 99 55 66 (big-endian) → LE = 0x665599AA.
-// Ne pas confondre avec la valeur logique 0xAA995566 (format UG470 / constantes firmware).
-#define XILINX_SYNC_WORD 0x665599AAU
-
-// IDCODE attendu pour XC7K325T-2FFG900
-#define EXPECTED_IDCODE 0x0362D093U
-
-// =============================================================================
-// MMIO helpers — uniquement 32 bits
-// =============================================================================
-
-static inline uint32_t mmio_read32(uint64_t addr) {
-    uint32_t val;
-    asm volatile ("fence" ::: "memory");
-    val = *(volatile uint32_t *)addr;
-    return val;
+static inline uint32_t mmio_r(uint64_t a) {
+    uint32_t v;
+    asm volatile("fence i,r":::"memory");
+    v = *(volatile uint32_t *)a;
+    return v;
+}
+static inline void mmio_w(uint64_t a, uint32_t v) {
+    *(volatile uint32_t *)a = v;
+    asm volatile("fence w,o":::"memory");
+}
+static inline uint64_t cycle(void) {
+    uint64_t c;
+    asm volatile("rdcycle %0" : "=r"(c));
+    return c;
+}
+static inline uint32_t bswap32(uint32_t x) {
+    return ((x & 0xFFu) << 24) | ((x & 0xFF00u) << 8)
+         | ((x >> 8) & 0xFF00u) | ((x >> 24) & 0xFFu);
 }
 
-static inline void mmio_write32(uint64_t addr, uint32_t val) {
-    *(volatile uint32_t *)addr = val;
-    asm volatile ("fence" ::: "memory");
+/* =========================================================================
+ * HWICAP helpers
+ * ========================================================================= */
+
+static void fifo_reset(void) {
+    mmio_w(HWICAP_CR, CR_FIFO_RST);
+    int t = TIMEOUT;
+    while (mmio_r(HWICAP_WFV) < WFV_MAX && t-- > 0);
+    mmio_w(HWICAP_CR, 0);
 }
 
-static void delay(int loops) {
-    for (volatile int i = 0; i < loops; i++) asm volatile("nop");
+/* Envoie n mots logiques (pas de bswap), retourne cycles écoulés ou -1 si timeout */
+static int64_t send_raw(const uint32_t *w, uint32_t n) {
+    fifo_reset();
+    mmio_w(HWICAP_SZ, n);
+    for (uint32_t i = 0; i < n; i++) mmio_w(HWICAP_WF, w[i]);
+    mmio_w(HWICAP_CR, CR_WRITE);
+    uint64_t t0 = cycle();
+    int t = TIMEOUT;
+    while ((mmio_r(HWICAP_CR) & CR_WRITE) && t-- > 0);
+    uint64_t dt = cycle() - t0;
+    return (t <= 0) ? -1 : (int64_t)dt;
 }
 
-// =============================================================================
-// Override arch_init — évite les CSRs S-mode sans SBI
-// =============================================================================
-
-void arch_init(void) {
-    asm volatile ("fence.i" ::: "memory");
+/* Envoie n mots depuis .bin DDR (bswap32 appliqué), retourne cycles ou -1 */
+static int64_t send_bin(const uint32_t *d, uint32_t n) {
+    mmio_w(HWICAP_SZ, n);
+    for (uint32_t i = 0; i < n; i++) mmio_w(HWICAP_WF, bswap32(d[i]));
+    mmio_w(HWICAP_CR, CR_WRITE);
+    uint64_t t0 = cycle();
+    int t = TIMEOUT;
+    while ((mmio_r(HWICAP_CR) & CR_WRITE) && t-- > 0);
+    uint64_t dt = cycle() - t0;
+    return (t <= 0) ? -1 : (int64_t)dt;
 }
 
-// =============================================================================
-// Utilitaires HWICAP
-// =============================================================================
-
-static void print_status(const char *label) {
-    printf("[HWICAP] %s : SR=0x%08x WFV=0x%02x RFO=0x%02x\r\n",
-           label,
-           (unsigned int)mmio_read32(HWICAP_SR),
-           (unsigned int)mmio_read32(HWICAP_WFV),
-           (unsigned int)mmio_read32(HWICAP_RFO));
+static uint32_t read_rf(void) {
+    for (volatile int i = 0; i < 50000; i++);
+    mmio_w(HWICAP_SZ, 1);
+    mmio_w(HWICAP_CR, CR_READ);
+    int t = TIMEOUT;
+    while ((mmio_r(HWICAP_CR) & CR_READ) && t-- > 0);
+    return mmio_r(HWICAP_RF);
 }
 
-static void hwicap_desync(void) {
-    // Sync word inclus : si l'ICAP est desynced (état normal après un full
-    // bitstream ou après un DESYNC précédent), les commandes Type 1 seraient
-    // ignorées sans le sync word.
-    static const uint32_t seq[] = {
-        0xFFFFFFFF, 0xFFFFFFFF,  // dummy words
-        0xAA995566,              // sync word
-        0x20000000, 0x20000000,  // NOOP
-        0x30008001,              // Type 1 Write CMD (1 word)
-        0x0000000A,              // GRESTORE
-        0x20000000, 0x20000000,  // NOOP
-        0x30008001,              // Type 1 Write CMD (1 word)
-        0x0000000D,              // DESYNC
-        0x20000000, 0x20000000,  // NOOP
+static void desync(void) {
+    static const uint32_t s[] = {
+        0xFFFFFFFF, 0xFFFFFFFF,
+        0xAA995566, 0x20000000,
+        0x30008001, 0x0000000D,
+        0x20000000, 0x20000000,
     };
-    uint32_t n = sizeof(seq)/sizeof(seq[0]);
-    mmio_write32(HWICAP_SZ, n);
-    for (uint32_t i = 0; i < n; i++)
-        mmio_write32(HWICAP_WF, seq[i]);
-    mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
-    int timeout = HWICAP_TIMEOUT;
-    while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && timeout-- > 0) delay(10);
-    if (timeout <= 0)
-        printf("[HWICAP] [WARN] desync: timeout CR\r\n");
-    delay(100);
-    printf("[HWICAP] desync : SR=0x%08x\r\n", (unsigned int)mmio_read32(HWICAP_SR));
+    send_raw(s, 8);
 }
 
-static void hwicap_fifo_reset(void) {
-    mmio_write32(HWICAP_CR, HWICAP_CR_FIFO_RST);
-    delay(100);
-    int timeout = HWICAP_TIMEOUT;
-    while (mmio_read32(HWICAP_WFV) < HWICAP_WFV_MAX && timeout-- > 0) delay(10);
-    mmio_write32(HWICAP_CR, 0x00);
-    delay(100);
-    timeout = HWICAP_TIMEOUT;
-    while (mmio_read32(HWICAP_WFV) < HWICAP_WFV_MAX && timeout-- > 0) delay(10);
-}
-
-// =============================================================================
-// Lecture IDCODE via ICAP — retourne l'IDCODE lu (0 si erreur)
-// =============================================================================
-
-static uint32_t hwicap_read_idcode(void) {
-    printf("\r\n[2] Lecture IDCODE FPGA via ICAP\r\n");
-    hwicap_fifo_reset();
-
-    static const uint32_t seq[] = {
-        0xFFFFFFFF, 0xFFFFFFFF,  // dummy words
-        0xAA995566,              // sync word
-        0x20000000, 0x20000000,  // NOOP
-        0x28018001,              // Type 1 Read IDCODE Reg 0x0C (1 word)
-        0x20000000, 0x20000000,  // NOOP
-        0x20000000, 0x20000000,  // NOOP
-    };
-
-    uint32_t n = sizeof(seq)/sizeof(seq[0]);
-    mmio_write32(HWICAP_SZ, n);
-    for (uint32_t i = 0; i < n; i++)
-        mmio_write32(HWICAP_WF, seq[i]);
-    mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
-
-    int timeout = HWICAP_TIMEOUT;
-    while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && timeout-- > 0) delay(10);
-    if (timeout <= 0) {
-        printf("  [FAIL] timeout CR apres write IDCODE\r\n");
-        return 0;
-    }
-
-    delay(1000);
-
-    mmio_write32(HWICAP_SZ, 1);
-    mmio_write32(HWICAP_CR, HWICAP_CR_READ);
-    timeout = HWICAP_TIMEOUT;
-    while ((mmio_read32(HWICAP_CR) & HWICAP_CR_READ) && timeout-- > 0) delay(10);
-    if (timeout <= 0) {
-        printf("  [FAIL] timeout CR apres read IDCODE\r\n");
-        return 0;
-    }
-
-    uint32_t rfo = mmio_read32(HWICAP_RFO);
-    if (rfo == 0) {
-        printf("  [FAIL] RFO=0 apres lecture IDCODE — ICAP n'a pas repondu\r\n");
-        return 0;
-    }
-
-    uint32_t idcode = mmio_read32(HWICAP_RF);
-    printf("  IDCODE = 0x%08x (attendu 0x%08x)\r\n",
-           (unsigned)idcode, (unsigned)EXPECTED_IDCODE);
-
-    if (idcode == EXPECTED_IDCODE)
-        printf("  [OK] IDCODE correct — ICAP fonctionnel\r\n");
-    else if (idcode == 0x00000000 || idcode == 0xFFFFFFFF)
-        printf("  [FAIL] IDCODE=%s — ICAP probablement non connecté ou bus cassé\r\n",
-               idcode == 0 ? "0x00000000" : "0xFFFFFFFF");
-    else
-        printf("  [WARN] IDCODE inattendu — mauvais device ou C_DEVICE_ID IP ?\r\n");
-
-    hwicap_fifo_reset();
-    hwicap_desync();
-    return idcode;
-}
-
-// =============================================================================
-// Lecture STAT ICAP (reg 7) — UG470 Table 5-26 (7-series)
-//
-// Bits importants :
-//   0  CRC_ERROR    — erreur CRC dans le bitstream
-//   3  CFGERR       — erreur de configuration
-//   8  WRERR_B      — 0 = erreur d'écriture ICAP
-//  13  ID_ERROR     — IDCODE mismatch bitstream vs device
-//  16  DONE         — configuration terminée
-// =============================================================================
-
-static void hwicap_read_stat(const char *label) {
-    hwicap_fifo_reset();
-    static const uint32_t seq[] = {
-        0xFFFFFFFF,
-        0xAA995566,
-        0x20000000,
-        0x28038001,  // Type1 Read STAT (reg 7), 1 word
+static uint32_t read_stat(void) {
+    static const uint32_t s[] = {
+        0xFFFFFFFF, 0xFFFFFFFF,
+        0xAA995566, 0x20000000,
+        0x2800E001,               /* Type1 Read STAT (reg 7) */
         0x20000000, 0x20000000, 0x20000000, 0x20000000,
     };
-    uint32_t n = sizeof(seq)/sizeof(seq[0]);
-    mmio_write32(HWICAP_SZ, n);
-    for (uint32_t i = 0; i < n; i++)
-        mmio_write32(HWICAP_WF, seq[i]);
-    mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
-    int t = HWICAP_TIMEOUT;
-    while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && t-- > 0) delay(1);
-    delay(1000);
-    mmio_write32(HWICAP_SZ, 1);
-    mmio_write32(HWICAP_CR, HWICAP_CR_READ);
-    t = HWICAP_TIMEOUT;
-    while ((mmio_read32(HWICAP_CR) & HWICAP_CR_READ) && t-- > 0) delay(1);
-    uint32_t stat = mmio_read32(HWICAP_RF);
+    send_raw(s, 9);
+    uint32_t v = read_rf();
+    desync();
+    return v;
+}
 
-    unsigned crc_err  = (stat >> 0)  & 1;
-    unsigned cfgerr   = (stat >> 3)  & 1;
-    unsigned wrerr_b  = (stat >> 8)  & 1;
-    unsigned id_err   = (stat >> 13) & 1;
-    unsigned done     = (stat >> 16) & 1;
-
-    printf("[ICAP] STAT %s = 0x%08x\r\n", label, (unsigned)stat);
-    printf("  CRC_ERROR=%u  CFGERR=%u  WRERR_B=%u  ID_ERROR=%u  DONE=%u\r\n",
-           crc_err, cfgerr, wrerr_b, id_err, done);
-
-    if (crc_err)
-        printf("  [DIAG] CRC_ERROR=1 : bitstream corrompu ou frame addresses incorrectes\r\n");
-    if (cfgerr)
-        printf("  [DIAG] CFGERR=1 : erreur de configuration (commande invalide ?)\r\n");
-    if (!wrerr_b)
-        printf("  [DIAG] WRERR_B=0 : erreur d'ecriture ICAP\r\n");
-    if (id_err)
-        printf("  [DIAG] ID_ERROR=1 : IDCODE dans le bitstream ne correspond pas au device\r\n");
-    if (!done)
-        printf("  [DIAG] DONE=0 : configuration non terminee\r\n");
-    if (!crc_err && !cfgerr && wrerr_b && !id_err && done)
-        printf("  [OK] STAT propre — pas d'erreur ICAP détectée\r\n");
-
-    // DESYNC après lecture STAT
-    static const uint32_t desync[] = {
-        0x20000000, 0x30008001, 0x0000000D, 0x20000000, 0x20000000,
+static uint32_t read_idcode(void) {
+    static const uint32_t s[] = {
+        0xFFFFFFFF, 0xFFFFFFFF,
+        0xAA995566, 0x20000000,
+        0x28018001,               /* Type1 Read IDCODE (reg 12) */
+        0x20000000, 0x20000000, 0x20000000, 0x20000000,
     };
-    hwicap_fifo_reset();
-    mmio_write32(HWICAP_SZ, 5);
-    for (uint32_t i = 0; i < 5; i++)
-        mmio_write32(HWICAP_WF, desync[i]);
-    mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
-    t = HWICAP_TIMEOUT;
-    while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && t-- > 0) delay(1);
+    send_raw(s, 9);
+    uint32_t v = read_rf();
+    desync();
+    return v;
 }
 
-// =============================================================================
-// Validation bitstream en DDR — vérifie la présence du sync word
-// =============================================================================
-
-static int validate_bitstream(const uint32_t *data, uint32_t size_words,
-                              const char *name) {
-    printf("[VALID] %s : %u mots (%u Ko) @ 0x%08x\r\n",
-           name, (unsigned)size_words,
-           (unsigned)(size_words * 4 / 1024),
-           (unsigned)(uint64_t)data);
-
-    if (size_words < 16) {
-        printf("  [FAIL] Bitstream trop court (%u mots)\r\n", (unsigned)size_words);
-        return -1;
-    }
-
-    // Afficher les 8 premiers mots
-    printf("  Header:");
-    for (int i = 0; i < 8; i++)
-        printf(" %08x", (unsigned)data[i]);
-    printf("\r\n");
-
-    // Chercher le sync word dans les 32 premiers mots
-    int sync_found = -1;
-    for (int i = 0; i < 32 && i < (int)size_words; i++) {
-        if (data[i] == XILINX_SYNC_WORD) {
-            sync_found = i;
-            break;
-        }
-    }
-
-    if (sync_found < 0) {
-        printf("  [FAIL] Sync word 0xAA995566 absent dans les 32 premiers mots\r\n");
-        printf("  Cause probable : fichier .bin corrompu ou mauvais format\r\n");
-        return -1;
-    }
-
-    printf("  [OK] Sync word trouvé à data[%d]\r\n", sync_found);
-
-    // Vérifier que ce n'est pas que des 0xFF (DDR non initialisée)
-    int all_ff = 1;
-    for (int i = 0; i < 32 && i < (int)size_words; i++) {
-        if (data[i] != 0xFFFFFFFF) { all_ff = 0; break; }
-    }
-    if (all_ff) {
-        printf("  [FAIL] DDR non initialisée (tout à 0xFF)\r\n");
-        return -1;
-    }
-
-    return 0;
+static void print_hwicap(const char *label) {
+    printf("    %-20s SR=0x%02x  WFV=0x%02x  RFO=0x%02x  ASR=0x%08x\r\n", label,
+           (unsigned)mmio_r(HWICAP_SR),
+           (unsigned)mmio_r(HWICAP_WFV),
+           (unsigned)mmio_r(HWICAP_RFO),
+           (unsigned)mmio_r(HWICAP_ASR));
 }
 
-// =============================================================================
-// Lecture ID accélérateur — retourne les 24 bits bas
-// =============================================================================
-
-static uint32_t read_accel_id(uint64_t base, const char *name) {
-    asm volatile ("fence" ::: "memory");
-    uint32_t lo = mmio_read32(base);
-    uint32_t hi = mmio_read32(base + 4);
-    printf("  %s = 0x%08x%08x", name, hi, lo);
-    uint32_t id = lo & 0xFFFFFF;
-    if (id == 0xAAAAAA)      printf(" (accel_A)\r\n");
-    else if (id == 0xBBBBBB) printf(" (accel_B)\r\n");
-    else if (lo == 0 && hi == 0) printf(" (pas de réponse / SLVERR ?)\r\n");
-    else                     printf(" (inconnu)\r\n");
-    return id;
-}
-
-// =============================================================================
-// Écriture bitstream via HWICAP
-// =============================================================================
-
-static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
-    hwicap_fifo_reset();
-    print_status("debut write_bitstream");
-
-    uint32_t written = 0;
-
-    while (written < size_words) {
-
-        uint32_t chunk = size_words - written;
-        if (chunk > HWICAP_CHUNK_MAX) chunk = HWICAP_CHUNK_MAX;
-
-        mmio_write32(HWICAP_SZ, chunk);
-
-        // Remplir FIFO mot par mot
-        uint32_t sent = 0;
-        while (sent < chunk) {
-            int timeout = HWICAP_TIMEOUT;
-            while (mmio_read32(HWICAP_WFV) == 0 && timeout-- > 0) delay(1);
-            if (timeout <= 0) {
-                printf("[HWICAP] ERROR: timeout WFV mot %u\r\n",
-                       (unsigned int)(written + sent));
-                print_status("timeout WFV");
-                return -1;
-            }
-
-            uint32_t to_write = mmio_read32(HWICAP_WFV);
-            if (to_write > (chunk - sent)) to_write = chunk - sent;
-
-            for (uint32_t i = 0; i < to_write; i++) {
-                mmio_write32(HWICAP_WF, data[written + sent]);
-                sent++;
-            }
-        }
-
-        mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
-
-        // Attendre CR_WRITE remis à 0
-        int timeout = HWICAP_TIMEOUT;
-        while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && timeout-- > 0) delay(1);
-        if (timeout <= 0) {
-            printf("[HWICAP] ERROR: timeout CR mot %u\r\n",
-                   (unsigned int)written);
-            print_status("timeout CR");
-            return -1;
-        }
-
-        // Attendre que le FIFO soit vidé (WFV=0x3F) avant le prochain chunk
-        timeout = HWICAP_TIMEOUT;
-        while (mmio_read32(HWICAP_WFV) < HWICAP_WFV_MAX && timeout-- > 0) delay(10);
-
-        written += chunk;
-
-        if (written % 50000 < chunk) {
-            printf("[HWICAP] Progression : %u / %u mots...\r\n",
-                   (unsigned int)written, (unsigned int)size_words);
-        }
-    }
-
-    print_status("fin write_bitstream");
-    printf("[HWICAP] %u mots envoyés\r\n", (unsigned int)size_words);
-
-    return 0;
-}
-
-// =============================================================================
-// Test DPR principal — diagnostic complet B→A
-// =============================================================================
+/* =========================================================================
+ * Tests
+ * ========================================================================= */
 
 void dpr_test(void) {
-    printf("\r\n=================================================\r\n");
-    printf(" DPR Test — Diagnostic complet B->A\r\n");
-    printf("=================================================\r\n");
+    printf("\r\n============================================================\r\n");
+    printf(" Diagnostic HWICAP/ICAP — DPR accel1\r\n");
+    printf("============================================================\r\n");
 
-    int errors = 0;
-
-    // ---- Étape 0 : état initial HWICAP ----
-    printf("\r\n[0] État initial HWICAP\r\n");
-    print_status("etat initial");
-
-    // ---- Étape 1 : lire IDs accélérateurs avant DPR ----
-    printf("\r\n[1] IDs initiaux (attendu: accel_B = 0xBBBBBB)\r\n");
-    uint32_t init_a1 = read_accel_id(ACCEL1_BASE, "accel1");
-    uint32_t init_a2 = read_accel_id(ACCEL2_BASE, "accel2");
-
-    if (init_a1 != 0xBBBBBB || init_a2 != 0xBBBBBB)
-        printf("  [WARN] IDs initiaux != accel_B — test B->A moins significatif\r\n");
-
-    // ---- Étape 2 : IDCODE via ICAP ----
-    uint32_t idcode = hwicap_read_idcode();
-    if (idcode == 0) {
-        printf("\r\n[ABORT] ICAP non fonctionnel — impossible de continuer\r\n");
-        return;
-    }
-    if (idcode != EXPECTED_IDCODE) {
-        printf("  [WARN] IDCODE inattendu — la DPR pourrait échouer (ID_ERROR)\r\n");
+    /* ------------------------------------------------------------------ */
+    printf("\r\n[T0] Bridge AXI — registres HWICAP de base\r\n");
+    print_hwicap("initial:");
+    {
+        uint32_t sr  = mmio_r(HWICAP_SR);
+        uint32_t wfv = mmio_r(HWICAP_WFV);
+        uint32_t rfo = mmio_r(HWICAP_RFO);
+        int ok = (sr == 0x05) && (wfv == 0x3F) && (rfo == 0x00);
+        printf("    SR=0x%02x (att 0x05)  WFV=0x%02x (att 0x3F)  RFO=0x%02x (att 0x00)  %s\r\n",
+               (unsigned)sr, (unsigned)wfv, (unsigned)rfo,
+               ok ? "[OK]" : "[WARN] valeurs inattendues — reprogram FPGA ?");
     }
 
-    // ---- Étape 3 : STAT initiale (avant DPR) ----
-    printf("\r\n[3] STAT ICAP initiale (avant DPR)\r\n");
-    hwicap_read_stat("initial");
+    /* ------------------------------------------------------------------ */
+    printf("\r\n[T1] FIFO Write — WFV décrémente mot par mot\r\n");
+    {
+        fifo_reset();
+        printf("    WFV apres FIFO_RST = 0x%02x (att 0x3F)\r\n",
+               (unsigned)mmio_r(HWICAP_WFV));
 
-    // ---- Étape 4 : DESYNC + FIFO reset ----
-    printf("\r\n[4] Preparation ICAP (DESYNC + FIFO reset)\r\n");
-    hwicap_fifo_reset();
-    hwicap_desync();
-    hwicap_fifo_reset();
-    print_status("apres desync+reset");
-
-    // ---- Étape 5 : Valider bitstreams en DDR ----
-    printf("\r\n[5] Validation bitstreams en DDR\r\n");
-    const uint32_t *bs_accel1 = (const uint32_t *)BS_ACCEL1_ADDR;
-    const uint32_t *bs_accel2 = (const uint32_t *)BS_ACCEL2_ADDR;
-
-    if (validate_bitstream(bs_accel1, BS_ACCEL1_WORDS, "partial_accel_A_accel1") != 0) {
-        printf("[ABORT] Bitstream accel1 invalide\r\n");
-        return;
-    }
-    if (validate_bitstream(bs_accel2, BS_ACCEL2_WORDS, "partial_accel_A_accel2") != 0) {
-        printf("[ABORT] Bitstream accel2 invalide\r\n");
-        return;
-    }
-
-    // ---- Étape 6 : DPR accel1 ----
-    printf("\r\n[6] Reconfiguration accel1 (%u mots)\r\n", (unsigned)BS_ACCEL1_WORDS);
-    if (hwicap_write_bitstream(bs_accel1, BS_ACCEL1_WORDS) != 0) {
-        printf("[FAIL] Reconfiguration accel1 échouée (timeout)\r\n");
-        errors++;
-    } else {
-        hwicap_read_stat("apres accel1");
-
-        // Vérifier immédiatement si accel1 a changé
-        printf("  ID accel1 apres DPR :\r\n");
-        uint32_t post_a1 = read_accel_id(ACCEL1_BASE, "  accel1");
-        if (post_a1 == 0xAAAAAA)
-            printf("  [OK] accel1 reconfiguré en accel_A\r\n");
-        else if (post_a1 == init_a1)
-            printf("  [FAIL] accel1 inchangé — DPR accel1 n'a pas pris effet\r\n");
-        else
-            printf("  [WARN] accel1 a changé mais pas vers accel_A\r\n");
+        /* Ecrire 4 mots sans CR_WRITE, observer WFV */
+        mmio_w(HWICAP_SZ, 4);
+        for (int i = 0; i < 4; i++) {
+            mmio_w(HWICAP_WF, 0xFFFFFFFF);
+            printf("    apres mot %d : WFV=0x%02x (att 0x%02x)\r\n",
+                   i + 1, (unsigned)mmio_r(HWICAP_WFV), (unsigned)(0x3F - i - 1));
+        }
+        /* Envoyer et vider */
+        mmio_w(HWICAP_CR, CR_WRITE);
+        int t = TIMEOUT;
+        while ((mmio_r(HWICAP_CR) & CR_WRITE) && t-- > 0);
+        printf("    CR_WRITE complete : t_restant=%d  WFV=0x%02x  RFO=0x%02x\r\n",
+               t, (unsigned)mmio_r(HWICAP_WFV), (unsigned)mmio_r(HWICAP_RFO));
+        printf("    -> RFO apres 4 mots dummy : %s\r\n",
+               mmio_r(HWICAP_RFO) > 0 ? "[ICAP sort des donnees en USER mode]"
+                                       : "[RFO=0 — ICAP muet meme en USER mode]");
     }
 
-    // DESYNC entre les deux reconfigurations
-    hwicap_fifo_reset();
-    hwicap_desync();
-    hwicap_fifo_reset();
+    /* ------------------------------------------------------------------ */
+    printf("\r\n[T2] CR_WRITE timing — cycles CPU par mot (fréquence ICAP)\r\n");
+    {
+        static const uint32_t dummy1[]  = { 0xFFFFFFFF };
+        static const uint32_t dummy8[]  = {
+            0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,
+            0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF };
+        static const uint32_t dummy63[63];  /* zéros, inoffensifs avant SYNC */
 
-    // ---- Étape 7 : DPR accel2 ----
-    printf("\r\n[7] Reconfiguration accel2 (%u mots)\r\n", (unsigned)BS_ACCEL2_WORDS);
-    if (hwicap_write_bitstream(bs_accel2, BS_ACCEL2_WORDS) != 0) {
-        printf("[FAIL] Reconfiguration accel2 échouée (timeout)\r\n");
-        errors++;
-    } else {
-        hwicap_read_stat("apres accel2");
+        int64_t dt1  = send_raw(dummy1,  1);
+        int64_t dt8  = send_raw(dummy8,  8);
+        int64_t dt63 = send_raw(dummy63, 63);
 
-        // Vérifier immédiatement si accel2 a changé
-        printf("  ID accel2 apres DPR :\r\n");
-        uint32_t post_a2 = read_accel_id(ACCEL2_BASE, "  accel2");
-        if (post_a2 == 0xAAAAAA)
-            printf("  [OK] accel2 reconfiguré en accel_A\r\n");
-        else if (post_a2 == init_a2)
-            printf("  [FAIL] accel2 inchangé — DPR accel2 n'a pas pris effet\r\n");
-        else
-            printf("  [WARN] accel2 a changé mais pas vers accel_A\r\n");
+        /* Newlib embedded: utiliser %u avec cast uint32_t (valeurs < 2^32) */
+        printf("     1 mot  : %6u cycles\r\n", (uint32_t)dt1);
+        printf("     8 mots : %6u cycles  (%u cy/mot)\r\n",
+               (uint32_t)dt8,  dt8  > 0 ? (uint32_t)(dt8 / 8)  : 0u);
+        printf("    63 mots : %6u cycles  (%u cy/mot)\r\n",
+               (uint32_t)dt63, dt63 > 0 ? (uint32_t)(dt63 / 63) : 0u);
+        printf("    -> cy/mot = freq_CPU / freq_ICAP (attendu ~1 si meme horloge)\r\n");
     }
 
-    // ---- Étape 8 : Bilan final ----
-    printf("\r\n=================================================\r\n");
-    printf(" [8] BILAN FINAL\r\n");
-    printf("=================================================\r\n");
-    uint32_t final_a1 = read_accel_id(ACCEL1_BASE, "accel1");
-    uint32_t final_a2 = read_accel_id(ACCEL2_BASE, "accel2");
+    /* ------------------------------------------------------------------ */
+    printf("\r\n[T3] ICAP communication — lecture IDCODE\r\n");
+    {
+        uint32_t rfo_avant = mmio_r(HWICAP_RFO);
+        static const uint32_t seq[] = {
+            0xFFFFFFFF, 0xFFFFFFFF,
+            0xAA995566, 0x20000000,
+            0x28018001,
+            0x20000000, 0x20000000, 0x20000000, 0x20000000,
+        };
+        fifo_reset();
+        mmio_w(HWICAP_SZ, 9);
+        for (int i = 0; i < 9; i++) mmio_w(HWICAP_WF, seq[i]);
+        mmio_w(HWICAP_CR, CR_WRITE);
+        int t = TIMEOUT;
+        while ((mmio_r(HWICAP_CR) & CR_WRITE) && t-- > 0);
+        uint32_t rfo_apres = mmio_r(HWICAP_RFO);
+        printf("    RFO avant seq = %u  apres CR_WRITE = %u\r\n",
+               (unsigned)rfo_avant, (unsigned)rfo_apres);
+        printf("    -> RFO doit augmenter : ICAP a sorti des donnees sur O[]\r\n");
 
-    if (final_a1 == 0xAAAAAA && final_a2 == 0xAAAAAA) {
-        printf("\r\n>>> DPR B->A REUSSI : les deux accélérateurs sont accel_A <<<\r\n");
-    } else {
-        printf("\r\n>>> DPR ECHOUE <<<\r\n");
-        if (final_a1 == init_a1 && final_a2 == init_a2)
-            printf("  Diagnostic : aucun ID n'a changé.\r\n"
-                   "  Causes possibles :\r\n"
-                   "    - ICAP accepte les données mais ne reconfigure pas le fabric\r\n"
-                   "    - Bitstreams partiels incohérents avec static_routed.dcp\r\n"
-                   "    - IDCODE mismatch dans le header du bitstream\r\n"
-                   "    - Vérifier STAT ci-dessus pour CRC_ERROR / ID_ERROR / CFGERR\r\n");
-        else if (final_a1 != init_a1 || final_a2 != init_a2)
-            printf("  Diagnostic : au moins un ID a changé — DPR partiel.\r\n"
-                   "    accel1 : 0x%06x -> 0x%06x %s\r\n"
-                   "    accel2 : 0x%06x -> 0x%06x %s\r\n",
-                   init_a1, final_a1, final_a1 == 0xAAAAAA ? "[OK]" : "[FAIL]",
-                   init_a2, final_a2, final_a2 == 0xAAAAAA ? "[OK]" : "[FAIL]");
-        printf("  errors=%d\r\n", errors);
+        uint32_t id = read_rf();
+        desync();
+        printf("    IDCODE = 0x%08x  %s\r\n", (unsigned)id,
+               id == 0x43651093 ? "[OK]" : "[WARN] attendu 0x43651093");
     }
 
-    printf("\r\n=================================================\r\n");
-    printf(" Test terminé\r\n");
-    printf("=================================================\r\n");
+    /* ------------------------------------------------------------------ */
+    printf("\r\n[T4] Accel1 ID AVANT DPR\r\n");
+    uint32_t id_before = mmio_r(ACCEL1_BASE) & 0x00FFFFFFu;
+    printf("    accel1 ID = 0x%06x  %s\r\n", (unsigned)id_before,
+           id_before == 0xAAAAAA ? "[accel_A — OK]"
+         : id_before == 0xBBBBBB ? "[accel_B — deja reconfigure ?]"
+         : "[inconnu]");
+
+    /* ------------------------------------------------------------------ */
+    printf("\r\n[T5] STAT ICAP avant DPR\r\n");
+    uint32_t stat_pre = read_stat();
+    printf("    STAT = 0x%08x\r\n", (unsigned)stat_pre);
+    if ((stat_pre >> 12) & 1) {
+        printf("    CFGERR=1 — effacement RCRC+DESYNC\r\n");
+        static const uint32_t rcrc[] = {
+            0xFFFFFFFF,0xFFFFFFFF,
+            0xAA995566,0x20000000,
+            0x30008001,0x00000007,
+            0x20000000,
+            0x30008001,0x0000000D,
+            0x20000000,0x20000000,
+        };
+        send_raw(rcrc, 11);
+        uint32_t sc = read_stat();
+        printf("    STAT apres RCRC = 0x%08x  CFGERR=%d\r\n",
+               (unsigned)sc, (sc >> 12) & 1);
+        stat_pre = sc;
+    }
+
+    /* ------------------------------------------------------------------ */
+    printf("\r\n[T6] Analyse header bitstream DDR @ 0x%08x\r\n",
+           (unsigned)BS1_ADDR);
+    {
+        const uint32_t *bs = (const uint32_t *)BS1_ADDR;
+        /* Chercher le mot SYNC (raw=0x665599AA) dans les 32 premiers mots */
+        int sync_pos = -1;
+        for (int i = 0; i < 32; i++) {
+            if (bs[i] == 0x665599AAu) { sync_pos = i; break; }
+        }
+        printf("    SYNC (0x665599AA) : position %d %s\r\n",
+               sync_pos, sync_pos >= 0 ? "[OK]" : "[NON TROUVE — format .bin incorrect ?]");
+
+        if (sync_pos >= 0 && sync_pos + 8 < 32) {
+            int p = sync_pos;
+            printf("    [%2d] SYNC  raw=0x%08x bswap=0x%08x\r\n",
+                   p, (unsigned)bs[p], (unsigned)bswap32(bs[p]));
+            printf("    [%2d] NOOP  raw=0x%08x bswap=0x%08x\r\n",
+                   p+1, (unsigned)bs[p+1], (unsigned)bswap32(bs[p+1]));
+            printf("    [%2d] CMD?  raw=0x%08x bswap=0x%08x  %s\r\n",
+                   p+2, (unsigned)bs[p+2], (unsigned)bswap32(bs[p+2]),
+                   bswap32(bs[p+2]) == 0x30008001 ? "(Type1 Write CMD)" : "");
+            printf("    [%2d] VAL?  raw=0x%08x bswap=0x%08x  %s\r\n",
+                   p+3, (unsigned)bs[p+3], (unsigned)bswap32(bs[p+3]),
+                   bswap32(bs[p+3]) == 0x00000007 ? "(RCRC)" :
+                   bswap32(bs[p+3]) == 0x00000001 ? "(WCFG)" : "");
+
+            /* Chercher le mot IDCODE (Type1 Write IDCODE = 0x30018001) */
+            for (int i = p; i < p + 20 && i < 32; i++) {
+                if (bswap32(bs[i]) == 0x30018001u) {
+                    uint32_t idcode_bs = bswap32(bs[i+1]);
+                    printf("    [%2d] IDCODE dans bitstream = 0x%08x %s\r\n",
+                           i+1, (unsigned)idcode_bs,
+                           (idcode_bs & 0x0FFFFFFFu) == (0x43651093u & 0x0FFFFFFFu)
+                           ? "[OK — version masquee]" : "[WARN — mismatch IDCODE]");
+                    break;
+                }
+            }
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    if (BS1_NWORDS == 0) {
+        printf("\r\n[T7-T8] SKIP : BS1_NWORDS == 0\r\n");
+        printf("    Mettre a jour #define BS1_NWORDS dans dpr_test.c\r\n");
+        printf("    (sortie de : RM_TARGET=accel_B ./3_build_B2.sh load)\r\n");
+        goto done;
+    }
+
+    /* ------------------------------------------------------------------ */
+    printf("\r\n[T7] DPR write — %u mots, %u chunks\r\n",
+           (unsigned)BS1_NWORDS, (unsigned)((BS1_NWORDS + 62) / 63));
+    {
+        const uint32_t *bs = (const uint32_t *)BS1_ADDR;
+        const uint32_t nchunks = (BS1_NWORDS + 62) / 63;
+
+        /* Trace du premier chunk */
+        print_hwicap("avant chunk 0 :");
+        uint32_t rfo_c0 = mmio_r(HWICAP_RFO);
+
+        fifo_reset();
+        int64_t dt0 = send_bin(bs, 63);
+        print_hwicap("apres chunk 0 :");
+        printf("    chunk 0 : %u cycles  RFO avant=%u apres=%u  %s\r\n",
+               (uint32_t)dt0, (unsigned)rfo_c0, (unsigned)mmio_r(HWICAP_RFO),
+               dt0 < 0 ? "[TIMEOUT]" : "[OK]");
+        if (dt0 < 0) { printf("    [FAIL] timeout chunk 0\r\n"); goto done; }
+
+        /* Chunks 1..fin — tmin/tmax/tsum en uint32_t (valeurs < 2^32) */
+        uint32_t tsum = 0, tmin = 0xFFFFFFFFu, tmax = 0;
+        int failed = 0;
+
+        for (uint32_t ci = 1; ci < nchunks; ci++) {
+            uint32_t i = ci * 63;
+            uint32_t chunk = (BS1_NWORDS - i > 63) ? 63 : (BS1_NWORDS - i);
+
+            /* Trace détaillée pour chunk 1 uniquement */
+            if (ci == 1) {
+                printf("    [ci=%u DBG1] WFV=0x%02x RFO=0x%02x ASR=0x%08x\r\n",
+                       (unsigned)ci,
+                       (unsigned)mmio_r(HWICAP_WFV),
+                       (unsigned)mmio_r(HWICAP_RFO),
+                       (unsigned)mmio_r(HWICAP_ASR));
+                mmio_w(HWICAP_CR, CR_FIFO_RST);
+                printf("    [DBG2] WFV apres CR=FIFO_RST : 0x%02x\r\n",
+                       (unsigned)mmio_r(HWICAP_WFV));
+                int tf = TIMEOUT;
+                while (mmio_r(HWICAP_WFV) < WFV_MAX && tf-- > 0);
+                printf("    [DBG3] WFV apres poll (tf=%d) : 0x%02x\r\n",
+                       tf, (unsigned)mmio_r(HWICAP_WFV));
+                mmio_w(HWICAP_CR, 0);
+                printf("    [DBG4] WFV apres CR=0 : 0x%02x\r\n",
+                       (unsigned)mmio_r(HWICAP_WFV));
+                mmio_w(HWICAP_SZ, chunk);
+                printf("    [DBG5] SZ=%u ecrit  WFV=0x%02x\r\n",
+                       (unsigned)chunk, (unsigned)mmio_r(HWICAP_WFV));
+                /* Ecrire les 3 premiers mots et vérifier WFV */
+                for (int dbg = 0; dbg < 3 && dbg < (int)chunk; dbg++) {
+                    mmio_w(HWICAP_WF, bswap32(bs[i + dbg]));
+                    printf("    [DBG6.%d] mot%d=0x%08x  WFV=0x%02x\r\n",
+                           dbg, dbg, (unsigned)bswap32(bs[i + dbg]),
+                           (unsigned)mmio_r(HWICAP_WFV));
+                }
+                /* Ecrire les mots restants */
+                for (uint32_t j = 3; j < chunk; j++)
+                    mmio_w(HWICAP_WF, bswap32(bs[i + j]));
+                printf("    [DBG7] tous mots ecrits  WFV=0x%02x  CR=0x%02x\r\n",
+                       (unsigned)mmio_r(HWICAP_WFV), (unsigned)mmio_r(HWICAP_CR));
+                mmio_w(HWICAP_CR, CR_WRITE);
+                printf("    [DBG8] CR_WRITE set  CR=0x%02x  ASR=0x%08x\r\n",
+                       (unsigned)mmio_r(HWICAP_CR), (unsigned)mmio_r(HWICAP_ASR));
+                int tc = TIMEOUT;
+                while ((mmio_r(HWICAP_CR) & CR_WRITE) && tc-- > 0);
+                printf("    [DBG9] apres poll  tc=%d  CR=0x%02x  WFV=0x%02x  ASR=0x%08x\r\n",
+                       tc, (unsigned)mmio_r(HWICAP_CR),
+                       (unsigned)mmio_r(HWICAP_WFV), (unsigned)mmio_r(HWICAP_ASR));
+                if (tc <= 0) { printf("    [FAIL] timeout chunk 1\r\n"); failed = 1; break; }
+                tsum += 0; /* chunk 1 timing skipped */
+                continue;
+            }
+
+            /* CR_FIFO_RST minimal (sans poll) avant chaque chunk :
+             * remet HWICAP en état IDLE avant que le bus AXI soit potentiellement
+             * perturbé par la reconfiguration des frames non-nulles du pblock. */
+            mmio_w(HWICAP_CR, CR_FIFO_RST);
+            mmio_w(HWICAP_CR, 0);
+
+            int64_t dt = send_bin(bs + i, chunk);
+            if (dt < 0) {
+                printf("    [FAIL] CR_WRITE timeout chunk=%u/%u  ASR=0x%08x\r\n",
+                       (unsigned)ci, (unsigned)nchunks,
+                       (unsigned)mmio_r(HWICAP_ASR));
+                print_hwicap("etat au timeout:");
+                failed = 1;
+                break;
+            }
+            uint32_t udt = (uint32_t)dt;
+            tsum += udt;
+            if (udt < tmin) tmin = udt;
+            if (udt > tmax) tmax = udt;
+
+            printf("    %u/%u  SR=0x%02x WFV=0x%02x RFO=0x%02x  dt=%u cy\r\n",
+                   (unsigned)ci, (unsigned)nchunks,
+                   (unsigned)mmio_r(HWICAP_SR),
+                   (unsigned)mmio_r(HWICAP_WFV),
+                   (unsigned)mmio_r(HWICAP_RFO),
+                   (unsigned)udt);
+        }
+
+        if (!failed) {
+            printf("    [OK] DPR write termine\r\n");
+            printf("    Timing : min=%u max=%u moy=%u cy/chunk\r\n",
+                   (unsigned)tmin,
+                   (unsigned)tmax,
+                   (unsigned)(tsum / (nchunks - 1)));
+        }
+        print_hwicap("apres DPR :");
+    }
+
+    /* ------------------------------------------------------------------ */
+    printf("\r\n[T8] STAT ICAP apres DPR\r\n");
+    {
+        for (volatile int i = 0; i < 500000; i++);
+        uint32_t stat_post = read_stat();
+        printf("    STAT avant = 0x%08x\r\n", (unsigned)stat_pre);
+        printf("    STAT apres = 0x%08x  (delta=0x%08x)\r\n",
+               (unsigned)stat_post, (unsigned)(stat_post ^ stat_pre));
+        printf("    CFGERR  (bit 12) = %d  %s\r\n",
+               (stat_post >> 12) & 1,
+               (stat_post >> 12) & 1 ? "[WARN] erreur CRC/config" : "[OK]");
+        printf("    ID_ERR  (bit 10) = %d  %s\r\n",
+               (stat_post >> 10) & 1,
+               (stat_post >> 10) & 1 ? "[WARN] IDCODE mismatch" : "[OK]");
+        printf("    DONE    (bit  9) = %d\r\n", (stat_post >>  9) & 1);
+        printf("    EOS     (bit 17) = %d\r\n", (stat_post >> 17) & 1);
+    }
+
+    /* ------------------------------------------------------------------ */
+    printf("\r\n[T9] Accel1 ID APRES DPR\r\n");
+    {
+        for (volatile int i = 0; i < 200000; i++);
+        uint32_t id_after = mmio_r(ACCEL1_BASE) & 0x00FFFFFFu;
+        printf("    accel1 ID avant = 0x%06x\r\n", (unsigned)id_before);
+        printf("    accel1 ID apres = 0x%06x\r\n", (unsigned)id_after);
+
+        printf("\r\n");
+        if (id_after == 0xBBBBBB) {
+            printf("  *** DPR [SUCCES] : accel_A -> accel_B ***\r\n");
+        } else if (id_after == id_before) {
+            printf("  [FAIL] ID inchange\r\n");
+            printf("    -> Verifier CFGERR et ID_ERR ci-dessus\r\n");
+            printf("    -> Si STAT delta=0 : bitstream n'a pas atteint ICAP\r\n");
+            printf("    -> Si CFGERR=1 : CRC error dans bitstream\r\n");
+            printf("    -> Si ID_ERR=1 : IDCODE mismatch\r\n");
+        } else {
+            printf("  [?] ID = 0x%06x — reconfiguration partielle ?\r\n",
+                   (unsigned)id_after);
+        }
+    }
+
+done:
+    printf("\r\n============================================================\r\n");
 }
+
+void arch_init(void) {}

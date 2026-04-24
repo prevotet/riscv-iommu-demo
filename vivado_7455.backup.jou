@@ -1,0 +1,21 @@
+#-----------------------------------------------------------
+# Vivado v2022.2 (64-bit)
+# SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+# IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+# Start of session at: Fri Apr 24 08:33:15 2026
+# Process ID: 7455
+# Current directory: /home/jc/tmp/riscv-iommu-demo
+# Command line: vivado -mode tcl
+# Log file: /home/jc/tmp/riscv-iommu-demo/vivado.log
+# Journal file: /home/jc/tmp/riscv-iommu-demo/vivado.jou
+# Running On: jc-VirtualBox, OS: Linux, CPU Frequency: 2995.200 MHz, CPU Physical cores: 24, Host memory: 21133 MB
+#-----------------------------------------------------------
+open_checkpoint work-dpr/3_build_B_dpr/accel_B_accel1_routed.dcp
+  pr_verify -full_check -initial work-dpr/3_build_B_dpr/static_routed.dcp \             
+            -additional work-dpr/3_build_B_dpr/accel_A_accel1_routed.dcp
+pr_verify -initial /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/static_routed.dcp -additional
+  {/home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/accel_A_routed.dcp                                                                                    
+  /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/accel_B_routed.dcp
+  /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr/accel_default_routed.dcp}
+set W /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr                                                                                                  
+  pr_verify -initial $W/static_routed.dcp -additional [list $W/accel_A_routed.dcp $W/accel_B_routed.dcp $W/accel_default_routed.dcp]

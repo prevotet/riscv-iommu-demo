@@ -27,6 +27,7 @@
 #include <idma.h>
 
 extern void dpr_test(void);
+extern void dpr2_test(void);
 
 
 
@@ -40,6 +41,7 @@ void main(void){
     static volatile bool master_done = false;
 
    
+        //dpr2_test();
         dpr_test();
      
     }

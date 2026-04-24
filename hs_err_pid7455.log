@@ -1,0 +1,20 @@
+#
+# An unexpected error has occurred (11)
+#
+Stack:
+/lib/x86_64-linux-gnu/libc.so.6(+0x42520) [0x77bf83242520]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_project.so(HAPRDesignCheckpoint::postRestore(HAPRDesign*)+0x68) [0x77bf5d872df8]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_project.so(HAPRDesignCheckpoint::restoreHidden(HAPRProject*, HDARPart const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, bool, bool, HDGUIStatus&)+0x200) [0x77bf5d87e270]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_tcltasks.so(+0x1c86b9f) [0x77bf74686b9f]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_tcltasks.so(+0x1c8854c) [0x77bf7468854c]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_common.so(+0xb9430f) [0x77bf8499430f]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(+0x3356f) [0x77bf7e03356f]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(+0x76945) [0x77bf7e076945]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(+0x7e0f9) [0x77bf7e07e0f9]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(TclEvalObjEx+0x76) [0x77bf7e035216]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(Tcl_RecordAndEvalObj+0x143) [0x77bf7e083bd3]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_commontasks.so(+0x2f1d19) [0x77bf770f1d19]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/libtcl8.5.so(Tcl_Main+0x620) [0x77bf7e0a0740]
+/tools/Xilinx/Vivado/2022.2/lib/lnx64.o/librdi_common.so(+0xbc17ab) [0x77bf849c17ab]
+/lib/x86_64-linux-gnu/libc.so.6(+0x94ac3) [0x77bf83294ac3]
+/lib/x86_64-linux-gnu/libc.so.6(+0x1268d0) [0x77bf833268d0]
