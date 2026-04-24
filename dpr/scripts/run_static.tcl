@@ -140,6 +140,14 @@ add_cells_to_pblock [get_pblocks pblock_accel1] \
 add_cells_to_pblock [get_pblocks pblock_accel2] \
     [get_cells i_ariane_peripherals/gen_dma.gen_accel2.i_accel2]
 
+# Forcer ICAP en CR Y0 (ICAP_X0Y0) pour eviter la disruption horloge CR Y5.
+# Sans cette contrainte Vivado place ICAP_X0Y1 en CR Y5, meme clock region
+# que les pblocks : pendant la reconfig le HCLK de CR Y5 est reinitialise,
+# ce qui fige le FSM AXI du HWICAP IP (RVALID=0 jamais reasserte).
+puts "==> Contrainte ICAP : forçage sur ICAP_X0Y0..."
+set_property LOC ICAP_X0Y0 [get_cells -hierarchical -filter {REF_NAME == ICAPE2}]
+puts "  -> LOC ICAP_X0Y0 applique"
+
 puts "  -> pblocks actifs en mémoire :"
 foreach pb [get_pblocks] {
     puts "     $pb -> [get_property GRID_RANGES $pb]"
@@ -176,6 +184,8 @@ puts $xdc_out "set_property HD.RECONFIGURABLE true \[get_cells i_ariane_peripher
 puts $xdc_out "set_property HD.RECONFIGURABLE true \[get_cells i_ariane_peripherals/gen_dma.gen_accel2.i_accel2\]"
 puts $xdc_out "add_cells_to_pblock \[get_pblocks pblock_accel1\] \[get_cells i_ariane_peripherals/gen_dma.i_accel1\]"
 puts $xdc_out "add_cells_to_pblock \[get_pblocks pblock_accel2\] \[get_cells i_ariane_peripherals/gen_dma.gen_accel2.i_accel2\]"
+puts $xdc_out "# Forcer ICAP en CR Y0 — evite disruption horloge CR Y5 pendant reconfig"
+puts $xdc_out "set_property LOC ICAP_X0Y0 \[get_cells -hierarchical -filter {REF_NAME == ICAPE2}\]"
 close $xdc_out
 puts "  -> $dpr_dir/constraints/pblock_accels_impl.xdc"
 

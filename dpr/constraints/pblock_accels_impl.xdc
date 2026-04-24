@@ -23,3 +23,5 @@ set_property HD.RECONFIGURABLE true [get_cells i_ariane_peripherals/gen_dma.i_ac
 set_property HD.RECONFIGURABLE true [get_cells i_ariane_peripherals/gen_dma.gen_accel2.i_accel2]
 add_cells_to_pblock [get_pblocks pblock_accel1] [get_cells i_ariane_peripherals/gen_dma.i_accel1]
 add_cells_to_pblock [get_pblocks pblock_accel2] [get_cells i_ariane_peripherals/gen_dma.gen_accel2.i_accel2]
+# Forcer ICAP en CR Y0 — evite disruption horloge CR Y5 pendant reconfig
+set_property LOC ICAP_X0Y0 [get_cells -hierarchical -filter {REF_NAME == ICAPE2}]

@@ -354,6 +354,9 @@ void dpr_test(void) {
 
         /* Chunks 1..fin — tmin/tmax/tsum en uint32_t (valeurs < 2^32) */
         uint32_t tsum = 0, tmin = 0xFFFFFFFFu, tmax = 0;
+        /* CRD : calibration baseline sur les 16 premiers chunks nominaux */
+        uint32_t anomaly_count = 0, first_anomaly_chunk = 0;
+        uint32_t t_calibrated = 0, n_calib = 0;
         int failed = 0;
 
         for (uint32_t ci = 1; ci < nchunks; ci++) {
@@ -405,17 +408,24 @@ void dpr_test(void) {
                 continue;
             }
 
-            /* CR_FIFO_RST minimal (sans poll) avant chaque chunk :
-             * remet HWICAP en état IDLE avant que le bus AXI soit potentiellement
-             * perturbé par la reconfiguration des frames non-nulles du pblock. */
-            mmio_w(HWICAP_CR, CR_FIFO_RST);
-            mmio_w(HWICAP_CR, 0);
+            /* Snapshot etat HWICAP AVANT le reset :
+             * SR != 0x05 ou ASR != 0 = signature de disruption horloge CR Y5.
+             * L'ICAP (ICAP_X0Y1) est en CR Y5 : pendant la reconfig, son
+             * horloge HCLK est momentanement reinitialisee, ce qui peut
+             * provoquer un abort ICAP non acquitte detectable ici. */
+            uint32_t sr_pre  = mmio_r(HWICAP_SR);
+            uint32_t asr_pre = mmio_r(HWICAP_ASR);
+
+            /* fifo_reset() complet avec poll WFV=0x3F — le reset minimal
+             * (sans poll) laisse le HWICAP en etat transitoire ce qui
+             * bloque les ecritures WF (AXI WREADY=0). */
+            fifo_reset();
 
             int64_t dt = send_bin(bs + i, chunk);
             if (dt < 0) {
-                printf("    [FAIL] CR_WRITE timeout chunk=%u/%u  ASR=0x%08x\r\n",
+                printf("    [CRD-FAIL] timeout chunk=%u/%u SR_pre=0x%02x ASR_pre=0x%08x\r\n",
                        (unsigned)ci, (unsigned)nchunks,
-                       (unsigned)mmio_r(HWICAP_ASR));
+                       (unsigned)sr_pre, (unsigned)asr_pre);
                 print_hwicap("etat au timeout:");
                 failed = 1;
                 break;
@@ -425,20 +435,47 @@ void dpr_test(void) {
             if (udt < tmin) tmin = udt;
             if (udt > tmax) tmax = udt;
 
-            printf("    %u/%u  SR=0x%02x WFV=0x%02x RFO=0x%02x  dt=%u cy\r\n",
-                   (unsigned)ci, (unsigned)nchunks,
-                   (unsigned)mmio_r(HWICAP_SR),
-                   (unsigned)mmio_r(HWICAP_WFV),
-                   (unsigned)mmio_r(HWICAP_RFO),
-                   (unsigned)udt);
+            /* Calibration baseline : moyennage des 16 premiers chunks nominaux */
+            if (n_calib < 16) { t_calibrated += udt; n_calib++; }
+            uint32_t t_avg    = (n_calib > 0) ? t_calibrated / n_calib : 0;
+            uint32_t t_thresh = t_avg * 5;  /* outlier = 5x la moyenne */
+
+            /* Detection anomalie CRD */
+            int is_sr_bad  = (sr_pre != 0x05);
+            int is_asr_bad = (asr_pre != 0);
+            int is_outlier = (n_calib >= 16) && (t_thresh > 0) && (udt > t_thresh);
+
+            if (is_sr_bad || is_asr_bad || is_outlier) {
+                if (!anomaly_count) first_anomaly_chunk = ci;
+                anomaly_count++;
+                printf("    [CRD ci=%u/%u] SR_pre=0x%02x ASR_pre=0x%08x dt=%u cy%s%s%s\r\n",
+                       (unsigned)ci, (unsigned)nchunks,
+                       (unsigned)sr_pre, (unsigned)asr_pre, (unsigned)udt,
+                       is_sr_bad  ? " [SR-ERR]"  : "",
+                       is_asr_bad ? " [ABORT]"   : "",
+                       is_outlier ? " [OUTLIER]" : "");
+            }
+
+            /* Progress silencieux tous les 1000 chunks */
+            if (ci % 1000 == 0)
+                printf("    ... %u/%u  anomalies=%u  SR=0x%02x\r\n",
+                       (unsigned)ci, (unsigned)nchunks,
+                       (unsigned)anomaly_count, (unsigned)mmio_r(HWICAP_SR));
         }
 
         if (!failed) {
+            uint32_t t_avg = (n_calib > 0) ? t_calibrated / n_calib : 0;
             printf("    [OK] DPR write termine\r\n");
-            printf("    Timing : min=%u max=%u moy=%u cy/chunk\r\n",
-                   (unsigned)tmin,
-                   (unsigned)tmax,
-                   (unsigned)(tsum / (nchunks - 1)));
+            printf("    CRD : anomalies=%u  premier chunk=%u (0=aucun)\r\n",
+                   (unsigned)anomaly_count, (unsigned)first_anomaly_chunk);
+            printf("    Timing baseline=%u  min=%u  max=%u  moy=%u cy/chunk\r\n",
+                   (unsigned)t_avg, (unsigned)tmin, (unsigned)tmax,
+                   (unsigned)(nchunks > 2 ? tsum / (nchunks - 2) : tsum));
+            if (t_avg > 0)
+                printf("    Ratio max/baseline=%u%s\r\n",
+                       (unsigned)(tmax / t_avg),
+                       (tmax > 5 * t_avg) ?
+                       " [EVIDENCE disruption horloge CR Y5 / ICAP_X0Y1]" : " [normal]");
         }
         print_hwicap("apres DPR :");
     }

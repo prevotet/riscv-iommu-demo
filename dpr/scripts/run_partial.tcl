@@ -143,6 +143,14 @@ route_design -directive Explore
 # =============================================================
 # 5. EXPORT DES BITSTREAMS
 # =============================================================
+# Waiver RTSTAT-2 : nets de frontiere partiellement routes aux limites du pblock.
+# Certains RMs (ex. accel_default) ne consomment pas tous les bits d'un bus AXI
+# (ex. aw_len[1]) — le stub statique reste sans charge cote RM. C'est normal
+# en DFX pour les RMs qui ne font pas de burst writes. Identique aux waivers
+# RTSTAT-5/6 deja presents dans run_static.tcl.
+create_waiver -quiet -type DRC -id {RTSTAT-2} \
+    -description "Boundary routing stubs normaux pour RMs sans burst AXI"
+
 # Bitstream complet (statique + RM) — pour le premier chargement
 write_bitstream -force $work_dpr/full_${rm_name}.bit
 puts "OK: $work_dpr/full_${rm_name}.bit"
