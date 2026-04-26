@@ -44,6 +44,16 @@
 #define HWICAP_TIMEOUT     10000000
 
 /* =========================================================================
+ * Constantes GPIO (DPR Decoupling)
+ * ========================================================================= */
+
+#define GPIO_BASE        0x40000000ULL
+#define GPIO_DATA        (GPIO_BASE + 0x00)
+#define GPIO_TRI         (GPIO_BASE + 0x04)
+#define DECOUPLE_ACCEL1  (1u << 31)
+#define DECOUPLE_ACCEL2  (1u << 30)
+
+/* =========================================================================
  * Constantes accélérateurs
  * ========================================================================= */
 
@@ -235,8 +245,21 @@ static void process_ipc_cmd(dpr_ipc_msg_t *ipc)
 
     ipc->status = DPR_STATUS_BUSY;
 
+    /* 1. Activer le découplage matériel (Isolation de la zone RP) */
+    mmio_write32(GPIO_TRI, 0x00000000u);  /* tout en sortie (C_GPIO_WIDTH=32) */
+    uint32_t mask = (accel == DPR_ACCEL_1) ? DECOUPLE_ACCEL1 : DECOUPLE_ACCEL2;
+    uint32_t current_gpio = mmio_read32(GPIO_DATA);
+    mmio_write32(GPIO_DATA, current_gpio | mask);
+    printf("[DPR] Isolation Accel%u activée (GPIO=0x%08x)\n", accel, mmio_read32(GPIO_DATA));
+
+    /* 2. Charger le bitstream via l'ICAP */
     uint64_t cycles = 0;
     uint32_t err = hwicap_load_bs(bs, bswords, &cycles);
+
+    /* 3. Désactiver le découplage matériel */
+    current_gpio = mmio_read32(GPIO_DATA);
+    mmio_write32(GPIO_DATA, current_gpio & ~mask);
+    printf("[DPR] Isolation Accel%u désactivée\n", accel);
 
     ipc->cycles_hi = (uint32_t)(cycles >> 32);
     ipc->cycles_lo = (uint32_t)(cycles & 0xFFFFFFFFu);

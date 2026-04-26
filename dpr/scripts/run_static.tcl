@@ -61,7 +61,22 @@ foreach ip {xlnx_axi_dwidth_converter_dm_master xlnx_axi_dwidth_converter_dm_sla
     }
 }
 
-# 3b. GÉNÉRATION DES CIBLES HWICAP (generate_target au lieu de synth_ip)
+# 3b. RÉGÉNÉRATION GPIO IP (C_GPIO_WIDTH peut avoir changé)
+puts "==> Régénération GPIO IP..."
+set gpio_ip [get_ips -quiet xlnx_axi_gpio]
+if {[llength $gpio_ip] > 0} {
+    generate_target all [get_ips xlnx_axi_gpio]
+    set gpio_run [get_runs -quiet xlnx_axi_gpio_synth_1]
+    if {[llength $gpio_run] > 0} {
+        reset_run xlnx_axi_gpio_synth_1
+    }
+    synth_ip [get_ips xlnx_axi_gpio]
+    puts "  -> regenere : xlnx_axi_gpio"
+} else {
+    puts "  WARNING: xlnx_axi_gpio non trouvee dans le projet"
+}
+
+# 3c. GÉNÉRATION DES CIBLES HWICAP (generate_target au lieu de synth_ip)
 puts "==> Génération des cibles HWICAP..."
 set hwicap_ip [get_ips -quiet xlnx_axi_hwicap]
 if {[llength $hwicap_ip] > 0} {
@@ -105,28 +120,28 @@ if {[llength $cell_accel2] == 0} { puts "ERROR: i_accel2 non trouvé"; exit 1 }
 # Règle HDPR-25 : colonnes RAMB/DSP strictement séparées entre les deux RPs.
 # SNAPPING_MODE ON : Vivado ajuste les bords aux limites d'interconnexion.
 #
-#   pblock_accel1 : SLICEs X0-X71,   RAMB X0-X1, DSP X0-X1  (moitié gauche)
-#   pblock_accel2 : SLICEs X72-X145, RAMB X2-X4, DSP X2-X5  (moitié droite)
+#   pblock_accel1 : SLICEs X30-X45,  RAMB X1, DSP X1  (zone restreinte gauche)
+#   pblock_accel2 : SLICEs X100-X115, RAMB X4, DSP X4  (zone restreinte droite)
 #
-puts "==> Création des pblocks DFX en mémoire..."
+puts "==> Création des pblocks DFX en mémoire (tailles réduites)..."
 
-# pblock_accel1 — moitié gauche clock region Y5
+# pblock_accel1 — zone réduite clock region Y5
 create_pblock pblock_accel1
-resize_pblock [get_pblocks pblock_accel1] -add {SLICE_X0Y250:SLICE_X71Y299}
-resize_pblock [get_pblocks pblock_accel1] -add {DSP48_X0Y60:DSP48_X1Y64}
-resize_pblock [get_pblocks pblock_accel1] -add {RAMB36_X0Y25:RAMB36_X1Y29}
-resize_pblock [get_pblocks pblock_accel1] -add {RAMB18_X0Y50:RAMB18_X1Y59}
+resize_pblock [get_pblocks pblock_accel1] -add {SLICE_X32Y250:SLICE_X47Y299}
+resize_pblock [get_pblocks pblock_accel1] -add {DSP48_X1Y60:DSP48_X1Y64}
+resize_pblock [get_pblocks pblock_accel1] -add {RAMB36_X1Y25:RAMB36_X1Y29}
+resize_pblock [get_pblocks pblock_accel1] -add {RAMB18_X1Y50:RAMB18_X1Y59}
 set_property CONTAIN_ROUTING  true  [get_pblocks pblock_accel1]
 set_property EXCLUDE_PLACEMENT true [get_pblocks pblock_accel1]
 set_property IS_SOFT          false [get_pblocks pblock_accel1]
 set_property SNAPPING_MODE    ON    [get_pblocks pblock_accel1]
 
-# pblock_accel2 — moitié droite clock region Y5
+# pblock_accel2 — zone réduite clock region Y5
 create_pblock pblock_accel2
-resize_pblock [get_pblocks pblock_accel2] -add {SLICE_X72Y250:SLICE_X145Y299}
-resize_pblock [get_pblocks pblock_accel2] -add {DSP48_X2Y60:DSP48_X5Y64}
-resize_pblock [get_pblocks pblock_accel2] -add {RAMB36_X2Y25:RAMB36_X4Y29}
-resize_pblock [get_pblocks pblock_accel2] -add {RAMB18_X2Y50:RAMB18_X4Y59}
+resize_pblock [get_pblocks pblock_accel2] -add {SLICE_X100Y250:SLICE_X115Y299}
+resize_pblock [get_pblocks pblock_accel2] -add {DSP48_X4Y60:DSP48_X4Y64}
+resize_pblock [get_pblocks pblock_accel2] -add {RAMB36_X4Y25:RAMB36_X4Y29}
+resize_pblock [get_pblocks pblock_accel2] -add {RAMB18_X4Y50:RAMB18_X4Y59}
 set_property CONTAIN_ROUTING  true  [get_pblocks pblock_accel2]
 set_property EXCLUDE_PLACEMENT true [get_pblocks pblock_accel2]
 set_property IS_SOFT          false [get_pblocks pblock_accel2]
@@ -160,22 +175,22 @@ puts "==> Export du XDC DFX pour run_partial..."
 file mkdir $dpr_dir/constraints
 set xdc_out [open $dpr_dir/constraints/pblock_accels_impl.xdc w]
 puts $xdc_out "# Pblocks DPR generes par run_static.tcl"
-puts $xdc_out "# pblock_accel1 : moitie gauche clock region Y5"
+puts $xdc_out "# pblock_accel1 : zone restreinte clock region Y5"
 puts $xdc_out "create_pblock pblock_accel1"
-puts $xdc_out "resize_pblock \[get_pblocks pblock_accel1\] -add {SLICE_X0Y250:SLICE_X71Y299}"
-puts $xdc_out "resize_pblock \[get_pblocks pblock_accel1\] -add {DSP48_X0Y60:DSP48_X1Y64}"
-puts $xdc_out "resize_pblock \[get_pblocks pblock_accel1\] -add {RAMB36_X0Y25:RAMB36_X1Y29}"
-puts $xdc_out "resize_pblock \[get_pblocks pblock_accel1\] -add {RAMB18_X0Y50:RAMB18_X1Y59}"
+puts $xdc_out "resize_pblock \[get_pblocks pblock_accel1\] -add {SLICE_X30Y250:SLICE_X45Y299}"
+puts $xdc_out "resize_pblock \[get_pblocks pblock_accel1\] -add {DSP48_X1Y60:DSP48_X1Y64}"
+puts $xdc_out "resize_pblock \[get_pblocks pblock_accel1\] -add {RAMB36_X1Y25:RAMB36_X1Y29}"
+puts $xdc_out "resize_pblock \[get_pblocks pblock_accel1\] -add {RAMB18_X1Y50:RAMB18_X1Y59}"
 puts $xdc_out "set_property CONTAIN_ROUTING  true  \[get_pblocks pblock_accel1\]"
 puts $xdc_out "set_property EXCLUDE_PLACEMENT true \[get_pblocks pblock_accel1\]"
 puts $xdc_out "set_property IS_SOFT          false \[get_pblocks pblock_accel1\]"
 puts $xdc_out "set_property SNAPPING_MODE    ON    \[get_pblocks pblock_accel1\]"
-puts $xdc_out "# pblock_accel2 : moitie droite clock region Y5"
+puts $xdc_out "# pblock_accel2 : zone restreinte clock region Y5"
 puts $xdc_out "create_pblock pblock_accel2"
-puts $xdc_out "resize_pblock \[get_pblocks pblock_accel2\] -add {SLICE_X72Y250:SLICE_X145Y299}"
-puts $xdc_out "resize_pblock \[get_pblocks pblock_accel2\] -add {DSP48_X2Y60:DSP48_X5Y64}"
-puts $xdc_out "resize_pblock \[get_pblocks pblock_accel2\] -add {RAMB36_X2Y25:RAMB36_X4Y29}"
-puts $xdc_out "resize_pblock \[get_pblocks pblock_accel2\] -add {RAMB18_X2Y50:RAMB18_X4Y59}"
+puts $xdc_out "resize_pblock \[get_pblocks pblock_accel2\] -add {SLICE_X100Y250:SLICE_X115Y299}"
+puts $xdc_out "resize_pblock \[get_pblocks pblock_accel2\] -add {DSP48_X4Y60:DSP48_X4Y64}"
+puts $xdc_out "resize_pblock \[get_pblocks pblock_accel2\] -add {RAMB36_X4Y25:RAMB36_X4Y29}"
+puts $xdc_out "resize_pblock \[get_pblocks pblock_accel2\] -add {RAMB18_X4Y50:RAMB18_X4Y59}"
 puts $xdc_out "set_property CONTAIN_ROUTING  true  \[get_pblocks pblock_accel2\]"
 puts $xdc_out "set_property EXCLUDE_PLACEMENT true \[get_pblocks pblock_accel2\]"
 puts $xdc_out "set_property IS_SOFT          false \[get_pblocks pblock_accel2\]"
@@ -192,6 +207,50 @@ puts "  -> $dpr_dir/constraints/pblock_accels_impl.xdc"
 # 8. IMPLÉMENTATION
 puts "==> opt_design..."
 opt_design
+
+# Workaround HDPostRouteDRC-02: b_id_ff_reg/r_id_ff_reg placés en Y250
+# (bord inférieur pblock) génèrent un net frontière SLICEL.AQ→SLICEM.BX
+# non-routable dans la fabric 7-series. Un sous-pblock overlay viole HDPR-66.
+# Solution : LOC sur ces FFs à l'intérieur du pblock (Y280), 30 rangées
+# au-dessus du bord. Le routage intra-RP de Y280→Y250 (pin partition)
+# utilise les ressources standard et évite la contrainte AQ→BX.
+# 6 b_id + 6 r_id = 12 FFs par RP → 3 slices de 4 FFs (LOC sans BEL).
+puts "==> LOC boundary FFs — workaround AQ→BX..."
+# Ancrages pour accel1 (pblock X32-X47Y250-Y299)
+#   b_id/r_id (12 FFs)  → X36/37/38 Y280
+#   r_data_ff (64 FFs)  → X32..X47  Y270  (16 SLICEs × 4 FFs = 64)
+#   r_last/r_resp/b_resp (5 FFs) → X39/40 Y280
+foreach {pats x_base y_loc} {
+    {i_ariane_peripherals/gen_dma.i_accel1/b_id_ff_reg[*]
+     i_ariane_peripherals/gen_dma.i_accel1/r_id_ff_reg[*]}          36  280
+    {i_ariane_peripherals/gen_dma.i_accel1/r_data_ff_reg[*]}         32  270
+    {i_ariane_peripherals/gen_dma.i_accel1/r_valid_ff_reg
+     i_ariane_peripherals/gen_dma.i_accel1/b_valid_ff_reg
+     i_ariane_peripherals/gen_dma.i_accel1/r_last_ff_reg
+     i_ariane_peripherals/gen_dma.i_accel1/r_resp0_ff_reg
+     i_ariane_peripherals/gen_dma.i_accel1/r_resp1_ff_reg
+     i_ariane_peripherals/gen_dma.i_accel1/b_resp0_ff_reg
+     i_ariane_peripherals/gen_dma.i_accel1/b_resp1_ff_reg}           39  280
+    {i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/b_id_ff_reg[*]
+     i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_id_ff_reg[*]} 107 280
+    {i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_data_ff_reg[*]} 100 270
+    {i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_valid_ff_reg
+     i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/b_valid_ff_reg
+     i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_last_ff_reg
+     i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_resp0_ff_reg
+     i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_resp1_ff_reg
+     i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/b_resp0_ff_reg
+     i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/b_resp1_ff_reg} 110 280
+} {
+    set ci 0
+    foreach c [lsort -dictionary [get_cells -quiet $pats]] {
+        set xi [expr {$x_base + $ci / 4}]
+        set_property LOC SLICE_X${xi}Y${y_loc} $c
+        incr ci
+    }
+    puts "  -> $ci FFs ancrés @ Y${y_loc} (x_base=$x_base)"
+}
+
 puts "==> place_design..."
 place_design
 puts "==> route_design..."

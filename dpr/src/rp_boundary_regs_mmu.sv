@@ -1,7 +1,6 @@
 // rp_boundary_regs_mmu.sv
 // Registres pipeline à la frontière statique/RP pour l'interface AXI_BUS_MMU.
-// Identique à rp_boundary_regs.sv mais avec les signaux IOMMU
-// (stream_id, ss_id_valid, substream_id) sur les canaux AW et AR.
+// Ajout de la fonction de découplage (decouple_i) pour la DPR.
 
 `include "axi/typedef.svh"
 `include "axi/assign.svh"
@@ -15,6 +14,7 @@ module rp_boundary_regs_mmu #(
 ) (
     input  logic clk_i,
     input  logic rst_ni,
+    input  logic decouple_i,
     AXI_BUS_MMU.Slave  s,
     AXI_BUS_MMU.Master m
 );
@@ -22,7 +22,7 @@ module rp_boundary_regs_mmu #(
     if (PASS_THROUGH) begin : gen_bypass
 
         // AW
-        assign m.aw_valid        = s.aw_valid;
+        assign m.aw_valid        = s.aw_valid && !decouple_i;
         assign m.aw_id           = s.aw_id;
         assign m.aw_addr         = s.aw_addr;
         assign m.aw_len          = s.aw_len;
@@ -38,10 +38,10 @@ module rp_boundary_regs_mmu #(
         assign m.aw_stream_id    = s.aw_stream_id;
         assign m.aw_ss_id_valid  = s.aw_ss_id_valid;
         assign m.aw_substream_id = s.aw_substream_id;
-        assign s.aw_ready        = m.aw_ready;
+        assign s.aw_ready        = m.aw_ready && !decouple_i;
 
         // AR
-        assign m.ar_valid        = s.ar_valid;
+        assign m.ar_valid        = s.ar_valid && !decouple_i;
         assign m.ar_id           = s.ar_id;
         assign m.ar_addr         = s.ar_addr;
         assign m.ar_len          = s.ar_len;
@@ -56,38 +56,55 @@ module rp_boundary_regs_mmu #(
         assign m.ar_stream_id    = s.ar_stream_id;
         assign m.ar_ss_id_valid  = s.ar_ss_id_valid;
         assign m.ar_substream_id = s.ar_substream_id;
-        assign s.ar_ready        = m.ar_ready;
+        assign s.ar_ready        = m.ar_ready && !decouple_i;
 
         // W
-        assign m.w_valid  = s.w_valid;
+        assign m.w_valid  = s.w_valid && !decouple_i;
         assign m.w_data   = s.w_data;
         assign m.w_strb   = s.w_strb;
         assign m.w_last   = s.w_last;
         assign m.w_user   = s.w_user;
-        assign s.w_ready  = m.w_ready;
+        assign s.w_ready  = m.w_ready && !decouple_i;
 
         // B
-        assign s.b_valid  = m.b_valid;
+        assign s.b_valid  = m.b_valid && !decouple_i;
         assign s.b_id     = m.b_id;
         assign s.b_resp   = m.b_resp;
         assign s.b_user   = m.b_user;
-        assign m.b_ready  = s.b_ready;
+        assign m.b_ready  = s.b_ready && !decouple_i;
 
         // R
-        assign s.r_valid  = m.r_valid;
+        assign s.r_valid  = m.r_valid && !decouple_i;
         assign s.r_id     = m.r_id;
         assign s.r_data   = m.r_data;
         assign s.r_resp   = m.r_resp;
         assign s.r_last   = m.r_last;
         assign s.r_user   = m.r_user;
-        assign m.r_ready  = s.r_ready;
+        assign m.r_ready  = s.r_ready && !decouple_i;
 
     end else begin : gen_registered
 
         // AW : RP → statique (skid buffer)
         always_ff @(posedge clk_i or negedge rst_ni) begin
             if (!rst_ni) begin
-                m.aw_valid <= 1'b0;
+                m.aw_valid        <= 1'b0;
+                m.aw_id           <= '0;
+                m.aw_addr         <= '0;
+                m.aw_len          <= '0;
+                m.aw_size         <= '0;
+                m.aw_burst        <= '0;
+                m.aw_lock         <= '0;
+                m.aw_cache        <= '0;
+                m.aw_prot         <= '0;
+                m.aw_qos          <= '0;
+                m.aw_atop         <= '0;
+                m.aw_region       <= '0;
+                m.aw_user         <= '0;
+                m.aw_stream_id    <= '0;
+                m.aw_ss_id_valid  <= 1'b0;
+                m.aw_substream_id <= '0;
+            end else if (decouple_i) begin
+                m.aw_valid        <= 1'b0;
             end else if (!m.aw_valid || m.aw_ready) begin
                 m.aw_valid        <= s.aw_valid;
                 m.aw_id           <= s.aw_id;
@@ -107,12 +124,28 @@ module rp_boundary_regs_mmu #(
                 m.aw_substream_id <= s.aw_substream_id;
             end
         end
-        assign s.aw_ready = !m.aw_valid || m.aw_ready;
+        assign s.aw_ready = (!m.aw_valid || m.aw_ready) && !decouple_i;
 
         // AR : RP → statique (skid buffer)
         always_ff @(posedge clk_i or negedge rst_ni) begin
             if (!rst_ni) begin
-                m.ar_valid <= 1'b0;
+                m.ar_valid        <= 1'b0;
+                m.ar_id           <= '0;
+                m.ar_addr         <= '0;
+                m.ar_len          <= '0;
+                m.ar_size         <= '0;
+                m.ar_burst        <= '0;
+                m.ar_lock         <= '0;
+                m.ar_cache        <= '0;
+                m.ar_prot         <= '0;
+                m.ar_qos          <= '0;
+                m.ar_region       <= '0;
+                m.ar_user         <= '0;
+                m.ar_stream_id    <= '0;
+                m.ar_ss_id_valid  <= 1'b0;
+                m.ar_substream_id <= '0;
+            end else if (decouple_i) begin
+                m.ar_valid        <= 1'b0;
             end else if (!m.ar_valid || m.ar_ready) begin
                 m.ar_valid        <= s.ar_valid;
                 m.ar_id           <= s.ar_id;
@@ -131,11 +164,17 @@ module rp_boundary_regs_mmu #(
                 m.ar_substream_id <= s.ar_substream_id;
             end
         end
-        assign s.ar_ready = !m.ar_valid || m.ar_ready;
+        assign s.ar_ready = (!m.ar_valid || m.ar_ready) && !decouple_i;
 
         // W : RP → statique
         always_ff @(posedge clk_i or negedge rst_ni) begin
             if (!rst_ni) begin
+                m.w_valid <= 1'b0;
+                m.w_data  <= '0;
+                m.w_strb  <= '0;
+                m.w_last  <= 1'b0;
+                m.w_user  <= '0;
+            end else if (decouple_i) begin
                 m.w_valid <= 1'b0;
             end else if (!m.w_valid || m.w_ready) begin
                 m.w_valid <= s.w_valid;
@@ -145,11 +184,16 @@ module rp_boundary_regs_mmu #(
                 m.w_user  <= s.w_user;
             end
         end
-        assign s.w_ready = !m.w_valid || m.w_ready;
+        assign s.w_ready = (!m.w_valid || m.w_ready) && !decouple_i;
 
         // B : statique → RP
         always_ff @(posedge clk_i or negedge rst_ni) begin
             if (!rst_ni) begin
+                s.b_valid <= 1'b0;
+                s.b_id    <= '0;
+                s.b_resp  <= '0;
+                s.b_user  <= '0;
+            end else if (decouple_i) begin
                 s.b_valid <= 1'b0;
             end else if (!s.b_valid || s.b_ready) begin
                 s.b_valid <= m.b_valid;
@@ -158,11 +202,18 @@ module rp_boundary_regs_mmu #(
                 s.b_user  <= m.b_user;
             end
         end
-        assign m.b_ready = !s.b_valid || s.b_ready;
+        assign m.b_ready = (!s.b_valid || s.b_ready) && !decouple_i;
 
         // R : statique → RP
         always_ff @(posedge clk_i or negedge rst_ni) begin
             if (!rst_ni) begin
+                s.r_valid <= 1'b0;
+                s.r_id    <= '0;
+                s.r_data  <= '0;
+                s.r_resp  <= '0;
+                s.r_last  <= 1'b0;
+                s.r_user  <= '0;
+            end else if (decouple_i) begin
                 s.r_valid <= 1'b0;
             end else if (!s.r_valid || s.r_ready) begin
                 s.r_valid <= m.r_valid;
@@ -173,7 +224,7 @@ module rp_boundary_regs_mmu #(
                 s.r_user  <= m.r_user;
             end
         end
-        assign m.r_ready = !s.r_valid || s.r_ready;
+        assign m.r_ready = (!s.r_valid || s.r_ready) && !decouple_i;
 
     end
 

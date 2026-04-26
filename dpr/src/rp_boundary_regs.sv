@@ -1,5 +1,6 @@
 // rp_boundary_regs.sv
 // Registres pipeline à la frontière statique/RP.
+// Ajout de la fonction de découplage (decouple_i) pour la DPR.
 
 `include "axi/typedef.svh"
 `include "axi/assign.svh"
@@ -13,6 +14,7 @@ module rp_boundary_regs #(
 ) (
     input  logic clk_i,
     input  logic rst_ni,
+    input  logic decouple_i,
     // Boutons physiques (IO → RP via registres statiques)
     input  logic btnu_i, btnd_i, btnl_i, btnr_i, btnc_i,
     output logic btnu_o, btnd_o, btnl_o, btnr_o, btnc_o,
@@ -21,8 +23,15 @@ module rp_boundary_regs #(
 );
 
     // Pipeline des boutons (toujours registré, même en PASS_THROUGH)
+    // Isolé par decouple_i pour éviter les glitches pendant la reconfiguration
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
+            btnu_o <= 1'b0;
+            btnd_o <= 1'b0;
+            btnl_o <= 1'b0;
+            btnr_o <= 1'b0;
+            btnc_o <= 1'b0;
+        end else if (decouple_i) begin
             btnu_o <= 1'b0;
             btnd_o <= 1'b0;
             btnl_o <= 1'b0;
@@ -38,41 +47,55 @@ module rp_boundary_regs #(
     end
 
     if (PASS_THROUGH) begin : gen_bypass
-        assign m.aw_valid = s.aw_valid; assign m.aw_id     = s.aw_id;
+        assign m.aw_valid = s.aw_valid && !decouple_i; assign m.aw_id     = s.aw_id;
         assign m.aw_addr  = s.aw_addr;  assign m.aw_len    = s.aw_len;
         assign m.aw_size  = s.aw_size;  assign m.aw_burst  = s.aw_burst;
         assign m.aw_lock  = s.aw_lock;  assign m.aw_cache  = s.aw_cache;
         assign m.aw_prot  = s.aw_prot;  assign m.aw_qos    = s.aw_qos;
         assign m.aw_region= s.aw_region;assign m.aw_atop   = s.aw_atop;
         assign m.aw_user  = s.aw_user;
-        assign s.aw_ready = m.aw_ready;
+        assign s.aw_ready = m.aw_ready && !decouple_i;
 
-        assign m.ar_valid = s.ar_valid; assign m.ar_id     = s.ar_id;
+        assign m.ar_valid = s.ar_valid && !decouple_i; assign m.ar_id     = s.ar_id;
         assign m.ar_addr  = s.ar_addr;  assign m.ar_len    = s.ar_len;
         assign m.ar_size  = s.ar_size;  assign m.ar_burst  = s.ar_burst;
         assign m.ar_lock  = s.ar_lock;  assign m.ar_cache  = s.ar_cache;
         assign m.ar_prot  = s.ar_prot;  assign m.ar_qos    = s.ar_qos;
         assign m.ar_region= s.ar_region;assign m.ar_user   = s.ar_user;
-        assign s.ar_ready = m.ar_ready;
+        assign s.ar_ready = m.ar_ready && !decouple_i;
 
-        assign m.w_valid  = s.w_valid;  assign m.w_data    = s.w_data;
+        assign m.w_valid  = s.w_valid && !decouple_i;  assign m.w_data    = s.w_data;
         assign m.w_strb   = s.w_strb;   assign m.w_last    = s.w_last;
-        assign m.w_user   = s.w_user;   assign s.w_ready   = m.w_ready;
+        assign m.w_user   = s.w_user;   assign s.w_ready   = m.w_ready && !decouple_i;
 
-        assign s.b_valid  = m.b_valid;  assign s.b_id      = m.b_id;
+        assign s.b_valid  = m.b_valid && !decouple_i;  assign s.b_id      = m.b_id;
         assign s.b_resp   = m.b_resp;   assign s.b_user    = m.b_user;
-        assign m.b_ready  = s.b_ready;
+        assign m.b_ready  = s.b_ready && !decouple_i;
 
-        assign s.r_valid  = m.r_valid;  assign s.r_id      = m.r_id;
+        assign s.r_valid  = m.r_valid && !decouple_i;  assign s.r_id      = m.r_id;
         assign s.r_data   = m.r_data;   assign s.r_resp    = m.r_resp;
         assign s.r_last   = m.r_last;   assign s.r_user    = m.r_user;
-        assign m.r_ready  = s.r_ready;
+        assign m.r_ready  = s.r_ready && !decouple_i;
 
     end else begin : gen_registered
 
         always_ff @(posedge clk_i or negedge rst_ni) begin
             if (!rst_ni) begin
-                m.aw_valid <= 1'b0;
+                m.aw_valid  <= 1'b0;
+                m.aw_id     <= '0;
+                m.aw_addr   <= '0;
+                m.aw_len    <= '0;
+                m.aw_size   <= '0;
+                m.aw_burst  <= '0;
+                m.aw_lock   <= '0;
+                m.aw_cache  <= '0;
+                m.aw_prot   <= '0;
+                m.aw_qos    <= '0;
+                m.aw_region <= '0;
+                m.aw_atop   <= '0;
+                m.aw_user   <= '0;
+            end else if (decouple_i) begin
+                m.aw_valid  <= 1'b0;
             end else if (!m.aw_valid || m.aw_ready) begin
                 m.aw_valid  <= s.aw_valid;
                 m.aw_id     <= s.aw_id;
@@ -89,11 +112,24 @@ module rp_boundary_regs #(
                 m.aw_user   <= s.aw_user;
             end
         end
-        assign s.aw_ready = !m.aw_valid || m.aw_ready;
+        assign s.aw_ready = (!m.aw_valid || m.aw_ready) && !decouple_i;
 
         always_ff @(posedge clk_i or negedge rst_ni) begin
             if (!rst_ni) begin
-                m.ar_valid <= 1'b0;
+                m.ar_valid  <= 1'b0;
+                m.ar_id     <= '0;
+                m.ar_addr   <= '0;
+                m.ar_len    <= '0;
+                m.ar_size   <= '0;
+                m.ar_burst  <= '0;
+                m.ar_lock   <= '0;
+                m.ar_cache  <= '0;
+                m.ar_prot   <= '0;
+                m.ar_qos    <= '0;
+                m.ar_region <= '0;
+                m.ar_user   <= '0;
+            end else if (decouple_i) begin
+                m.ar_valid  <= 1'b0;
             end else if (!m.ar_valid || m.ar_ready) begin
                 m.ar_valid  <= s.ar_valid;
                 m.ar_id     <= s.ar_id;
@@ -109,12 +145,18 @@ module rp_boundary_regs #(
                 m.ar_user   <= s.ar_user;
             end
         end
-        assign s.ar_ready = !m.ar_valid || m.ar_ready;
+        assign s.ar_ready = (!m.ar_valid || m.ar_ready) && !decouple_i;
 
         always_ff @(posedge clk_i or negedge rst_ni) begin
             if (!rst_ni) begin
                 m.w_valid <= 1'b0;
-            end else begin
+                m.w_data  <= '0;
+                m.w_strb  <= '0;
+                m.w_last  <= 1'b0;
+                m.w_user  <= '0;
+            end else if (decouple_i) begin
+                m.w_valid <= 1'b0;
+            end else if (!m.w_valid || m.w_ready) begin
                 m.w_valid <= s.w_valid;
                 m.w_data  <= s.w_data;
                 m.w_strb  <= s.w_strb;
@@ -122,24 +164,36 @@ module rp_boundary_regs #(
                 m.w_user  <= s.w_user;
             end
         end
-        assign s.w_ready = m.w_ready;
+        assign s.w_ready = (!m.w_valid || m.w_ready) && !decouple_i;
 
         always_ff @(posedge clk_i or negedge rst_ni) begin
             if (!rst_ni) begin
                 s.b_valid <= 1'b0;
-            end else begin
+                s.b_id    <= '0;
+                s.b_resp  <= '0;
+                s.b_user  <= '0;
+            end else if (decouple_i) begin
+                s.b_valid <= 1'b0;
+            end else if (!s.b_valid || s.b_ready) begin
                 s.b_valid <= m.b_valid;
                 s.b_id    <= m.b_id;
                 s.b_resp  <= m.b_resp;
                 s.b_user  <= m.b_user;
             end
         end
-        assign m.b_ready = s.b_ready;
+        assign m.b_ready = (!s.b_valid || s.b_ready) && !decouple_i;
 
         always_ff @(posedge clk_i or negedge rst_ni) begin
             if (!rst_ni) begin
                 s.r_valid <= 1'b0;
-            end else begin
+                s.r_id    <= '0;
+                s.r_data  <= '0;
+                s.r_resp  <= '0;
+                s.r_last  <= 1'b0;
+                s.r_user  <= '0;
+            end else if (decouple_i) begin
+                s.r_valid <= 1'b0;
+            end else if (!s.r_valid || s.r_ready) begin
                 s.r_valid <= m.r_valid;
                 s.r_id    <= m.r_id;
                 s.r_data  <= m.r_data;
@@ -148,7 +202,7 @@ module rp_boundary_regs #(
                 s.r_user  <= m.r_user;
             end
         end
-        assign m.r_ready = s.r_ready;
+        assign m.r_ready = (!s.r_valid || s.r_ready) && !decouple_i;
 
     end
 

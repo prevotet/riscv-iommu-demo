@@ -23,12 +23,21 @@ module accel_wrap #(
     // sans load interne, Vivado ne crée pas de boundary net → pas de PPLOC à router.
     (* dont_touch = "true" *) logic [AXI_SLV_ID_WIDTH-1:0] b_id_ff, r_id_ff;
     (* dont_touch = "true" *) logic                    b_valid_ff, r_valid_ff;
+    (* dont_touch = "true" *) logic [AXI_DATA_WIDTH-1:0] r_data_ff;
+    (* dont_touch = "true" *) logic                    r_last_ff, r_resp0_ff, r_resp1_ff;
+    (* dont_touch = "true" *) logic                    b_resp0_ff, b_resp1_ff;
 
     always_ff @(posedge clk_i) begin
         b_id_ff    <= axi_cfg.aw_id;
         r_id_ff    <= axi_cfg.ar_id;
         b_valid_ff <= axi_cfg.aw_valid;
         r_valid_ff <= axi_cfg.ar_valid;
+        r_data_ff  <= '0;
+        r_last_ff  <= 1'b1;
+        r_resp0_ff <= 1'b0;
+        r_resp1_ff <= 1'b1;  /* SLVERR = 2'b10 */
+        b_resp0_ff <= 1'b0;
+        b_resp1_ff <= 1'b1;  /* SLVERR = 2'b10 */
     end
 
     assign axi_cfg.aw_ready = 1'b1;
@@ -36,13 +45,13 @@ module accel_wrap #(
     assign axi_cfg.ar_ready = 1'b1;
     assign axi_cfg.b_valid  = b_valid_ff;
     assign axi_cfg.b_id     = b_id_ff;
-    assign axi_cfg.b_resp   = 2'b10;
+    assign axi_cfg.b_resp   = {b_resp1_ff, b_resp0_ff};
     assign axi_cfg.b_user   = '0;
     assign axi_cfg.r_valid  = r_valid_ff;
     assign axi_cfg.r_id     = r_id_ff;
-    assign axi_cfg.r_data   = '0;
-    assign axi_cfg.r_resp   = 2'b10;
-    assign axi_cfg.r_last   = 1'b1;
+    assign axi_cfg.r_data   = r_data_ff;
+    assign axi_cfg.r_resp   = {r_resp1_ff, r_resp0_ff};
+    assign axi_cfg.r_last   = r_last_ff;
     assign axi_cfg.r_user   = '0;
 
     // DMA master : idle

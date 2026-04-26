@@ -311,20 +311,20 @@ do_update_bs_constants() {
     local sz2=$(( $(stat -c%s "$bs2") / 4 ))
 
     local cur1 cur2
-    cur1=$(grep -oP '(?<=BS_ACCEL1_WORDS )\d+' "$DPR_TEST_C" || echo 0)
-    cur2=$(grep -oP '(?<=BS_ACCEL2_WORDS )\d+' "$DPR_TEST_C" || echo 0)
+    cur1=$(grep -oP '(?<=BS1_NWORDS\s{3})\d+' "$DPR_TEST_C" || echo 0)
+    cur2=$(grep -oP '(?<=BS2_NWORDS\s{3})\d+' "$DPR_TEST_C" || echo 0)
 
     if [[ "$cur1" != "$sz1" ]] || [[ "$cur2" != "$sz2" ]]; then
-        log_warn "Mise à jour BS_ACCEL*_WORDS dans dpr_test.c"
+        log_warn "Mise à jour BS1_NWORDS/BS2_NWORDS dans dpr_test.c"
         log_warn "  accel1 : $cur1 → $sz1"
         log_warn "  accel2 : $cur2 → $sz2"
-        sed -i "s/#define BS_ACCEL1_WORDS [0-9]*UL/#define BS_ACCEL1_WORDS ${sz1}UL/" "$DPR_TEST_C"
-        sed -i "s/#define BS_ACCEL2_WORDS [0-9]*UL/#define BS_ACCEL2_WORDS ${sz2}UL/" "$DPR_TEST_C"
+        sed -i "s/#define BS1_NWORDS   [0-9]*UL/#define BS1_NWORDS   ${sz1}UL/" "$DPR_TEST_C"
+        sed -i "s/#define BS2_NWORDS   [0-9]*UL/#define BS2_NWORDS   ${sz2}UL/" "$DPR_TEST_C"
         FORCE_BAREMETAL=1
         log_ok "dpr_test.c mis à jour → rebuild baremetal forcé"
         _log_summary "update_bs_constants" "UPDATED" "accel1=$sz1 accel2=$sz2"
     else
-        log_ok "BS_ACCEL*_WORDS à jour (accel1=$sz1 accel2=$sz2)"
+        log_ok "BS1_NWORDS/BS2_NWORDS à jour (accel1=$sz1 accel2=$sz2)"
         _log_summary "update_bs_constants" "OK" ""
     fi
 }
@@ -605,20 +605,33 @@ do_all() {
 }
 
 # =============================================================================
-# Test matériel — suite de validation HWICAP/ICAP/DPR
+# Suite de tests unitaires HWICAP/ICAP/DPR
 # =============================================================================
 
-do_test() {
-    log_step "Validation matérielle HWICAP/ICAP/DPR"
+# Met à jour TEST_SELECT dans dpr_test.c avant compilation
+_set_test_select() {
+    local n="$1"
+    if ! grep -q "^#define TEST_SELECT" "$DPR_TEST_C"; then
+        log_error "TEST_SELECT introuvable dans $DPR_TEST_C"
+        exit 1
+    fi
+    local cur
+    cur=$(grep -oP '(?<=^#define TEST_SELECT )\d+' "$DPR_TEST_C")
+    if [[ "$cur" != "$n" ]]; then
+        log_step "TEST_SELECT $cur → $n"
+        sed -i "s/^#define TEST_SELECT [0-9]*/#define TEST_SELECT $n/" "$DPR_TEST_C"
+        FORCE_BAREMETAL=1
+    fi
+}
 
-    local bs1="$WORK_DPR/partial_${RM_TARGET}_accel1.bin"
-    local bs2="$WORK_DPR/partial_${RM_TARGET}_accel2.bin"
-
-    # Compiler le firmware de test si nécessaire
-    do_baremetal
+# Lance le test N via GDB.
+# $1 = numéro du test
+# $2..$N = paires "ADDR BIN" de bitstreams à charger (optionnel)
+_run_test() {
+    local n="$1"
+    shift
 
     check_file "$BAREMETAL_ELF"
-    check_file "$bs1"
 
     if ! pgrep -x "openocd" > /dev/null; then
         log_warn "OpenOCD ne semble pas tourner."
@@ -631,23 +644,124 @@ do_test() {
     gdb_script=$(mktemp /tmp/riscv_test_XXXXXX.gdb)
     trap "rm -f '$gdb_script'" EXIT INT TERM
 
-    cat > "$gdb_script" << EOF
-target remote localhost:3333
-set confirm off
-echo \\n[TEST] Chargement bitstream de test @ $ADDR_BS1\\n
-restore $bs1 binary $ADDR_BS1
-echo \\n[TEST] Chargement ELF...\\n
-load
-set \$pc = $ADDR_BAREMETAL
-echo \\n[TEST] Demarrage suite de tests (sortie UART)...\\n
-continue
-EOF
+    {
+        echo "target remote localhost:3333"
+        echo "set confirm off"
+        # Charger les bitstreams passés en arguments (paires addr bin)
+        while [[ $# -ge 2 ]]; do
+            local addr="$1" bin="$2"; shift 2
+            echo "echo \\n[TEST$n] restore $bin @ $addr\\n"
+            echo "restore $bin binary $addr"
+        done
+        echo "echo \\n[TEST$n] Chargement ELF...\\n"
+        echo "load"
+        echo "set \$pc = $ADDR_BAREMETAL"
+        echo "echo \\n[TEST$n] Demarrage (UART pour traces)...\\n"
+        echo "continue"
+    } > "$gdb_script"
 
-    echo ""
-    log_step "Lancement suite de tests via GDB..."
+    log_step "GDB → Test $n (UART pour résultats)..."
     ${RISCV_BARE}gdb -x "$gdb_script" "$BAREMETAL_ELF"
     rm -f "$gdb_script"
     trap - EXIT INT TERM
+}
+
+# ---------------------------------------------------------------------------
+# Test 1 : Infrastructure HWICAP + lecture registres ICAP
+#   - Pas de bitstream nécessaire (lecture ICAP registres seulement)
+#   - Valide : IDCODE, STAT, MASK
+# ---------------------------------------------------------------------------
+do_test1() {
+    log_step "Test 1 — Infrastructure HWICAP + registres ICAP"
+    _set_test_select 1
+    do_baremetal
+    _run_test 1
+    _log_summary "test1" "RUN" ""
+}
+
+# ---------------------------------------------------------------------------
+# Test 2 : IDCODE / MASK — validation complète avant DPR
+#   - Charge le bitstream partiel pour analyser son header
+# ---------------------------------------------------------------------------
+do_test2() {
+    log_step "Test 2 — IDCODE / MASK"
+    local bs1="$WORK_DPR/partial_${RM_TARGET}_accel1.bin"
+    check_file "$bs1"
+    do_update_bs_constants
+    _set_test_select 2
+    do_baremetal
+    _run_test 2 "$ADDR_BS1" "$bs1"
+    _log_summary "test2" "RUN" ""
+}
+
+# ---------------------------------------------------------------------------
+# Test 3 : Écriture chunk-by-chunk + détection abort ICAP
+# ---------------------------------------------------------------------------
+do_test3() {
+    log_step "Test 3 — Chunk-by-chunk write"
+    local bs1="$WORK_DPR/partial_${RM_TARGET}_accel1.bin"
+    check_file "$bs1"
+    do_update_bs_constants
+    _set_test_select 3
+    do_baremetal
+    _run_test 3 "$ADDR_BS1" "$bs1"
+    _log_summary "test3" "RUN" ""
+}
+
+# ---------------------------------------------------------------------------
+# Test 4 : DPR complet accel1 (accel_A → accel_B)
+# ---------------------------------------------------------------------------
+do_test4() {
+    log_step "Test 4 — DPR complet accel1"
+    local bs1="$WORK_DPR/partial_${RM_TARGET}_accel1.bin"
+    check_file "$bs1"
+    check_coherence
+    do_update_bs_constants
+    _set_test_select 4
+    do_baremetal
+    _run_test 4 "$ADDR_BS1" "$bs1"
+    _log_summary "test4" "RUN" ""
+}
+
+# ---------------------------------------------------------------------------
+# Test 5 : Ping-pong accel_A ↔ accel_B
+#   BS1_ADDR (0x81000000) ← partial_accel_B_accel1.bin  (RM_TARGET)
+#   BS2_ADDR (0x81300000) ← partial_accel_A_accel1.bin  (RM_INIT)
+# ---------------------------------------------------------------------------
+do_test5() {
+    log_step "Test 5 — Ping-pong accel_A ↔ accel_B"
+    local bs_b="$WORK_DPR/partial_${RM_TARGET}_accel1.bin"
+    local bs_a="$WORK_DPR/partial_${RM_INIT}_accel1.bin"
+    check_file "$bs_b"
+    check_file "$bs_a"
+    check_coherence
+
+    local sz_b=$(( $(stat -c%s "$bs_b") / 4 ))
+    local sz_a=$(( $(stat -c%s "$bs_a") / 4 ))
+    log_ok "accel_B (BS1) : $sz_b mots @ $ADDR_BS1"
+    log_ok "accel_A (BS2) : $sz_a mots @ $ADDR_BS2"
+
+    # Mettre à jour BS2_NWORDS dans dpr_test.c
+    local cur2
+    cur2=$(grep -oP '(?<=BS2_NWORDS )\d+' "$DPR_TEST_C" || echo 0)
+    if [[ "$cur2" != "$sz_a" ]]; then
+        sed -i "s/#define BS2_NWORDS [0-9]*UL/#define BS2_NWORDS ${sz_a}UL/" "$DPR_TEST_C"
+        log_ok "BS2_NWORDS : $cur2 → $sz_a"
+        FORCE_BAREMETAL=1
+    fi
+
+    _set_test_select 5
+    do_baremetal
+    _run_test 5 "$ADDR_BS1" "$bs_b" "$ADDR_BS2" "$bs_a"
+    _log_summary "test5" "RUN" ""
+}
+
+# ---------------------------------------------------------------------------
+# Ancienne cible 'test' — conservée pour compatibilité, alias test4
+# ---------------------------------------------------------------------------
+do_test() {
+    log_warn "'test' est un alias de 'test4'. Utiliser 'test1'..'test5' directement."
+    do_test4
 }
 
 # =============================================================================
@@ -680,6 +794,11 @@ case "$TARGET" in
     program)      do_program ;;
     openocd)      do_openocd ;;
     load)         do_load ;;
+    test1)        do_test1 ;;
+    test2)        do_test2 ;;
+    test3)        do_test3 ;;
+    test4)        do_test4 ;;
+    test5)        do_test5 ;;
     test)         do_test ;;
     logs)
         log_step "Historique des sessions"
@@ -688,9 +807,21 @@ case "$TARGET" in
     help)
         echo "Usage: $0 [TARGET] [OPTIONS]"
         echo ""
-        echo "Targets:"
-        echo "  test         Suite de validation matérielle HWICAP/ICAP/DPR"
-  echo "  all          dpr + baremetal + program + load (défaut)"
+        echo "Tests unitaires (valider dans l'ordre) :"
+        echo "  test1   Infrastructure HWICAP + registres ICAP (IDCODE, STAT, MASK)"
+        echo "  test2   IDCODE / MASK — validation complète avant DPR"
+        echo "  test3   Écriture chunk-by-chunk + détection abort ICAP"
+        echo "  test4   DPR complet accel1 (accel_A → accel_B)"
+        echo "  test5   Ping-pong accel_A ↔ accel_B"
+        echo ""
+        echo "Workflow de base :"
+        echo "  1. Dans un terminal dédié : ./3_build_B2.sh openocd"
+        echo "  2. Dans un autre terminal : ./3_build_B2.sh program"
+        echo "  3. ./3_build_B2.sh test1   # valider"
+        echo "  4. ./3_build_B2.sh test2   # etc."
+        echo ""
+        echo "Autres cibles :"
+        echo "  all          dpr + baremetal + program + load (défaut)"
         echo "  hwicap-ip    Régénère l'IP AXI HWICAP (Vivado batch)"
         echo "  dpr          Régénère l'IP HWICAP si besoin + bitstreams"
         echo "  baremetal    Compile le firmware baremetal"
@@ -700,9 +831,8 @@ case "$TARGET" in
         echo "  openocd      Lance OpenOCD"
         echo "  load         Charge via GDB"
         echo "  logs         Historique des sessions"
-        echo "  help         Affiche cette aide"
         echo ""
-        echo "Options:"
+        echo "Options :"
         echo "  --force            Force rebuild HWICAP IP + bitstreams + baremetal"
         echo "  --force-hwicap     Force rebuild IP HWICAP seulement"
         echo "  --force-static     Force rebuild checkpoint statique"
