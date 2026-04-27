@@ -138,10 +138,20 @@ Test3 : chunks 0-80 écrits OK (SR=0x05, ASR=0, ~153 cy/chunk). Hang au chunk 81
 **Cause root** : cellule `irpt_wrack_d1_i_1` (HWICAP AXI FSM) en SLICE_X54Y253 = CR Y5.
 DPR réinitialise HCLK CR Y5 → AXI freeze → CPU bloqué sur `mmio_r(HWICAP_SR)`.
 
-**Fix run_static.tcl (2026-04-27)** — rebuild FORCE_STATIC=1 en cours :
+**Fix run_static.tcl (2026-04-27)** :
 1. `per_slice=8` pour `r_data_ff_reg` → résout HDPR-29 (LOC hors pblock)
 2. `pblock_hwicap` soft `SLICE_X0Y0:SLICE_X167Y249` → force HWICAP IP hors CR Y5
 3. XDC exporté corrigé : `SLICE_X32Y250:SLICE_X47Y299` (cohérence static/partial)
+
+### ✅ Étape 6 — DPR accel_A → accel_B validé de bout en bout (2026-04-27)
+
+Test3 complet : bitstream accel_B écrit sur accel1 sans hang. Sanity check AXI :
+- accel2 (non reconfiguré) = `0xAAAAAA` → bus AXI sain, accel2 intact
+- accel1 après DPR = `0xBBBBBB` → accel_B actif, RP fonctionnel
+
+### ✅ Étape 7 — Ping-pong accel_A ↔ accel_B : 5/5 rounds OK (2026-04-27)
+
+test5 : 10 reconfigurations consécutives sans erreur. DPR bidirectionnel stable.
 
 ---
 

@@ -12,7 +12,7 @@
  */
 
 #ifndef TEST_SELECT
-#define TEST_SELECT 3
+#define TEST_SELECT 5
 #endif
 
 #include <stdint.h>
@@ -41,7 +41,7 @@
 
 /* Tailles en mots 32 bits — mises à jour par 3_build_B2.sh */
 #define BS1_NWORDS   57231UL
-#define BS2_NWORDS   95829UL
+#define BS2_NWORDS   57231UL
 
 #define GPIO_BASE       0x40000000ULL
 #define GPIO_DATA       (GPIO_BASE + 0x00)
@@ -150,6 +150,54 @@ static void desync(void) {
         0x20000000, 0x20000000,
     };
     send_raw(s, 8);
+}
+
+/* RCRC efface CRC_ERROR et CFGERR dans STAT (UG470 §5.3). */
+static void rcrc_desync(void) {
+    static const uint32_t s[] = {
+        0xFFFFFFFF, 0xFFFFFFFF,
+        0xAA995566, 0x20000000,
+        0x30008001, 0x00000007,   /* CMD RCRC */
+        0x20000000,
+        0x30008001, 0x0000000D,   /* CMD DESYNC */
+        0x20000000, 0x20000000,
+    };
+    send_raw(s, 11);
+}
+
+/*
+ * Écrit un bitstream .bin chunk par chunk depuis la DDR.
+ * Retourne le nombre d'anomalies SR/ASR, ou -1 si timeout.
+ * L'appelant doit activer/désactiver le découplage GPIO.
+ */
+static int dpr_write_bs(const uint32_t *bs, uint32_t nwords) {
+    const uint32_t nchunks = (nwords + 62) / 63;
+    int anomalies = 0;
+
+    fifo_reset();
+    uint32_t chunk0 = (nwords > 63) ? 63 : nwords;
+    int64_t dt = send_bin(bs, chunk0);
+    if (dt < 0) { printf("    [FAIL] timeout chunk 0\r\n"); return -1; }
+
+    for (uint32_t ci = 1; ci < nchunks; ci++) {
+        uint32_t i     = ci * 63;
+        uint32_t chunk = (nwords - i > 63) ? 63 : (nwords - i);
+        uint32_t sr    = mmio_r(HWICAP_SR);
+        uint32_t asr   = mmio_r(HWICAP_ASR);
+        fifo_reset();
+        dt = send_bin(bs + i, chunk);
+        if (dt < 0) {
+            printf("    [FAIL] timeout chunk %u  SR=0x%02x ASR=0x%08x\r\n",
+                   (unsigned)ci, (unsigned)sr, (unsigned)asr);
+            return -1;
+        }
+        if (sr != 0x05 || asr != 0) {
+            anomalies++;
+            printf("    [ABORT ci=%u] SR=0x%02x ASR=0x%08x\r\n",
+                   (unsigned)ci, (unsigned)sr, (unsigned)asr);
+        }
+    }
+    return anomalies;
 }
 
 /*
@@ -1099,12 +1147,124 @@ t4_end:
  *
  * Critere de succes : N iterations sans erreur
  * ========================================================================= */
+#define PINGPONG_ROUNDS 5
+
 static void test5(void) {
     printf("\r\n");
     printf("============================================================\r\n");
-    printf(" Test 5 : Ping-pong accel_A <-> accel_B\r\n");
+    printf(" Test 5 : Ping-pong accel_A <-> accel_B  (%d rounds)\r\n", PINGPONG_ROUNDS);
     printf("============================================================\r\n");
-    printf("  TODO : a implementer apres validation test4\r\n");
+
+    mmio_w(GPIO_TRI, 0x00000000u);
+
+    if (BS1_NWORDS == 0 || BS2_NWORDS == 0) {
+        printf("  BS1/BS2 non charges — lancer : ./3_build_B2.sh test5\r\n");
+        printf("============================================================\r\n");
+        return;
+    }
+
+    const uint32_t *bs_b = (const uint32_t *)BS1_ADDR;  /* A→B : partial_accel_B */
+    const uint32_t *bs_a = (const uint32_t *)BS2_ADDR;  /* B→A : partial_accel_A */
+
+    /* [5.1] Etat initial */
+    printf("\r\n[5.1] ID accel1 AVANT ping-pong\r\n");
+    uint32_t id_init = mmio_r(ACCEL1_BASE) & 0x00FFFFFFu;
+    printf("    accel1 ID = 0x%06x  %s\r\n", (unsigned)id_init,
+           id_init == 0xAAAAAA ? "[accel_A OK]" :
+           id_init == 0xBBBBBB ? "[accel_B — residue test4]" : "[inconnu]");
+
+    /* [5.2] RCRC+DESYNC : efface CFGERR/CRC_ERROR residuels du test precedent */
+    printf("\r\n[5.2] RCRC+DESYNC — nettoyage flags STAT\r\n");
+    rcrc_desync();
+    {
+        uint32_t stat = read_stat();
+        printf("    STAT = 0x%08x  CRC_ERROR=%d  CFGERR=%d  ID_ERROR=%d\r\n",
+               (unsigned)stat, (stat>>0)&1, (stat>>4)&1, (stat>>2)&1);
+        if ((stat >> 4) & 1)
+            printf("    [WARN] CFGERR persiste apres RCRC — continuer quand meme\r\n");
+    }
+
+    /* [5.3] MASK=0xF0000000 : ignore version IDCODE [31:28] */
+    printf("\r\n[5.3] Preamble MASK=0xF0000000\r\n");
+    set_idcode_mask();
+    uint32_t mask = read_mask();
+    printf("    MASK = 0x%08x  %s\r\n", (unsigned)mask,
+           mask == 0xF0000000 ? "[OK]" : "[FAIL preamble non applique]");
+    if (mask != 0xF0000000) {
+        printf("    [ABORT] MASK incorrect\r\n");
+        printf("============================================================\r\n");
+        return;
+    }
+
+    /* [5.4] Boucle ping-pong */
+    printf("\r\n[5.4] Boucle ping-pong (%d rounds × 2 DPR)\r\n", PINGPONG_ROUNDS);
+    int rounds_ok = 0;
+    for (int r = 0; r < PINGPONG_ROUNDS; r++) {
+        printf("\r\n  --- Round %d/%d ---\r\n", r + 1, PINGPONG_ROUNDS);
+
+        /* A → B */
+        printf("  [%d.a] A->B : %u mots, %u chunks\r\n",
+               r + 1, (unsigned)BS1_NWORDS, (unsigned)((BS1_NWORDS + 62) / 63));
+        mmio_w(GPIO_DATA, mmio_r(GPIO_DATA) | DECOUPLE_ACCEL1);
+        print_hwicap("    avant A->B :");
+        int anom = dpr_write_bs(bs_b, BS1_NWORDS);
+        mmio_w(GPIO_DATA, mmio_r(GPIO_DATA) & ~DECOUPLE_ACCEL1);
+        if (anom < 0) {
+            printf("  [FAIL] timeout A->B round %d\r\n", r + 1);
+            break;
+        }
+        for (volatile int i = 0; i < 200000; i++);
+        uint32_t id_b = mmio_r(ACCEL1_BASE) & 0x00FFFFFFu;
+        printf("  ID = 0x%06x  %s  anomalies=%d\r\n",
+               (unsigned)id_b, id_b == 0xBBBBBB ? "[OK accel_B]" : "[FAIL]", anom);
+        if (id_b != 0xBBBBBB) {
+            printf("  [ABORT] A->B echoue round %d\r\n", r + 1);
+            break;
+        }
+
+        /* B → A */
+        printf("  [%d.b] B->A : %u mots, %u chunks\r\n",
+               r + 1, (unsigned)BS2_NWORDS, (unsigned)((BS2_NWORDS + 62) / 63));
+        mmio_w(GPIO_DATA, mmio_r(GPIO_DATA) | DECOUPLE_ACCEL1);
+        print_hwicap("    avant B->A :");
+        anom = dpr_write_bs(bs_a, BS2_NWORDS);
+        mmio_w(GPIO_DATA, mmio_r(GPIO_DATA) & ~DECOUPLE_ACCEL1);
+        if (anom < 0) {
+            printf("  [FAIL] timeout B->A round %d\r\n", r + 1);
+            break;
+        }
+        for (volatile int i = 0; i < 200000; i++);
+        uint32_t id_a = mmio_r(ACCEL1_BASE) & 0x00FFFFFFu;
+        printf("  ID = 0x%06x  %s  anomalies=%d\r\n",
+               (unsigned)id_a, id_a == 0xAAAAAA ? "[OK accel_A]" : "[FAIL]", anom);
+        if (id_a != 0xAAAAAA) {
+            printf("  [ABORT] B->A echoue round %d\r\n", r + 1);
+            break;
+        }
+
+        rounds_ok++;
+        printf("  Round %d/%d OK\r\n", r + 1, PINGPONG_ROUNDS);
+    }
+
+    /* [5.5] STAT final */
+    printf("\r\n[5.5] STAT final\r\n");
+    {
+        uint32_t stat = read_stat();
+        printf("    STAT = 0x%08x  CRC_ERROR=%d  CFGERR=%d  ID_ERROR=%d"
+               "  EOS=%d  DONE=%d\r\n",
+               (unsigned)stat,
+               (stat >> 0) & 1, (stat >> 4) & 1, (stat >> 2) & 1,
+               (stat >> 12) & 1, (stat >> 14) & 1);
+    }
+
+    printf("\r\n============================================================\r\n");
+    if (rounds_ok == PINGPONG_ROUNDS) {
+        printf(" *** [SUCCES] Ping-pong : %d/%d rounds OK ***\r\n",
+               rounds_ok, PINGPONG_ROUNDS);
+    } else {
+        printf(" [FAIL] Ping-pong : %d/%d rounds OK\r\n",
+               rounds_ok, PINGPONG_ROUNDS);
+    }
     printf("============================================================\r\n");
 }
 

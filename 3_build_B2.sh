@@ -743,9 +743,9 @@ do_test5() {
 
     # Mettre à jour BS2_NWORDS dans dpr_test.c
     local cur2
-    cur2=$(grep -oP '(?<=BS2_NWORDS )\d+' "$DPR_TEST_C" || echo 0)
+    cur2=$(grep -oP '(?<=BS2_NWORDS\s{3})\d+' "$DPR_TEST_C" || echo 0)
     if [[ "$cur2" != "$sz_a" ]]; then
-        sed -i "s/#define BS2_NWORDS [0-9]*UL/#define BS2_NWORDS ${sz_a}UL/" "$DPR_TEST_C"
+        sed -i "s/#define BS2_NWORDS   [0-9]*UL/#define BS2_NWORDS   ${sz_a}UL/" "$DPR_TEST_C"
         log_ok "BS2_NWORDS : $cur2 → $sz_a"
         FORCE_BAREMETAL=1
     fi
