@@ -7,12 +7,14 @@
  *   test3 : Écriture chunk-by-chunk + détection abort ICAP
  *   test4 : DPR complet accel1 (accel_A → accel_B)
  *   test5 : Ping-pong accel_A ↔ accel_B
+ *   test6 : DPR complet accel2 (accel_A → accel_B)
+ *   test7 : Ping-pong accel2 accel_A ↔ accel_B
  *
  * Constantes BS_*_NWORDS mises à jour automatiquement par 3_build_B2.sh.
  */
 
 #ifndef TEST_SELECT
-#define TEST_SELECT 5
+#define TEST_SELECT 7
 #endif
 
 #include <stdint.h>
@@ -36,12 +38,14 @@
 #define ACCEL2_BASE  0x50001000ULL
 
 /* Adresses DDR des bitstreams (chargés par GDB restore) */
-#define BS1_ADDR     0x81000000ULL   /* partiel accel1 — RM_TARGET */
-#define BS2_ADDR     0x81300000ULL   /* partiel accel1 — RM_INIT (ping-pong) */
+#define BS1_ADDR     0x81000000ULL   /* test4/5 : partiel accel1 RM_TARGET/RM_INIT */
+#define BS2_ADDR     0x81300000ULL   /* test6/7 : partiel accel2 RM_TARGET */
+#define BS3_ADDR     0x81600000ULL   /* test7   : partiel accel2 RM_INIT (ping-pong) */
 
 /* Tailles en mots 32 bits — mises à jour par 3_build_B2.sh */
 #define BS1_NWORDS   57231UL
-#define BS2_NWORDS   57231UL
+#define BS2_NWORDS   95829UL
+#define BS3_NWORDS   95829UL
 
 #define GPIO_BASE       0x40000000ULL
 #define GPIO_DATA       (GPIO_BASE + 0x00)
@@ -1138,8 +1142,8 @@ t4_end:
  *
  * Prerequis : Test 4 passe (DPR accel1 fonctionne)
  *
- * BS1_ADDR (0x81000000) = partial_accel_B_accel1.bin
- * BS2_ADDR (0x81300000) = partial_accel_A_accel1.bin
+ * BS1_ADDR (0x81000000) = partial_accel_B_accel1.bin  (RM_TARGET)
+ * BS2_ADDR (0x81300000) = partial_accel_A_accel1.bin  (RM_INIT, ping-pong)
  *
  * Boucle N fois :
  *   - Charge accel_B → verifie ID=0xBBBBBB
@@ -1269,6 +1273,248 @@ static void test5(void) {
 }
 
 /* =========================================================================
+ * Test 6 — DPR complet accel2 (accel_A → accel_B)
+ *
+ * Prerequis : Test 4 passe (DPR accel1 fonctionne)
+ *
+ * BS2_ADDR (0x81300000) = partial_accel_B_accel2.bin  (RM_TARGET)
+ *
+ * Valide :
+ *   6.1 ID accel2 avant DPR = 0xAAAAAA (accel_A)
+ *   6.2 STAT + MASK avant DPR
+ *   6.3 RCRC+DESYNC — nettoyage flags residuels
+ *   6.4 Preamble MASK=0xF0000000
+ *   6.5 Ecriture bitstream partiel accel_B (BS2_ADDR, BS2_NWORDS mots)
+ *   6.6 STAT apres DPR
+ *   6.7 ID accel2 apres DPR = 0xBBBBBB (accel_B)
+ *   6.8 Sante bus AXI : accel1 inchange
+ *
+ * Critere de succes : ID accel2 = 0xBBBBBB, accel1 inchange
+ * ========================================================================= */
+static void test6(void) {
+    printf("\r\n");
+    printf("============================================================\r\n");
+    printf(" Test 6 : DPR complet accel2 (accel_A -> accel_B)\r\n");
+    printf("============================================================\r\n");
+
+    mmio_w(GPIO_TRI, 0x00000000u);
+
+    if (BS2_NWORDS == 0) {
+        printf("  BS2_NWORDS == 0 — lancer : ./3_build_B2.sh test6\r\n");
+        printf("============================================================\r\n");
+        return;
+    }
+
+    const uint32_t *bs = (const uint32_t *)BS2_ADDR;
+    const uint32_t nchunks = (BS2_NWORDS + 62) / 63;
+
+    printf("\r\n[6.1] ID accel2 AVANT DPR\r\n");
+    uint32_t id2_before = mmio_r(ACCEL2_BASE) & 0x00FFFFFFu;
+    uint32_t id1_ref    = mmio_r(ACCEL1_BASE) & 0x00FFFFFFu;
+    printf("    accel2 ID = 0x%06x  %s\r\n", (unsigned)id2_before,
+           id2_before == 0xAAAAAA ? "[accel_A OK]" :
+           id2_before == 0xBBBBBB ? "[accel_B — deja reconfigure ?]" : "[inconnu]");
+    printf("    accel1 ID = 0x%06x  (reference — ne doit pas changer)\r\n",
+           (unsigned)id1_ref);
+
+    printf("\r\n[6.2] STAT + MASK avant DPR\r\n");
+    uint32_t stat_pre = read_stat();
+    uint32_t mask_pre = read_mask();
+    print_hwicap("avant DPR :");
+    print_stat_decode(stat_pre);
+    printf("    MASK = 0x%08x\r\n", (unsigned)mask_pre);
+
+    printf("\r\n[6.3] RCRC+DESYNC — nettoyage flags STAT\r\n");
+    rcrc_desync();
+    {
+        uint32_t stat = read_stat();
+        printf("    STAT = 0x%08x  CRC_ERROR=%d  CFGERR=%d  ID_ERROR=%d\r\n",
+               (unsigned)stat, (stat>>0)&1, (stat>>4)&1, (stat>>2)&1);
+    }
+
+    printf("\r\n[6.4] Preamble MASK=0xF0000000\r\n");
+    set_idcode_mask();
+    uint32_t mask_set = read_mask();
+    printf("    MASK apres preamble = 0x%08x  %s\r\n",
+           (unsigned)mask_set,
+           mask_set == 0xF0000000 ? "[OK]" : "[FAIL preamble non applique]");
+    if (mask_set != 0xF0000000) {
+        printf("    [ABORT] MASK incorrect\r\n");
+        printf("============================================================\r\n");
+        return;
+    }
+
+    printf("\r\n[6.5] Ecriture bitstream partiel — %u mots, %u chunks\r\n",
+           (unsigned)BS2_NWORDS, (unsigned)nchunks);
+    mmio_w(GPIO_DATA, mmio_r(GPIO_DATA) | DECOUPLE_ACCEL2);
+    printf("    [DPR] decouplage accel2 actif (GPIO=0x%08x)\r\n",
+           (unsigned)mmio_r(GPIO_DATA));
+    print_hwicap("avant chunk 0 :");
+    int anom = dpr_write_bs(bs, BS2_NWORDS);
+    mmio_w(GPIO_DATA, mmio_r(GPIO_DATA) & ~DECOUPLE_ACCEL2);
+    if (anom >= 0)
+        printf("    [OK] ecriture terminee  anomalies=%d\r\n", anom);
+    print_hwicap("apres DPR :");
+
+    printf("\r\n[6.6] STAT apres DPR\r\n");
+    {
+        for (volatile int i = 0; i < 200000; i++);
+        uint32_t stat_post = read_stat();
+        print_stat_decode(stat_post);
+        printf("    delta STAT = 0x%08x\r\n", (unsigned)(stat_post ^ stat_pre));
+    }
+
+    printf("\r\n[6.7] ID accel2 APRES DPR\r\n");
+    {
+        for (volatile int i = 0; i < 200000; i++);
+        uint32_t id2_after = mmio_r(ACCEL2_BASE) & 0x00FFFFFFu;
+        printf("    avant = 0x%06x\r\n", (unsigned)id2_before);
+        printf("    apres = 0x%06x\r\n", (unsigned)id2_after);
+
+        printf("\r\n[6.8] Sante bus AXI — accel1 inchange\r\n");
+        uint32_t id1_after = mmio_r(ACCEL1_BASE) & 0x00FFFFFFu;
+        printf("    accel1 avant = 0x%06x\r\n", (unsigned)id1_ref);
+        printf("    accel1 apres = 0x%06x  %s\r\n", (unsigned)id1_after,
+               id1_after == id1_ref ? "[OK inchange]" : "[WARN modifie !]");
+
+        printf("\r\n============================================================\r\n");
+        if (anom >= 0 && id2_after == 0xBBBBBB && id1_after == id1_ref) {
+            printf(" *** [SUCCES] DPR accel2 : accel_A -> accel_B ***\r\n");
+        } else if (anom < 0) {
+            printf(" [FAIL] Timeout ecriture bitstream\r\n");
+        } else if (id2_after != 0xBBBBBB) {
+            printf(" [FAIL] ID accel2 = 0x%06x (attendu 0xBBBBBB)\r\n",
+                   (unsigned)id2_after);
+            printf("    -> Verifier CFGERR / ID_ERROR dans [6.6]\r\n");
+        } else {
+            printf(" [WARN] accel1 modifie : 0x%06x -> 0x%06x\r\n",
+                   (unsigned)id1_ref, (unsigned)id1_after);
+        }
+        printf("============================================================\r\n");
+    }
+}
+
+/* =========================================================================
+ * Test 7 — Ping-pong accel2 accel_A ↔ accel_B
+ *
+ * Prerequis : Test 6 passe (DPR accel2 fonctionne)
+ *
+ * BS2_ADDR (0x81300000) = partial_accel_B_accel2.bin  (A→B)
+ * BS3_ADDR (0x81600000) = partial_accel_A_accel2.bin  (B→A)
+ *
+ * Critere de succes : N iterations sans erreur, accel1 inchange
+ * ========================================================================= */
+#define PINGPONG2_ROUNDS 5
+
+static void test7(void) {
+    printf("\r\n");
+    printf("============================================================\r\n");
+    printf(" Test 7 : Ping-pong accel2  (%d rounds)\r\n", PINGPONG2_ROUNDS);
+    printf("============================================================\r\n");
+
+    mmio_w(GPIO_TRI, 0x00000000u);
+
+    if (BS2_NWORDS == 0 || BS3_NWORDS == 0) {
+        printf("  BS2/BS3 non charges — lancer : ./3_build_B2.sh test7\r\n");
+        printf("============================================================\r\n");
+        return;
+    }
+
+    const uint32_t *bs_b = (const uint32_t *)BS2_ADDR;   /* A→B */
+    const uint32_t *bs_a = (const uint32_t *)BS3_ADDR;   /* B→A */
+
+    /* [7.1] Etat initial */
+    printf("\r\n[7.1] ID avant ping-pong\r\n");
+    uint32_t id2_init = mmio_r(ACCEL2_BASE) & 0x00FFFFFFu;
+    uint32_t id1_ref  = mmio_r(ACCEL1_BASE) & 0x00FFFFFFu;
+    printf("    accel2 ID = 0x%06x  %s\r\n", (unsigned)id2_init,
+           id2_init == 0xAAAAAA ? "[accel_A OK]" :
+           id2_init == 0xBBBBBB ? "[accel_B — residue test6]" : "[inconnu]");
+    printf("    accel1 ID = 0x%06x  (reference)\r\n", (unsigned)id1_ref);
+
+    /* [7.2] Nettoyage */
+    printf("\r\n[7.2] RCRC+DESYNC — nettoyage flags STAT\r\n");
+    rcrc_desync();
+    {
+        uint32_t stat = read_stat();
+        printf("    STAT = 0x%08x  CRC_ERROR=%d  CFGERR=%d  ID_ERROR=%d\r\n",
+               (unsigned)stat, (stat>>0)&1, (stat>>4)&1, (stat>>2)&1);
+    }
+
+    /* [7.3] MASK */
+    printf("\r\n[7.3] Preamble MASK=0xF0000000\r\n");
+    set_idcode_mask();
+    uint32_t mask = read_mask();
+    printf("    MASK = 0x%08x  %s\r\n", (unsigned)mask,
+           mask == 0xF0000000 ? "[OK]" : "[FAIL preamble]");
+    if (mask != 0xF0000000) {
+        printf("    [ABORT] MASK incorrect\r\n");
+        printf("============================================================\r\n");
+        return;
+    }
+
+    /* [7.4] Boucle ping-pong */
+    printf("\r\n[7.4] Boucle ping-pong (%d rounds x 2 DPR)\r\n", PINGPONG2_ROUNDS);
+    int rounds_ok = 0;
+    for (int r = 0; r < PINGPONG2_ROUNDS; r++) {
+        printf("\r\n  --- Round %d/%d ---\r\n", r + 1, PINGPONG2_ROUNDS);
+
+        /* A → B */
+        printf("  [%d.a] A->B : %u mots, %u chunks\r\n",
+               r + 1, (unsigned)BS2_NWORDS, (unsigned)((BS2_NWORDS + 62) / 63));
+        mmio_w(GPIO_DATA, mmio_r(GPIO_DATA) | DECOUPLE_ACCEL2);
+        print_hwicap("    avant A->B :");
+        int anom = dpr_write_bs(bs_b, BS2_NWORDS);
+        mmio_w(GPIO_DATA, mmio_r(GPIO_DATA) & ~DECOUPLE_ACCEL2);
+        if (anom < 0) { printf("  [FAIL] timeout A->B round %d\r\n", r + 1); break; }
+        for (volatile int i = 0; i < 200000; i++);
+        uint32_t id_b = mmio_r(ACCEL2_BASE) & 0x00FFFFFFu;
+        printf("  ID accel2 = 0x%06x  %s  anomalies=%d\r\n",
+               (unsigned)id_b, id_b == 0xBBBBBB ? "[OK accel_B]" : "[FAIL]", anom);
+        if (id_b != 0xBBBBBB) { printf("  [ABORT] A->B echoue round %d\r\n", r + 1); break; }
+
+        /* B → A */
+        printf("  [%d.b] B->A : %u mots, %u chunks\r\n",
+               r + 1, (unsigned)BS3_NWORDS, (unsigned)((BS3_NWORDS + 62) / 63));
+        mmio_w(GPIO_DATA, mmio_r(GPIO_DATA) | DECOUPLE_ACCEL2);
+        print_hwicap("    avant B->A :");
+        anom = dpr_write_bs(bs_a, BS3_NWORDS);
+        mmio_w(GPIO_DATA, mmio_r(GPIO_DATA) & ~DECOUPLE_ACCEL2);
+        if (anom < 0) { printf("  [FAIL] timeout B->A round %d\r\n", r + 1); break; }
+        for (volatile int i = 0; i < 200000; i++);
+        uint32_t id_a = mmio_r(ACCEL2_BASE) & 0x00FFFFFFu;
+        printf("  ID accel2 = 0x%06x  %s  anomalies=%d\r\n",
+               (unsigned)id_a, id_a == 0xAAAAAA ? "[OK accel_A]" : "[FAIL]", anom);
+        if (id_a != 0xAAAAAA) { printf("  [ABORT] B->A echoue round %d\r\n", r + 1); break; }
+
+        rounds_ok++;
+        printf("  Round %d/%d OK\r\n", r + 1, PINGPONG2_ROUNDS);
+    }
+
+    /* [7.5] Sante accel1 + STAT final */
+    printf("\r\n[7.5] Sante bus AXI — accel1 inchange\r\n");
+    {
+        uint32_t id1_after = mmio_r(ACCEL1_BASE) & 0x00FFFFFFu;
+        printf("    accel1 ref   = 0x%06x\r\n", (unsigned)id1_ref);
+        printf("    accel1 apres = 0x%06x  %s\r\n", (unsigned)id1_after,
+               id1_after == id1_ref ? "[OK inchange]" : "[WARN modifie !]");
+        uint32_t stat = read_stat();
+        printf("    STAT = 0x%08x  CFGERR=%d  ID_ERROR=%d  EOS=%d  DONE=%d\r\n",
+               (unsigned)stat,
+               (stat>>4)&1, (stat>>2)&1, (stat>>12)&1, (stat>>14)&1);
+    }
+
+    printf("\r\n============================================================\r\n");
+    if (rounds_ok == PINGPONG2_ROUNDS)
+        printf(" *** [SUCCES] Ping-pong accel2 : %d/%d rounds OK ***\r\n",
+               rounds_ok, PINGPONG2_ROUNDS);
+    else
+        printf(" [FAIL] Ping-pong accel2 : %d/%d rounds OK\r\n",
+               rounds_ok, PINGPONG2_ROUNDS);
+    printf("============================================================\r\n");
+}
+
+/* =========================================================================
  * Point d'entrée — dispatch par TEST_SELECT
  * ========================================================================= */
 
@@ -1283,6 +1529,10 @@ void dpr_test(void) {
     test4();
 #elif TEST_SELECT == 5
     test5();
+#elif TEST_SELECT == 6
+    test6();
+#elif TEST_SELECT == 7
+    test7();
 #else
     test1();
 #endif

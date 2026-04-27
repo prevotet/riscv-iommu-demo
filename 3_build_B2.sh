@@ -40,6 +40,7 @@ HWICAP_IP_DIR="$ROOT_DIR/cva6/corev_apu/fpga/xilinx/xlnx_axi_hwicap"
 ADDR_BAREMETAL="0x90000000"
 ADDR_BS1="0x81000000"
 ADDR_BS2="0x81300000"
+ADDR_BS3="0x81600000"
 
 # =============================================================================
 # Logging
@@ -757,6 +758,67 @@ do_test5() {
 }
 
 # ---------------------------------------------------------------------------
+# Test 6 : DPR complet accel2 (accel_A → accel_B)
+#   BS2_ADDR (0x81300000) ← partial_accel_B_accel2.bin  (RM_TARGET)
+#
+# do_update_bs_constants remet BS2_NWORDS à la taille accel2 si test5 l'a
+# écrasé avec la taille du bitstream ping-pong accel1.
+# ---------------------------------------------------------------------------
+do_test6() {
+    log_step "Test 6 — DPR complet accel2 (accel_A → accel_B)"
+    local bs2="$WORK_DPR/partial_${RM_TARGET}_accel2.bin"
+    check_file "$bs2"
+    check_coherence
+    do_update_bs_constants   # remet BS2_NWORDS = taille accel2
+    _set_test_select 6
+    do_baremetal
+    _run_test 6 "$ADDR_BS2" "$bs2"
+    _log_summary "test6" "RUN" ""
+}
+
+# ---------------------------------------------------------------------------
+# Test 7 : Ping-pong accel2 accel_A ↔ accel_B
+#   BS2_ADDR (0x81300000) ← partial_accel_B_accel2.bin  (RM_TARGET, A→B)
+#   BS3_ADDR (0x81600000) ← partial_accel_A_accel2.bin  (RM_INIT,   B→A)
+# ---------------------------------------------------------------------------
+do_test7() {
+    log_step "Test 7 — Ping-pong accel2 accel_A ↔ accel_B"
+    local bs_b="$WORK_DPR/partial_${RM_TARGET}_accel2.bin"
+    local bs_a="$WORK_DPR/partial_${RM_INIT}_accel2.bin"
+    check_file "$bs_b"
+    check_file "$bs_a"
+    check_coherence
+
+    local sz_b=$(( $(stat -c%s "$bs_b") / 4 ))
+    local sz_a=$(( $(stat -c%s "$bs_a") / 4 ))
+    log_ok "accel_B (BS2) : $sz_b mots @ $ADDR_BS2"
+    log_ok "accel_A (BS3) : $sz_a mots @ $ADDR_BS3"
+
+    # BS2_NWORDS = accel2 RM_TARGET (reset depuis test5 si nécessaire)
+    local cur2
+    cur2=$(grep -oP '(?<=BS2_NWORDS\s{3})\d+' "$DPR_TEST_C" || echo 0)
+    if [[ "$cur2" != "$sz_b" ]]; then
+        sed -i "s/#define BS2_NWORDS   [0-9]*UL/#define BS2_NWORDS   ${sz_b}UL/" "$DPR_TEST_C"
+        log_ok "BS2_NWORDS : $cur2 → $sz_b"
+        FORCE_BAREMETAL=1
+    fi
+
+    # BS3_NWORDS = accel2 RM_INIT
+    local cur3
+    cur3=$(grep -oP '(?<=BS3_NWORDS\s{3})\d+' "$DPR_TEST_C" || echo 0)
+    if [[ "$cur3" != "$sz_a" ]]; then
+        sed -i "s/#define BS3_NWORDS   [0-9]*UL/#define BS3_NWORDS   ${sz_a}UL/" "$DPR_TEST_C"
+        log_ok "BS3_NWORDS : $cur3 → $sz_a"
+        FORCE_BAREMETAL=1
+    fi
+
+    _set_test_select 7
+    do_baremetal
+    _run_test 7 "$ADDR_BS2" "$bs_b" "$ADDR_BS3" "$bs_a"
+    _log_summary "test7" "RUN" ""
+}
+
+# ---------------------------------------------------------------------------
 # Ancienne cible 'test' — conservée pour compatibilité, alias test4
 # ---------------------------------------------------------------------------
 do_test() {
@@ -799,6 +861,8 @@ case "$TARGET" in
     test3)        do_test3 ;;
     test4)        do_test4 ;;
     test5)        do_test5 ;;
+    test6)        do_test6 ;;
+    test7)        do_test7 ;;
     test)         do_test ;;
     logs)
         log_step "Historique des sessions"
@@ -812,7 +876,9 @@ case "$TARGET" in
         echo "  test2   IDCODE / MASK — validation complète avant DPR"
         echo "  test3   Écriture chunk-by-chunk + détection abort ICAP"
         echo "  test4   DPR complet accel1 (accel_A → accel_B)"
-        echo "  test5   Ping-pong accel_A ↔ accel_B"
+        echo "  test5   Ping-pong accel_A ↔ accel_B
+  test6   DPR complet accel2 (accel_A → accel_B)
+  test7   Ping-pong accel2 accel_A ↔ accel_B"
         echo ""
         echo "Workflow de base :"
         echo "  1. Dans un terminal dédié : ./3_build_B2.sh openocd"

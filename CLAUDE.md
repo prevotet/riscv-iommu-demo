@@ -153,6 +153,11 @@ Test3 complet : bitstream accel_B écrit sur accel1 sans hang. Sanity check AXI 
 
 test5 : 10 reconfigurations consécutives sans erreur. DPR bidirectionnel stable.
 
+### ✅ Étape 8 — DPR accel2 : accel_A → accel_B OK (2026-04-27)
+
+test6 : accel2 0xAAAAAA → 0xBBBBBB, 0 anomalie sur 1522 chunks. accel1 inchangé (bus AXI sain).
+Flags post-DPR (CFGERR=1, ID_ERROR=1, delta=0xa9ef8227) = comportement 7-series normal après PR.
+
 ---
 
 ## Points techniques importants
