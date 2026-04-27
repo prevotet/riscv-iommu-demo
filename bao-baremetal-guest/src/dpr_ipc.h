@@ -71,8 +71,8 @@ typedef struct {
 #define DPR_IPC_BASE_VA  0xF0000000ULL
 
 /* ---- Tailles des bitstreams (en mots 32 bits) — à vérifier avec ls -la *.bin / 4 */
-#define DPR_BS_ACCEL1_WORDS  534818u    /* partial_accel_{A,B}_accel1.bin */
-#define DPR_BS_ACCEL2_WORDS  1030202u   /* partial_accel_{A,B}_accel2.bin */
+#define DPR_BS_ACCEL1_WORDS  57231u    /* partial_accel_{A,B}_accel1.bin */
+#define DPR_BS_ACCEL2_WORDS  95829u   /* partial_accel_{A,B}_accel2.bin */
 
 /* ---- Adresses DDR des bitstreams (4 slots, ping-pong A↔B) ------------ */
 /*

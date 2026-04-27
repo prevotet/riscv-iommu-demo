@@ -158,6 +158,10 @@ test5 : 10 reconfigurations consécutives sans erreur. DPR bidirectionnel stable
 test6 : accel2 0xAAAAAA → 0xBBBBBB, 0 anomalie sur 1522 chunks. accel1 inchangé (bus AXI sain).
 Flags post-DPR (CFGERR=1, ID_ERROR=1, delta=0xa9ef8227) = comportement 7-series normal après PR.
 
+### ✅ Étape 9 — Ping-pong accel2 : 5/5 rounds OK (2026-04-27)
+
+test7 : 10 reconfigs accel2 sans erreur. accel1 inchangé. Les deux RPs validées indépendamment.
+
 ---
 
 ## Points techniques importants

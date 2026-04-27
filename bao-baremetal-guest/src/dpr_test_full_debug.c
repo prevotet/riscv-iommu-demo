@@ -30,13 +30,21 @@
 #define HWICAP_WFV_MAX     0x3Fu
 #define HWICAP_TIMEOUT     10000000
 
-#define DPR_BS_ACCEL1_A_PA 0x81000000ULL
-#define DPR_BS_ACCEL1_B_PA 0x81300000ULL
-#define DPR_BS_ACCEL2_A_PA 0x81600000ULL
-#define DPR_BS_ACCEL2_B_PA 0x81B00000ULL
+/* GPIO DECOUPLE */
+#define GPIO_BASE       0x40000000ULL
+#define GPIO_DATA       (GPIO_BASE + 0x00)
+#define GPIO_TRI        (GPIO_BASE + 0x04)
+#define DECOUPLE_ACCEL1 (1u << 31)
+#define DECOUPLE_ACCEL2 (1u << 30)
 
-#define DPR_BS_ACCEL1_WORDS (3*1024*1024/4) // 3 Mo / 4 = mots
-#define DPR_BS_ACCEL2_WORDS (5*1024*1024/4) // 5 Mo / 4 = mots
+/* Adresses et tailles depuis dpr_ipc.h */
+
+static inline uint32_t bswap32(uint32_t x) {
+    return ((x & 0xFF000000u) >> 24)
+         | ((x & 0x00FF0000u) >>  8)
+         | ((x & 0x0000FF00u) <<  8)
+         | ((x & 0x000000FFu) << 24);
+}
 
 /* =========================================================================
  * Bases AXI des accélérateurs
@@ -98,7 +106,17 @@ static void hwicap_diag(void) {
     mmio_write32(HWICAP_SZ, sz_orig);
     printf("[HWICAP] SZ write 0xAA -> readback 0x%08x (%s)\r\n",
            (unsigned int)sz_rb,
-           (sz_rb & 0xFFF) == 0xAA ? "OK" : "FAIL");
+           (sz_rb & 0xFFF) == 0xAA ? "OK" : "FAIL - shift probable");
+
+    const char *names[] = {"WF ", "RF ", "SZ ", "CR ", "SR ", "WFV", "RFO"};
+    for (int i = 0; i < 7; i++) {
+        uint64_t addr = HWICAP_BASE + 0x100 + i * 4;
+        printf("[HWICAP] [0x%03x] %s = 0x%08x\r\n",
+               (unsigned int)(addr - HWICAP_BASE),
+               names[i],
+               (unsigned int)mmio_read32(addr));
+    }
+    printf("[HWICAP] === FIN DIAG ===\r\n");
 }
 
 /* =========================================================================
@@ -114,17 +132,14 @@ static void hwicap_fifo_reset(void) {
     printf("[HWICAP] FIFO reset : WFV=0x%02x\n", (unsigned int)mmio_read32(HWICAP_WFV));
 }
 
-static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
+static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words, uint32_t decouple_mask) {
+    mmio_write32(GPIO_TRI,  0x00000000u);
+    mmio_write32(GPIO_DATA, mmio_read32(GPIO_DATA) | decouple_mask);
+
     hwicap_fifo_reset();
     print_status("debut write_bitstream");
 
     uint32_t written = 0;
-    printf("[DEBUG] First words of bitstream:\n");
-    for (int i = 0; i < 8; i++) {
-    printf("0x%08x\n", data[i]);
-    }
-    
-    
     while (written < size_words) {
         uint32_t chunk = size_words - written;
         if (chunk > HWICAP_WFV_MAX) chunk = HWICAP_WFV_MAX;
@@ -147,21 +162,15 @@ static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
             if (to_write > vacancy) to_write = vacancy;
 
             for (uint32_t i=0;i<to_write;i++)
-                mmio_write32(HWICAP_WF, data[written+sent+i]);
+                mmio_write32(HWICAP_WF, bswap32(data[written+sent+i]));
 
             sent += to_write;
-
-            // debug par chunk
-            printf("[HWICAP DEBUG] Chunk sent=%u/%u, WFV=%u, SR=0x%08x\n",
-                   sent, chunk,
-                   (unsigned int)mmio_read32(HWICAP_WFV),
-                   (unsigned int)mmio_read32(HWICAP_SR));
         }
 
         mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
 
         int timeout = HWICAP_TIMEOUT;
-        while (((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) || (mmio_read32(HWICAP_SR) & 0x1)) && timeout-- > 0) {
+        while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && timeout-- > 0) {
             asm volatile("nop");
         }
         if (timeout <= 0) {
@@ -172,6 +181,8 @@ static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words) {
 
         written += chunk;
     }
+
+    mmio_write32(GPIO_DATA, mmio_read32(GPIO_DATA) & ~decouple_mask);
 
     print_status("fin write_bitstream");
     printf("[HWICAP DEBUG] Finished write_bitstream (%u words written)\n", (unsigned int)size_words);
@@ -190,27 +201,46 @@ static void hwicap_read_idcode(void) {
         0xFFFFFFFF, 0xFFFFFFFF,
         0xAA995566,
         0x20000000, 0x20000000,
-        0x28012001,
+        0x28018001,              // Type 1 Read IDCODE (reg 12), 1 word
         0x20000000, 0x20000000,
         0x20000000, 0x20000000,
     };
     uint32_t n = sizeof(seq)/sizeof(seq[0]);
     mmio_write32(HWICAP_SZ, n);
+    print_status("avant sequence IDCODE");
     for (uint32_t i=0;i<n;i++)
         mmio_write32(HWICAP_WF, seq[i]);
     mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
 
     int t = HWICAP_TIMEOUT;
     while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && t-- > 0);
+    print_status("apres write IDCODE");
     for (volatile int i=0;i<100000;i++);
     mmio_write32(HWICAP_SZ, 1);
     mmio_write32(HWICAP_CR, HWICAP_CR_READ);
     t = HWICAP_TIMEOUT;
     while ((mmio_read32(HWICAP_CR) & HWICAP_CR_READ) && t-- > 0);
+    print_status("apres read IDCODE");
     uint32_t idcode = mmio_read32(HWICAP_RF);
-    printf("[HWICAP] IDCODE = 0x%08x (attendu 0x03647093) -> %s\n",
+    printf("[HWICAP] IDCODE = 0x%08x (attendu 0x43651093) -> %s\n",
            (unsigned int)idcode,
-           idcode==0x03647093 ? "OK":"FAIL");
+           idcode==0x43651093 ? "OK":"FAIL");
+
+    // DESYNC : remet l'ICAP en IDLE avant toute écriture de bitstream
+    static const uint32_t desync_seq[] = {
+        0x20000000,
+        0x30008001, 0x0000000D,  // CMD = DESYNC
+        0x20000000, 0x20000000,
+    };
+    uint32_t nd = sizeof(desync_seq)/sizeof(desync_seq[0]);
+    hwicap_fifo_reset();
+    mmio_write32(HWICAP_SZ, nd);
+    for (uint32_t i=0;i<nd;i++)
+        mmio_write32(HWICAP_WF, desync_seq[i]);
+    mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
+    t = HWICAP_TIMEOUT;
+    while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && t-- > 0);
+    print_status("apres desync");
 }
 
 /* =========================================================================
@@ -256,15 +286,13 @@ void run_demo(void) {
 
 
         printf("[ROUND %d] Accel1...\n", round);
-        if (hwicap_write_bitstream(bs1, DPR_BS_ACCEL1_WORDS) != 0) {
+        if (hwicap_write_bitstream(bs1, DPR_BS_ACCEL1_WORDS, DECOUPLE_ACCEL1) != 0) {
             printf("[ROUND %d] ERREUR accel1 — abandon\n", round);
             return;
         }
 
-
-
         printf("[ROUND %d] Accel2...\n", round);
-        if (hwicap_write_bitstream(bs2, DPR_BS_ACCEL2_WORDS) != 0) {
+        if (hwicap_write_bitstream(bs2, DPR_BS_ACCEL2_WORDS, DECOUPLE_ACCEL2) != 0) {
             printf("[ROUND %d] ERREUR accel2 — abandon\n", round);
             return;
         }

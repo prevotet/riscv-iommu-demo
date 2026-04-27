@@ -45,9 +45,14 @@ struct config config =
                         .phys       = 0x81000000
                     }
                 },
-                .dev_num = 5,
+                .dev_num = 6,
                 .devs = (struct vm_dev_region[])
                 {
+                    {   /* GPIO AXI — DECOUPLE accel1 (bit31) / accel2 (bit30) */
+                        .pa   = 0x40000000,
+                        .va   = 0x40000000,
+                        .size = 0x1000
+                    },
                     {   /* UART ns16750 — console de debug */
                         .pa   = 0x10000000,
                         .va   = 0x10000000,

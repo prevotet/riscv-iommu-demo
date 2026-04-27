@@ -1,0 +1,8 @@
+CMD: make -C /home/jc/tmp/riscv-iommu-demo/opensbi CROSS_COMPILE=/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf- PLATFORM=fpga/ariane FW_PAYLOAD=y FW_PAYLOAD_PATH=/home/jc/tmp/riscv-iommu-demo/build/bao/bao.bin -j24
+DATE: lun. 27 avril 2026 23:48:59 CEST
+---
+make : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/opensbi »
+ AS        platform/fpga/ariane/firmware/fw_payload.o
+ ELF       platform/fpga/ariane/firmware/fw_payload.elf
+ OBJCOPY   platform/fpga/ariane/firmware/fw_payload.bin
+make : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/opensbi »
