@@ -132,35 +132,35 @@ puts "==> opt_design..."
 opt_design
 
 puts "==> LOC boundary FFs RM — workaround AQ→BX..."
-foreach {pats x_base y_loc} {
+foreach {pats x_base y_loc per_slice} {
     {i_ariane_peripherals/gen_dma.i_accel1/b_id_ff_reg[*]
-     i_ariane_peripherals/gen_dma.i_accel1/r_id_ff_reg[*]}          36  280
-    {i_ariane_peripherals/gen_dma.i_accel1/r_data_ff_reg[*]}         32  270
+     i_ariane_peripherals/gen_dma.i_accel1/r_id_ff_reg[*]}          36  280  4
+    {i_ariane_peripherals/gen_dma.i_accel1/r_data_ff_reg[*]}         32  270  8
     {i_ariane_peripherals/gen_dma.i_accel1/r_valid_ff_reg
      i_ariane_peripherals/gen_dma.i_accel1/b_valid_ff_reg
      i_ariane_peripherals/gen_dma.i_accel1/r_last_ff_reg
      i_ariane_peripherals/gen_dma.i_accel1/r_resp0_ff_reg
      i_ariane_peripherals/gen_dma.i_accel1/r_resp1_ff_reg
      i_ariane_peripherals/gen_dma.i_accel1/b_resp0_ff_reg
-     i_ariane_peripherals/gen_dma.i_accel1/b_resp1_ff_reg}           39  280
+     i_ariane_peripherals/gen_dma.i_accel1/b_resp1_ff_reg}           39  280  4
     {i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/b_id_ff_reg[*]
-     i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_id_ff_reg[*]} 107 280
-    {i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_data_ff_reg[*]} 100 270
+     i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_id_ff_reg[*]} 107 280  4
+    {i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_data_ff_reg[*]} 100 270  8
     {i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_valid_ff_reg
      i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/b_valid_ff_reg
      i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_last_ff_reg
      i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_resp0_ff_reg
      i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_resp1_ff_reg
      i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/b_resp0_ff_reg
-     i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/b_resp1_ff_reg} 110 280
+     i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/b_resp1_ff_reg} 110 280  4
 } {
     set ci 0
     foreach c [lsort -dictionary [get_cells -quiet $pats]] {
-        set xi [expr {$x_base + $ci / 4}]
+        set xi [expr {$x_base + $ci / $per_slice}]
         set_property LOC SLICE_X${xi}Y${y_loc} $c
         incr ci
     }
-    puts "  -> $ci FFs ancrés @ Y${y_loc} (x_base=$x_base)"
+    puts "  -> $ci FFs ancrés @ Y${y_loc} (x_base=$x_base, per_slice=$per_slice)"
 }
 
 puts "==> place_design..."

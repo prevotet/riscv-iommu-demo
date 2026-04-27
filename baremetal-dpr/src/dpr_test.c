@@ -851,36 +851,37 @@ static void test3(void) {
     }
 
     /* ------------------------------------------------------------------ */
-    printf("\r\n[3.4] Chunks 10..%u — ecriture silencieuse\r\n", (unsigned)(nchunks-1));
+    printf("\r\n[3.4] Chunks 10..%u — trace chunk par chunk\r\n", (unsigned)(nchunks-1));
     {
         uint32_t anomalies = 0;
         int failed = 0;
 
         for (uint32_t ci = 10; ci < nchunks; ci++) {
-            uint32_t i     = ci * 63;
-            uint32_t chunk = (BS1_NWORDS - i > 63) ? 63 : (BS1_NWORDS - i);
-            uint32_t asr   = mmio_r(HWICAP_ASR);
-            uint32_t sr    = mmio_r(HWICAP_SR);
+            uint32_t i        = ci * 63;
+            uint32_t chunk    = (BS1_NWORDS - i > 63) ? 63 : (BS1_NWORDS - i);
+            uint32_t sr_pre   = mmio_r(HWICAP_SR);
+            uint32_t asr_pre  = mmio_r(HWICAP_ASR);
 
             fifo_reset();
             int64_t dt = send_bin(bs + i, chunk);
 
-            if (dt < 0) {
-                printf("    [FAIL] timeout chunk=%u SR=0x%02x ASR=0x%08x\r\n",
-                       (unsigned)ci, (unsigned)sr, (unsigned)asr);
-                failed = 1; break;
-            }
-            if (mmio_r(HWICAP_ASR) != 0 || mmio_r(HWICAP_SR) != 0x05) {
-                anomalies++;
-                printf("    [ANOMALIE ci=%u] SR_pre=0x%02x ASR_pre=0x%08x\r\n",
-                       (unsigned)ci, (unsigned)sr, (unsigned)asr);
-            }
-            if (ci % 1000 == 0)
-                printf("    ... %u/%u  anomalies=%u  SR=0x%02x  ASR=0x%08x\r\n",
-                       (unsigned)ci, (unsigned)nchunks,
-                       (unsigned)anomalies,
-                       (unsigned)mmio_r(HWICAP_SR),
-                       (unsigned)mmio_r(HWICAP_ASR));
+            uint32_t sr_post  = mmio_r(HWICAP_SR);
+            uint32_t asr_post = mmio_r(HWICAP_ASR);
+
+            const char *status =
+                (dt < 0)          ? "[TIMEOUT]" :
+                (asr_post != 0)   ? "[ABORT]"   :
+                (sr_post != 0x05) ? "[SR-WARN]" : "[OK]";
+
+            printf("    chunk %3u (%2u mots) : %5u cy  SR %02x->%02x  ASR %08x->%08x  %s\r\n",
+                   (unsigned)ci, (unsigned)chunk,
+                   (unsigned)(dt < 0 ? 0 : dt),
+                   (unsigned)sr_pre,  (unsigned)sr_post,
+                   (unsigned)asr_pre, (unsigned)asr_post,
+                   status);
+
+            if (dt < 0) { failed = 1; break; }
+            if (sr_post != 0x05 || asr_post != 0) anomalies++;
         }
         if (!failed)
             printf("    ecriture terminee  anomalies=%u  %s\r\n",

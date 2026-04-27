@@ -131,9 +131,17 @@ Séquence sync + Type 1 Read IDCODE = 0x43651093. Confirmé OK.
 
 Séquence sync + Type 1 Read STAT (reg 7), vérifier DONE=1, EOS=1, CFGERR=0.
 
-### Étape 5 — DPR accel1
+### ✅ Étape 5 — DPR accel1 : écriture chunk-by-chunk OK jusqu'au chunk 80 (2026-04-27)
 
-Écrire bitstream partiel accel_B depuis `0x81000000`, vérifier ID accel1 = 0xBBBBBB.
+Test3 : chunks 0-80 écrits OK (SR=0x05, ASR=0, ~153 cy/chunk). Hang au chunk 81.
+
+**Cause root** : cellule `irpt_wrack_d1_i_1` (HWICAP AXI FSM) en SLICE_X54Y253 = CR Y5.
+DPR réinitialise HCLK CR Y5 → AXI freeze → CPU bloqué sur `mmio_r(HWICAP_SR)`.
+
+**Fix run_static.tcl (2026-04-27)** — rebuild FORCE_STATIC=1 en cours :
+1. `per_slice=8` pour `r_data_ff_reg` → résout HDPR-29 (LOC hors pblock)
+2. `pblock_hwicap` soft `SLICE_X0Y0:SLICE_X167Y249` → force HWICAP IP hors CR Y5
+3. XDC exporté corrigé : `SLICE_X32Y250:SLICE_X47Y299` (cohérence static/partial)
 
 ---
 

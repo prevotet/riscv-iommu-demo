@@ -163,6 +163,19 @@ puts "==> Contrainte ICAP : forçage sur ICAP_X0Y0..."
 set_property LOC ICAP_X0Y0 [get_cells -hierarchical -filter {REF_NAME == ICAPE2}]
 puts "  -> LOC ICAP_X0Y0 applique"
 
+# Contraindre l'IP HWICAP (FIFOs + FSM AXI) hors de CR Y5.
+# Une cellule (irpt_wrack_d1_i_1) atterrit en SLICE_X54Y253 = CR Y5.
+# Pendant DPR, le HCLK de CR Y5 est reinitialise -> cette cellule AXI
+# freeze -> mmio_r(HWICAP_SR) ne revient jamais (hang CPU AXI).
+# Pblock soft : contraint le placer a CR Y0-Y4 (Y0-Y249).
+puts "==> Contrainte HWICAP IP : forçage hors CR Y5..."
+create_pblock pblock_hwicap
+resize_pblock [get_pblocks pblock_hwicap] -add {SLICE_X0Y0:SLICE_X167Y249}
+set_property IS_SOFT true [get_pblocks pblock_hwicap]
+add_cells_to_pblock [get_pblocks pblock_hwicap] \
+    [get_cells -hierarchical -filter {NAME =~ *gen_hwicap*}]
+puts "  -> [llength [get_cells -of_objects [get_pblocks pblock_hwicap]]] cellules HWICAP contraintes a Y0-Y249"
+
 puts "  -> pblocks actifs en mémoire :"
 foreach pb [get_pblocks] {
     puts "     $pb -> [get_property GRID_RANGES $pb]"
@@ -177,7 +190,7 @@ set xdc_out [open $dpr_dir/constraints/pblock_accels_impl.xdc w]
 puts $xdc_out "# Pblocks DPR generes par run_static.tcl"
 puts $xdc_out "# pblock_accel1 : zone restreinte clock region Y5"
 puts $xdc_out "create_pblock pblock_accel1"
-puts $xdc_out "resize_pblock \[get_pblocks pblock_accel1\] -add {SLICE_X30Y250:SLICE_X45Y299}"
+puts $xdc_out "resize_pblock \[get_pblocks pblock_accel1\] -add {SLICE_X32Y250:SLICE_X47Y299}"
 puts $xdc_out "resize_pblock \[get_pblocks pblock_accel1\] -add {DSP48_X1Y60:DSP48_X1Y64}"
 puts $xdc_out "resize_pblock \[get_pblocks pblock_accel1\] -add {RAMB36_X1Y25:RAMB36_X1Y29}"
 puts $xdc_out "resize_pblock \[get_pblocks pblock_accel1\] -add {RAMB18_X1Y50:RAMB18_X1Y59}"
@@ -201,6 +214,11 @@ puts $xdc_out "add_cells_to_pblock \[get_pblocks pblock_accel1\] \[get_cells i_a
 puts $xdc_out "add_cells_to_pblock \[get_pblocks pblock_accel2\] \[get_cells i_ariane_peripherals/gen_dma.gen_accel2.i_accel2\]"
 puts $xdc_out "# Forcer ICAP en CR Y0 — evite disruption horloge CR Y5 pendant reconfig"
 puts $xdc_out "set_property LOC ICAP_X0Y0 \[get_cells -hierarchical -filter {REF_NAME == ICAPE2}\]"
+puts $xdc_out "# HWICAP IP hors CR Y5 — evite freeze AXI pendant DPR"
+puts $xdc_out "create_pblock pblock_hwicap"
+puts $xdc_out "resize_pblock \[get_pblocks pblock_hwicap\] -add {SLICE_X0Y0:SLICE_X167Y249}"
+puts $xdc_out "set_property IS_SOFT true \[get_pblocks pblock_hwicap\]"
+puts $xdc_out "add_cells_to_pblock \[get_pblocks pblock_hwicap\] \[get_cells -hierarchical -filter {NAME =~ *gen_hwicap*}\]"
 close $xdc_out
 puts "  -> $dpr_dir/constraints/pblock_accels_impl.xdc"
 
@@ -220,35 +238,35 @@ puts "==> LOC boundary FFs — workaround AQ→BX..."
 #   b_id/r_id (12 FFs)  → X36/37/38 Y280
 #   r_data_ff (64 FFs)  → X32..X47  Y270  (16 SLICEs × 4 FFs = 64)
 #   r_last/r_resp/b_resp (5 FFs) → X39/40 Y280
-foreach {pats x_base y_loc} {
+foreach {pats x_base y_loc per_slice} {
     {i_ariane_peripherals/gen_dma.i_accel1/b_id_ff_reg[*]
-     i_ariane_peripherals/gen_dma.i_accel1/r_id_ff_reg[*]}          36  280
-    {i_ariane_peripherals/gen_dma.i_accel1/r_data_ff_reg[*]}         32  270
+     i_ariane_peripherals/gen_dma.i_accel1/r_id_ff_reg[*]}          36  280  4
+    {i_ariane_peripherals/gen_dma.i_accel1/r_data_ff_reg[*]}         32  270  8
     {i_ariane_peripherals/gen_dma.i_accel1/r_valid_ff_reg
      i_ariane_peripherals/gen_dma.i_accel1/b_valid_ff_reg
      i_ariane_peripherals/gen_dma.i_accel1/r_last_ff_reg
      i_ariane_peripherals/gen_dma.i_accel1/r_resp0_ff_reg
      i_ariane_peripherals/gen_dma.i_accel1/r_resp1_ff_reg
      i_ariane_peripherals/gen_dma.i_accel1/b_resp0_ff_reg
-     i_ariane_peripherals/gen_dma.i_accel1/b_resp1_ff_reg}           39  280
+     i_ariane_peripherals/gen_dma.i_accel1/b_resp1_ff_reg}           39  280  4
     {i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/b_id_ff_reg[*]
-     i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_id_ff_reg[*]} 107 280
-    {i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_data_ff_reg[*]} 100 270
+     i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_id_ff_reg[*]} 107 280  4
+    {i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_data_ff_reg[*]} 100 270  8
     {i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_valid_ff_reg
      i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/b_valid_ff_reg
      i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_last_ff_reg
      i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_resp0_ff_reg
      i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/r_resp1_ff_reg
      i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/b_resp0_ff_reg
-     i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/b_resp1_ff_reg} 110 280
+     i_ariane_peripherals/gen_dma.gen_accel2.i_accel2/b_resp1_ff_reg} 110 280  4
 } {
     set ci 0
     foreach c [lsort -dictionary [get_cells -quiet $pats]] {
-        set xi [expr {$x_base + $ci / 4}]
+        set xi [expr {$x_base + $ci / $per_slice}]
         set_property LOC SLICE_X${xi}Y${y_loc} $c
         incr ci
     }
-    puts "  -> $ci FFs ancrés @ Y${y_loc} (x_base=$x_base)"
+    puts "  -> $ci FFs ancrés @ Y${y_loc} (x_base=$x_base, per_slice=$per_slice)"
 }
 
 puts "==> place_design..."
