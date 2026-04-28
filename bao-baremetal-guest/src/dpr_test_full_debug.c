@@ -125,67 +125,87 @@ static void hwicap_diag(void) {
 
 static void hwicap_fifo_reset(void) {
     mmio_write32(HWICAP_CR, HWICAP_CR_FIFO_RST);
-    for (volatile int i=0;i<10000;i++); // petit délai
     int timeout = HWICAP_TIMEOUT;
     while (mmio_read32(HWICAP_WFV) < HWICAP_WFV_MAX && timeout-- > 0);
     mmio_write32(HWICAP_CR, 0x00u);
-    printf("[HWICAP] FIFO reset : WFV=0x%02x\n", (unsigned int)mmio_read32(HWICAP_WFV));
 }
 
+/* Envoie n mots logiques (séquences de contrôle, sans bswap). */
+static void hwicap_send_raw(const uint32_t *w, uint32_t n) {
+    hwicap_fifo_reset();
+    mmio_write32(HWICAP_SZ, n);
+    for (uint32_t i = 0; i < n; i++)
+        mmio_write32(HWICAP_WF, w[i]);
+    mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
+    int timeout = HWICAP_TIMEOUT;
+    while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && timeout-- > 0);
+}
+
+/* RCRC efface CRC_ERROR/CFGERR, DESYNC remet l'ICAP en IDLE.
+ * À appeler avant toute séquence de DPR pour repartir d'un état propre. */
+static void hwicap_rcrc_desync(void) {
+    static const uint32_t s[] = {
+        0xFFFFFFFF, 0xFFFFFFFF,
+        0xAA995566, 0x20000000,
+        0x30008001, 0x00000007,  /* CMD RCRC */
+        0x20000000,
+        0x30008001, 0x0000000D,  /* CMD DESYNC */
+        0x20000000, 0x20000000,
+    };
+    hwicap_send_raw(s, sizeof(s)/sizeof(s[0]));
+}
+
+/* Masque les bits de version IDCODE [31:28] pour éviter ID_ERROR
+ * quand le bitstream partiel embarque IDCODE=0x03651093 (version=0)
+ * et que le device répond 0x43651093 (version=4). */
+static void hwicap_set_idcode_mask(void) {
+    static const uint32_t s[] = {
+        0xFFFFFFFF, 0xFFFFFFFF,
+        0xAA995566, 0x20000000,
+        0x3000C001, 0xF0000000,  /* Type1 Write MASK */
+        0x20000000, 0x20000000,
+        0x30008001, 0x0000000D,  /* CMD DESYNC */
+        0x20000000, 0x20000000,
+    };
+    hwicap_send_raw(s, sizeof(s)/sizeof(s[0]));
+}
+
+/* Écrit un bitstream .bin (GDB restore depuis DDR) chunk par chunk.
+ * - bswap32 appliqué : octets DDR little-endian → mots WF valides pour ICAP
+ * - fifo_reset avant chaque chunk : FIFO propre = pas d'accumulation d'état */
 static int hwicap_write_bitstream(const uint32_t *data, uint32_t size_words, uint32_t decouple_mask) {
     mmio_write32(GPIO_TRI,  0x00000000u);
     mmio_write32(GPIO_DATA, mmio_read32(GPIO_DATA) | decouple_mask);
 
-    hwicap_fifo_reset();
     print_status("debut write_bitstream");
 
-    uint32_t written = 0;
-    while (written < size_words) {
-        uint32_t chunk = size_words - written;
+    const uint32_t nchunks = (size_words + HWICAP_WFV_MAX - 1) / HWICAP_WFV_MAX;
+    for (uint32_t ci = 0; ci < nchunks; ci++) {
+        uint32_t offset = ci * HWICAP_WFV_MAX;
+        uint32_t chunk  = size_words - offset;
         if (chunk > HWICAP_WFV_MAX) chunk = HWICAP_WFV_MAX;
 
+        hwicap_fifo_reset();
         mmio_write32(HWICAP_SZ, chunk);
-        uint32_t sent = 0;
-        while (sent < chunk) {
-            int timeout = HWICAP_TIMEOUT;
-            while (mmio_read32(HWICAP_WFV) == 0 && timeout-- > 0) {
-                asm volatile("nop");
-            }
-            if (timeout <= 0) {
-                printf("[HWICAP] ERROR: timeout WFV mot %u\n", written+sent);
-                print_status("timeout WFV");
-                return -1;
-            }
-
-            uint32_t vacancy = mmio_read32(HWICAP_WFV);
-            uint32_t to_write = chunk - sent;
-            if (to_write > vacancy) to_write = vacancy;
-
-            for (uint32_t i=0;i<to_write;i++)
-                mmio_write32(HWICAP_WF, bswap32(data[written+sent+i]));
-
-            sent += to_write;
-        }
-
+        for (uint32_t i = 0; i < chunk; i++)
+            mmio_write32(HWICAP_WF, bswap32(data[offset + i]));
         mmio_write32(HWICAP_CR, HWICAP_CR_WRITE);
 
         int timeout = HWICAP_TIMEOUT;
-        while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && timeout-- > 0) {
-            asm volatile("nop");
-        }
+        while ((mmio_read32(HWICAP_CR) & HWICAP_CR_WRITE) && timeout-- > 0);
         if (timeout <= 0) {
-            printf("[HWICAP] ERROR: timeout final CR/IDLE\n");
-            print_status("final CR check");
+            printf("[HWICAP] ERROR: timeout chunk %u\n", (unsigned int)ci);
+            print_status("timeout CR");
+            mmio_write32(GPIO_DATA, mmio_read32(GPIO_DATA) & ~decouple_mask);
             return -1;
         }
-
-        written += chunk;
     }
 
     mmio_write32(GPIO_DATA, mmio_read32(GPIO_DATA) & ~decouple_mask);
 
     print_status("fin write_bitstream");
-    printf("[HWICAP DEBUG] Finished write_bitstream (%u words written)\n", (unsigned int)size_words);
+    printf("[HWICAP DEBUG] Finished write_bitstream (%u words, %u chunks)\n",
+           (unsigned int)size_words, (unsigned int)nchunks);
     return 0;
 }
 
@@ -263,7 +283,13 @@ void run_demo(void) {
     printf("  accel1 = 0x%08x%08x\r\n", id1_hi, id1_lo);
     printf("  accel2 = 0x%08x%08x\r\n", id2_hi, id2_lo);
 
-
+    /* Pré-DPR : effacer CFGERR résiduel du boot, puis masquer version IDCODE.
+     * Sans set_idcode_mask, chaque PR déclenche ID_ERROR (version 4 vs 0)
+     * et le CFGERR accumulé finit par faire ignorer les bitstreams suivants. */
+    printf("[DEMO] RCRC+DESYNC...\n");
+    hwicap_rcrc_desync();
+    printf("[DEMO] MASK IDCODE version bits...\n");
+    hwicap_set_idcode_mask();
 
     for (int round=0;round<NB_ROUNDS;round++) {
         uint32_t rm_id = (round%2==0)? DPR_RM_ACCEL_A : DPR_RM_ACCEL_B;

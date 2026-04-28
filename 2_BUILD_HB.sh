@@ -17,6 +17,7 @@
 #   openocd     — Lance OpenOCD (terminal dédié)
 #   load        — Charge fw_payload.bin + 4 bitstreams via GDB
 #   bitstreams  — Vérifie les 4 bitstreams DDR (issus de 3_build_B2.sh dpr)
+#   test1..7    — Tests unitaires HWICAP/DPR dans le contexte BAO
 #   logs        — Historique des sessions
 #   help        — Affiche cette aide
 #
@@ -112,6 +113,11 @@ XILINX_BOARD="${XILINX_BOARD:-digilentinc.com:genesys2:part0:1.1}"
 
 # Flags de forçage
 FORCE_BAREMETAL="${FORCE_BAREMETAL:-0}"
+
+# Mode test (injecté via EXTRA_CPPFLAGS → TEST_SELECT)
+EXTRA_CPPFLAGS="${EXTRA_CPPFLAGS:-}"
+DPR_TEST_C="$ROOT_DIR/baremetal-dpr/src/dpr_test.c"
+SOURCES_MK="$GUEST_DIR/src/sources.mk"
 
 # Logging
 LOG_DIR="$ROOT_DIR/logs/bao-dpr"
@@ -262,6 +268,7 @@ do_dpr_manager() {
         PLATFORM=cva6 \
         VARIANT=dpr_manager \
         NAME=dpr_manager \
+        EXTRA_CPPFLAGS="${EXTRA_CPPFLAGS:-}" \
         -j"$JOBS"; then
         local bin_src="$GUEST_DIR/build/cva6/dpr_manager.bin"
         check_file "$bin_src"
@@ -362,6 +369,7 @@ do_opensbi() {
 
 do_baremetal() {
     log_step "Build stack BAO complet (DPR Manager → BAO → OpenSBI)"
+    _restore_demo_mode
     # Vérifie que les bitstreams existent (issus de 3_build_B2.sh dpr)
     check_bitstreams_present
     # Met à jour DPR_BS_ACCEL1/2_WORDS dans dpr_ipc.h si les tailles ont changé
@@ -481,6 +489,7 @@ do_openocd() {
 
 do_load() {
     log_step "Chargement via GDB (fw_payload.bin + 4 bitstreams DDR)"
+    _restore_demo_mode
 
     local bs_a1_a="$WORK_DPR/partial_accel_A_accel1.bin"
     local bs_a1_b="$WORK_DPR/partial_accel_B_accel1.bin"
@@ -591,6 +600,260 @@ do_check_bitstreams() {
 }
 
 # =============================================================================
+# Suite de tests unitaires HWICAP/ICAP/DPR (mode BAO)
+#
+# Principe : on substitue temporairement sources.mk pour compiler
+# baremetal-dpr/src/dpr_test.c (les tests 1-7 validés en standalone) dans
+# le guest BAO. TEST_SELECT est injecté via EXTRA_CPPFLAGS.
+# =============================================================================
+
+# Bascule sources.mk vers dpr_test.c + injecte TEST_SELECT dans EXTRA_CPPFLAGS
+_set_test_select() {
+    local n="$1"
+    local test_src="src_c_srcs := ../../baremetal-dpr/src/dpr_test.c dpr_test_full_debug.c main.c"
+    local current
+    current=$(cat "$SOURCES_MK")
+    if [[ "$current" != "$test_src" ]]; then
+        log_step "sources.mk → mode test (dpr_test.c)"
+        echo "$test_src" > "$SOURCES_MK"
+        FORCE_BAREMETAL=1
+    fi
+    local new_flags="-DTEST_SELECT=$n"
+    if [[ "${EXTRA_CPPFLAGS:-}" != "$new_flags" ]]; then
+        EXTRA_CPPFLAGS="$new_flags"
+        FORCE_BAREMETAL=1
+    fi
+}
+
+# Restaure sources.mk vers dpr_test_full_debug.c (mode démo)
+_restore_demo_mode() {
+    local demo_src="src_c_srcs := dpr_test_full_debug.c main.c"
+    local current
+    current=$(cat "$SOURCES_MK" 2>/dev/null || echo "")
+    if [[ "$current" != "$demo_src" ]]; then
+        log_step "sources.mk → mode démo (dpr_test_full_debug.c)"
+        echo "$demo_src" > "$SOURCES_MK"
+    fi
+    EXTRA_CPPFLAGS=""
+}
+
+# Compile le stack complet (dpr_manager → bao → opensbi) en mode test
+_build_test_stack() {
+    do_dpr_manager
+    do_bao
+    do_opensbi
+}
+
+# Lance le test N via GDB (fw_payload.bin + bitstreams optionnels)
+# Usage : _run_test N [ADDR1 BIN1] [ADDR2 BIN2] ...
+_run_test() {
+    local n="$1"; shift
+
+    check_file "$FW_PAYLOAD"
+
+    if ! pgrep -x "openocd" > /dev/null; then
+        log_warn "OpenOCD ne semble pas tourner."
+        log_warn "Lancer dans un autre terminal : ./2_BUILD_HB.sh openocd"
+        echo -n "Continuer quand même ? [y/N] "
+        read -r resp; [[ "$resp" != "y" ]] && exit 1
+    fi
+
+    local gdb_script
+    gdb_script=$(mktemp /tmp/riscv_bao_test_XXXXXX.gdb)
+    trap "rm -f '$gdb_script'" EXIT INT TERM
+
+    {
+        echo "target remote localhost:${OPENOCD_PORT}"
+        echo "set confirm off"
+        echo "set remote memory-write-packet-size 4096"
+        echo "set remote memory-write-packet-size fixed"
+        while [[ $# -ge 2 ]]; do
+            local addr="$1" bin="$2"; shift 2
+            echo "echo \\n[TEST$n] restore $(basename "$bin") @ $addr\\n"
+            echo "restore $bin binary $addr"
+        done
+        echo "echo \\n[TEST$n] Chargement fw_payload.bin @ $ADDR_FW\\n"
+        echo "restore $FW_PAYLOAD binary $ADDR_FW"
+        echo "set \$pc = $ADDR_FW"
+        echo "echo \\n[TEST$n] Demarrage OpenSBI + BAO (UART pour traces)...\\n"
+        echo "continue"
+    } > "$gdb_script"
+
+    log_step "GDB → Test $n (UART pour résultats)..."
+    "$GDB" -x "$gdb_script" --batch 2>&1
+    rm -f "$gdb_script"
+    trap - EXIT INT TERM
+}
+
+# Mise à jour de BS1_NWORDS dans dpr_test.c (accel1 cible)
+_update_bs1_nwords() {
+    local bs="$1"
+    local sz=$(( $(stat -c%s "$bs") / 4 ))
+    local cur
+    cur=$(grep -oP '(?<=BS1_NWORDS\s{3})\d+' "$DPR_TEST_C" || echo 0)
+    if [[ "$cur" != "$sz" ]]; then
+        sed -i "s/#define BS1_NWORDS   [0-9]*UL/#define BS1_NWORDS   ${sz}UL/" "$DPR_TEST_C"
+        log_ok "BS1_NWORDS : $cur → $sz"
+        FORCE_BAREMETAL=1
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Test 1 : Infrastructure HWICAP + lecture registres ICAP
+# ---------------------------------------------------------------------------
+do_test1() {
+    log_step "Test 1 — Infrastructure HWICAP + registres ICAP"
+    _set_test_select 1
+    _build_test_stack
+    _run_test 1
+    _log_summary "test1" "RUN" ""
+}
+
+# ---------------------------------------------------------------------------
+# Test 2 : IDCODE / MASK — validation complète avant DPR
+# ---------------------------------------------------------------------------
+do_test2() {
+    log_step "Test 2 — IDCODE / MASK"
+    local bs1="$WORK_DPR/partial_${RM_TARGET}_accel1.bin"
+    check_file "$bs1"
+    _update_bs1_nwords "$bs1"
+    _set_test_select 2
+    _build_test_stack
+    _run_test 2 "$ADDR_BS_A1_A" "$bs1"
+    _log_summary "test2" "RUN" ""
+}
+
+# ---------------------------------------------------------------------------
+# Test 3 : Écriture chunk-by-chunk + détection abort ICAP
+# ---------------------------------------------------------------------------
+do_test3() {
+    log_step "Test 3 — Chunk-by-chunk write accel1"
+    local bs1="$WORK_DPR/partial_${RM_TARGET}_accel1.bin"
+    check_file "$bs1"
+    _update_bs1_nwords "$bs1"
+    _set_test_select 3
+    _build_test_stack
+    _run_test 3 "$ADDR_BS_A1_A" "$bs1"
+    _log_summary "test3" "RUN" ""
+}
+
+# ---------------------------------------------------------------------------
+# Test 4 : DPR complet accel1 (accel_A → accel_B)
+# ---------------------------------------------------------------------------
+do_test4() {
+    log_step "Test 4 — DPR complet accel1"
+    local bs1="$WORK_DPR/partial_${RM_TARGET}_accel1.bin"
+    check_file "$bs1"
+    _update_bs1_nwords "$bs1"
+    _set_test_select 4
+    _build_test_stack
+    _run_test 4 "$ADDR_BS_A1_A" "$bs1"
+    _log_summary "test4" "RUN" ""
+}
+
+# ---------------------------------------------------------------------------
+# Test 5 : Ping-pong accel_A ↔ accel_B
+#   ADDR_BS_A1_A (0x81000000) ← partial_accel_B_accel1.bin  (RM_TARGET)
+#   ADDR_BS_A1_B (0x81300000) ← partial_accel_A_accel1.bin  (RM_INIT)
+# ---------------------------------------------------------------------------
+do_test5() {
+    log_step "Test 5 — Ping-pong accel_A ↔ accel_B"
+    local bs_b="$WORK_DPR/partial_${RM_TARGET}_accel1.bin"
+    local bs_a="$WORK_DPR/partial_${RM_INIT}_accel1.bin"
+    check_file "$bs_b"
+    check_file "$bs_a"
+
+    local sz_b=$(( $(stat -c%s "$bs_b") / 4 ))
+    local sz_a=$(( $(stat -c%s "$bs_a") / 4 ))
+    log_ok "accel_B (BS1) : $sz_b mots @ $ADDR_BS_A1_A"
+    log_ok "accel_A (BS2) : $sz_a mots @ $ADDR_BS_A1_B"
+
+    # BS1_NWORDS = accel1 RM_TARGET
+    local cur1
+    cur1=$(grep -oP '(?<=BS1_NWORDS\s{3})\d+' "$DPR_TEST_C" || echo 0)
+    if [[ "$cur1" != "$sz_b" ]]; then
+        sed -i "s/#define BS1_NWORDS   [0-9]*UL/#define BS1_NWORDS   ${sz_b}UL/" "$DPR_TEST_C"
+        log_ok "BS1_NWORDS : $cur1 → $sz_b"
+        FORCE_BAREMETAL=1
+    fi
+    # BS2_NWORDS = accel1 RM_INIT
+    local cur2
+    cur2=$(grep -oP '(?<=BS2_NWORDS\s{3})\d+' "$DPR_TEST_C" || echo 0)
+    if [[ "$cur2" != "$sz_a" ]]; then
+        sed -i "s/#define BS2_NWORDS   [0-9]*UL/#define BS2_NWORDS   ${sz_a}UL/" "$DPR_TEST_C"
+        log_ok "BS2_NWORDS : $cur2 → $sz_a"
+        FORCE_BAREMETAL=1
+    fi
+
+    _set_test_select 5
+    _build_test_stack
+    _run_test 5 "$ADDR_BS_A1_A" "$bs_b" "$ADDR_BS_A1_B" "$bs_a"
+    _log_summary "test5" "RUN" ""
+}
+
+# ---------------------------------------------------------------------------
+# Test 6 : DPR complet accel2 (accel_A → accel_B)
+#   ADDR_BS_A1_B (0x81300000) ← partial_accel_B_accel2.bin  (RM_TARGET)
+# ---------------------------------------------------------------------------
+do_test6() {
+    log_step "Test 6 — DPR complet accel2 (accel_A → accel_B)"
+    local bs2="$WORK_DPR/partial_${RM_TARGET}_accel2.bin"
+    check_file "$bs2"
+
+    local sz2=$(( $(stat -c%s "$bs2") / 4 ))
+    local cur2
+    cur2=$(grep -oP '(?<=BS2_NWORDS\s{3})\d+' "$DPR_TEST_C" || echo 0)
+    if [[ "$cur2" != "$sz2" ]]; then
+        sed -i "s/#define BS2_NWORDS   [0-9]*UL/#define BS2_NWORDS   ${sz2}UL/" "$DPR_TEST_C"
+        log_ok "BS2_NWORDS : $cur2 → $sz2"
+        FORCE_BAREMETAL=1
+    fi
+
+    _set_test_select 6
+    _build_test_stack
+    _run_test 6 "$ADDR_BS_A1_B" "$bs2"
+    _log_summary "test6" "RUN" ""
+}
+
+# ---------------------------------------------------------------------------
+# Test 7 : Ping-pong accel2 accel_A ↔ accel_B
+#   ADDR_BS_A1_B (0x81300000) ← partial_accel_B_accel2.bin  (RM_TARGET, A→B)
+#   ADDR_BS_A2_A (0x81600000) ← partial_accel_A_accel2.bin  (RM_INIT,   B→A)
+# ---------------------------------------------------------------------------
+do_test7() {
+    log_step "Test 7 — Ping-pong accel2 accel_A ↔ accel_B"
+    local bs_b="$WORK_DPR/partial_${RM_TARGET}_accel2.bin"
+    local bs_a="$WORK_DPR/partial_${RM_INIT}_accel2.bin"
+    check_file "$bs_b"
+    check_file "$bs_a"
+
+    local sz_b=$(( $(stat -c%s "$bs_b") / 4 ))
+    local sz_a=$(( $(stat -c%s "$bs_a") / 4 ))
+    log_ok "accel_B (BS2) : $sz_b mots @ $ADDR_BS_A1_B"
+    log_ok "accel_A (BS3) : $sz_a mots @ $ADDR_BS_A2_A"
+
+    local cur2
+    cur2=$(grep -oP '(?<=BS2_NWORDS\s{3})\d+' "$DPR_TEST_C" || echo 0)
+    if [[ "$cur2" != "$sz_b" ]]; then
+        sed -i "s/#define BS2_NWORDS   [0-9]*UL/#define BS2_NWORDS   ${sz_b}UL/" "$DPR_TEST_C"
+        log_ok "BS2_NWORDS : $cur2 → $sz_b"
+        FORCE_BAREMETAL=1
+    fi
+    local cur3
+    cur3=$(grep -oP '(?<=BS3_NWORDS\s{3})\d+' "$DPR_TEST_C" || echo 0)
+    if [[ "$cur3" != "$sz_a" ]]; then
+        sed -i "s/#define BS3_NWORDS   [0-9]*UL/#define BS3_NWORDS   ${sz_a}UL/" "$DPR_TEST_C"
+        log_ok "BS3_NWORDS : $cur3 → $sz_a"
+        FORCE_BAREMETAL=1
+    fi
+
+    _set_test_select 7
+    _build_test_stack
+    _run_test 7 "$ADDR_BS_A1_B" "$bs_b" "$ADDR_BS_A2_A" "$bs_a"
+    _log_summary "test7" "RUN" ""
+}
+
+# =============================================================================
 # Dispatch
 # =============================================================================
 
@@ -614,6 +877,13 @@ case "${TARGET:-help}" in
     openocd)     create_dirs; do_openocd ;;
     load)        create_dirs; do_load ;;
     bitstreams)  create_dirs; do_check_bitstreams ;;
+    test1)       create_dirs; do_test1 ;;
+    test2)       create_dirs; do_test2 ;;
+    test3)       create_dirs; do_test3 ;;
+    test4)       create_dirs; do_test4 ;;
+    test5)       create_dirs; do_test5 ;;
+    test6)       create_dirs; do_test6 ;;
+    test7)       create_dirs; do_test7 ;;
     logs)
         log_step "Historique des sessions (BAO DPR)"
         cat "$SUMMARY_LOG" 2>/dev/null || log_warn "Aucun log disponible ($SUMMARY_LOG)"
@@ -628,6 +898,15 @@ case "${TARGET:-help}" in
         echo "  2. program     — Programme le FPGA (full_accel_A.bit via Vivado JTAG)"
         echo "  3. openocd     — Lance OpenOCD (terminal dédié)"
         echo "  4. load        — Charge fw_payload.bin + 4 bitstreams via GDB"
+        echo ""
+        echo "Tests unitaires (même logique que 3_build_B2.sh, dans le contexte BAO) :"
+        echo "  test1   Infrastructure HWICAP + registres ICAP (IDCODE, STAT, MASK)"
+        echo "  test2   IDCODE / MASK — validation complète avant DPR"
+        echo "  test3   Écriture chunk-by-chunk + détection abort ICAP"
+        echo "  test4   DPR complet accel1 (accel_A → accel_B)"
+        echo "  test5   Ping-pong accel_A ↔ accel_B"
+        echo "  test6   DPR complet accel2 (accel_A → accel_B)"
+        echo "  test7   Ping-pong accel2 accel_A ↔ accel_B"
         echo ""
         echo "Targets unitaires :"
         echo "  dpr-manager   — Compile le guest DPR Manager seul"
@@ -646,7 +925,7 @@ case "${TARGET:-help}" in
         echo "  BAO_CONFIG=$BAO_CONFIG"
         echo "  LOGLEVEL=$LOGLEVEL"
         echo ""
-        echo "Layout DDR (4 bitstreams chargés par GDB) :"
+        echo "Layout DDR (4 bitstreams chargés par load) :"
         echo "  $ADDR_BS_A1_A ← partial_accel_A_accel1.bin  (3 Mo slot)"
         echo "  $ADDR_BS_A1_B ← partial_accel_B_accel1.bin  (3 Mo slot)"
         echo "  $ADDR_BS_A2_A ← partial_accel_A_accel2.bin  (5 Mo slot)"

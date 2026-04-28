@@ -84,6 +84,7 @@ CPPFLAGS =	$(ARCH_CPPFLAGS) $(addprefix -I, $(INC_DIRS)) -MD -MF $@.d
 ifneq ($(SINGLE_CORE),)
 CPPFLAGS+=-DSINGLE_CORE=y
 endif
+CPPFLAGS += $(EXTRA_CPPFLAGS)
 LDFLAGS = $(GENERIC_FLAGS) $(ARCH_LDFLAGS) -nostartfiles
 all: $(TARGET).bin
 
