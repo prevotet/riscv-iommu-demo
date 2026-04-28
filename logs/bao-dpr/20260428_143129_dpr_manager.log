@@ -1,0 +1,45 @@
+CMD: make -C /home/jc/tmp/riscv-iommu-demo/bao-baremetal-guest CROSS_COMPILE=/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf- PLATFORM=cva6 VARIANT=dpr_manager NAME=dpr_manager EXTRA_CPPFLAGS= -j8
+DATE: mar. 28 avril 2026 14:31:29 CEST
+---
+make : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/bao-baremetal-guest »
+mkdir -p build/cva6/
+mkdir -p build/cva6/arch/riscv/
+mkdir -p build/cva6/drivers/8250_uart/
+mkdir -p build/cva6/platform/cva6/
+mkdir -p build/cva6/core/
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gcc -mcmodel=medany -march=rv64imac -mabi=lp64 -O0 -g3 -static    -I./src/inc -I./src/core/inc -I./src/platform/cva6/inc -I./src/drivers/8250_uart/inc -I./src/arch/riscv/inc -MD -MF build/cva6/dpr_test_full_debug.o.d  -c src/dpr_test_full_debug.c -o build/cva6/dpr_test_full_debug.o
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gcc -mcmodel=medany -march=rv64imac -mabi=lp64 -O0 -g3 -static    -I./src/inc -I./src/core/inc -I./src/platform/cva6/inc -I./src/drivers/8250_uart/inc -I./src/arch/riscv/inc -MD -MF build/cva6/main.o.d  -c src/main.c -o build/cva6/main.o
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gcc -mcmodel=medany -march=rv64imac -mabi=lp64 -O0 -g3 -static    -I./src/inc -I./src/core/inc -I./src/platform/cva6/inc -I./src/drivers/8250_uart/inc -I./src/arch/riscv/inc -MD -MF build/cva6/core/irq.o.d  -c src/core/irq.c -o build/cva6/core/irq.o
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gcc -mcmodel=medany -march=rv64imac -mabi=lp64 -O0 -g3 -static    -I./src/inc -I./src/core/inc -I./src/platform/cva6/inc -I./src/drivers/8250_uart/inc -I./src/arch/riscv/inc -MD -MF build/cva6/core/retarget.o.d  -c src/core/retarget.c -o build/cva6/core/retarget.o
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gcc -mcmodel=medany -march=rv64imac -mabi=lp64 -O0 -g3 -static    -I./src/inc -I./src/core/inc -I./src/platform/cva6/inc -I./src/drivers/8250_uart/inc -I./src/arch/riscv/inc -MD -MF build/cva6/platform/cva6/cva6.o.d  -c src/platform/cva6/cva6.c -o build/cva6/platform/cva6/cva6.o
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gcc -mcmodel=medany -march=rv64imac -mabi=lp64 -O0 -g3 -static    -I./src/inc -I./src/core/inc -I./src/platform/cva6/inc -I./src/drivers/8250_uart/inc -I./src/arch/riscv/inc -MD -MF build/cva6/drivers/8250_uart/8250_uart.o.d  -c src/drivers/8250_uart/8250_uart.c -o build/cva6/drivers/8250_uart/8250_uart.o
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gcc -mcmodel=medany -march=rv64imac -mabi=lp64 -O0 -g3 -static    -I./src/inc -I./src/core/inc -I./src/platform/cva6/inc -I./src/drivers/8250_uart/inc -I./src/arch/riscv/inc -MD -MF build/cva6/arch/riscv/init.o.d  -c src/arch/riscv/init.c -o build/cva6/arch/riscv/init.o
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gcc -mcmodel=medany -march=rv64imac -mabi=lp64 -O0 -g3 -static    -I./src/inc -I./src/core/inc -I./src/platform/cva6/inc -I./src/drivers/8250_uart/inc -I./src/arch/riscv/inc -MD -MF build/cva6/arch/riscv/plic.o.d  -c src/arch/riscv/plic.c -o build/cva6/arch/riscv/plic.o
+src/main.c:60:100: warning: backslash and newline separated by space
+   60 |     ".______        ___       ______        _______  __    __   _______     _______.___________.\n"\
+      |                                                                                                     
+src/main.c:63:104: warning: backslash and newline separated by space
+   63 |     "|   _  <    /  /_\\  \\  |  |  |  |    |  | |_ | |  |  |  | |   __|     \\   \\       |  |     \n"\
+      |                                                                                                         
+src/main.c:64:101: warning: backslash and newline separated by space
+   64 |     "|  |_)  |  /  _____  \\ |  `--'  |    |  |__| | |  `--'  | |  |____.----)   |      |  |     \n"\
+      |                                                                                                      
+src/dpr_test_full_debug.c:221:12: error: expected declaration specifiers or '...' before string constant
+  221 |     printf("[HWICAP DEBUG] Finished write_bitstream (%u words, %u chunks)\n",
+      |            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/dpr_test_full_debug.c:222:12: error: expected declaration specifiers or '...' before '(' token
+  222 |            (unsigned int)size_words, (unsigned int)nchunks);
+      |            ^
+src/dpr_test_full_debug.c:222:38: error: expected declaration specifiers or '...' before '(' token
+  222 |            (unsigned int)size_words, (unsigned int)nchunks);
+      |                                      ^
+src/dpr_test_full_debug.c:223:5: error: expected identifier or '(' before 'return'
+  223 |     return 0;
+      |     ^~~~~~
+src/dpr_test_full_debug.c:224:1: error: expected identifier or '(' before '}' token
+  224 | }
+      | ^
+/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gcc -mcmodel=medany -march=rv64imac -mabi=lp64 -O0 -g3 -static    -I./src/inc -I./src/core/inc -I./src/platform/cva6/inc -I./src/drivers/8250_uart/inc -I./src/arch/riscv/inc -MD -MF build/cva6/arch/riscv/sbi.o.d  -c src/arch/riscv/sbi.c -o build/cva6/arch/riscv/sbi.o
+make: *** [Makefile:109 : build/cva6/dpr_test_full_debug.o] Erreur 1
+make: *** Attente des tâches non terminées....
+make : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/bao-baremetal-guest »

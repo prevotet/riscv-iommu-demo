@@ -537,7 +537,8 @@ do_load() {
     cat > "$gdb_script" << EOF
 target remote localhost:${OPENOCD_PORT}
 set confirm off
-set remote memory-write-packet-size 4096
+set remotetimeout 60
+set remote memory-write-packet-size 2048
 set remote memory-write-packet-size fixed
 
 echo \\n[GDB] Chargement bitstreams partiels en DDR...\\n
