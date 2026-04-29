@@ -975,3 +975,4 @@ Session : 20260429_180610 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A 
   [18:06:12] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_180610_dpr_manager.log
   [18:06:16] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_180610_bao.log
   [18:06:23] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_180610_opensbi.log
+  [18:13:17] test7                               RUN 
