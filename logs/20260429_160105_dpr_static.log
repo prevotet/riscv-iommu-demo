@@ -1,0 +1,32 @@
+CMD: make -C /home/jc/tmp/riscv-iommu-demo/dpr dpr-static FORCE_STATIC=1 WORK_DPR=/home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/work-dpr/3_build_B_dpr
+DATE: mer. 29 avril 2026 16:01:05 CEST
+---
+make : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/dpr »
+==> Préparation des sources DPR...
+mkdir -p /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src
+cp /home/jc/tmp/riscv-iommu-demo/dpr/src/rp_boundary_regs.sv /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/
+cp /home/jc/tmp/riscv-iommu-demo/dpr/src/rp_boundary_regs_mmu.sv /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/
+cp /home/jc/tmp/riscv-iommu-demo/dpr/rm/accel_default/accel_blank.sv /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga/src/accel_wrap.sv
+==> Génération des IPs Xilinx...
+make -C /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga \
+	work-fpga/xlnx_axi_clock_converter.xci \
+	work-fpga/xlnx_axi_dwidth_converter.xci \
+	work-fpga/xlnx_axi_dwidth_converter_dm_master.xci \
+	work-fpga/xlnx_axi_dwidth_converter_dm_slave.xci \
+	work-fpga/xlnx_axi_quad_spi.xci \
+	work-fpga/xlnx_axi_gpio.xci \
+	work-fpga/xlnx_clk_gen.xci \
+	work-fpga/xlnx_mig_7_ddr3.xci \
+	work-fpga/xlnx_axi_hwicap.xci
+make[1] : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga »
+make[1]: « work-fpga/xlnx_axi_clock_converter.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_dwidth_converter.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_dwidth_converter_dm_master.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_dwidth_converter_dm_slave.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_quad_spi.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_gpio.xci » est à jour.
+make[1]: « work-fpga/xlnx_clk_gen.xci » est à jour.
+make[1]: « work-fpga/xlnx_mig_7_ddr3.xci » est à jour.
+make[1]: « work-fpga/xlnx_axi_hwicap.xci » est à jour.
+make[1] : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/cva6/corev_apu/fpga »
+==> Lancement de la synthèse STATIQUE (Vivado)...

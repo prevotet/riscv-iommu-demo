@@ -1,0 +1,76 @@
+CMD: make -C /home/jc/tmp/riscv-iommu-demo/bao-hypervisor CROSS_COMPILE=/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf- PLATFORM=cva6 CONFIG=cva6-dpr-baremetal CPPFLAGS=-DBAO_WRKDIR_IMGS=/home/jc/tmp/riscv-iommu-demo/build/guests -DLOGLEVEL=TRACE -j8
+DATE: mer. 29 avril 2026 13:04:50 CEST
+---
+make : on entre dans le répertoire « /home/jc/tmp/riscv-iommu-demo/bao-hypervisor »
+Compiling generator	 build/cva6/cva6-dpr-baremetal/scripts/platform_defs_gen
+Compiling generator	 build/cva6/cva6-dpr-baremetal/scripts/config_defs_gen
+Generating header	 build/cva6/cva6-dpr-baremetal/platform/platform_defs_gen.h
+Generating header	 build/cva6/cva6-dpr-baremetal/config/config_defs_gen.h
+Generating header	 build/cva6/cva6-dpr-baremetal/arch/riscv/inc/asm_defs.h
+Creating dependency	 build/cva6/cva6-dpr-baremetal/config/config
+Creating dependency	 src/linker.ld
+Creating dependency	 src/platform/drivers/8250_uart/8250_uart.c
+Creating dependency	 src/platform/cva6/cva6_desc.c
+Creating dependency	 src/core/mmu/vm.c
+Creating dependency	 src/core/mmu/vmm.c
+Creating dependency	 src/core/mmu/mem.c
+Creating dependency	 src/core/mmu/io.c
+Creating dependency	 src/core/hypercall.c
+Creating dependency	 src/core/ipc.c
+Creating dependency	 src/core/console.c
+Creating dependency	 src/core/config.c
+Creating dependency	 src/core/vm.c
+Creating dependency	 src/core/vmm.c
+Creating dependency	 src/core/cpu.c
+Creating dependency	 src/core/interrupts.c
+Creating dependency	 src/core/mem.c
+Creating dependency	 src/core/init.c
+Creating dependency	 src/arch/riscv/relocate.S
+Creating dependency	 src/arch/riscv/cache.c
+Creating dependency	 src/arch/riscv/iommu.c
+Creating dependency	 src/arch/riscv/cpu.c
+Creating dependency	 src/arch/riscv/vplic.c
+Creating dependency	 src/arch/riscv/sync_exceptions.c
+Creating dependency	 src/arch/riscv/interrupts.c
+Creating dependency	 src/arch/riscv/plic.c
+Creating dependency	 src/arch/riscv/vmm.c
+Creating dependency	 src/arch/riscv/vm.c
+Creating dependency	 src/arch/riscv/mem.c
+Creating dependency	 src/arch/riscv/exceptions.S
+Creating dependency	 src/arch/riscv/sbi.c
+Creating dependency	 src/arch/riscv/boot.S
+Compiling source	 src/arch/riscv/boot.S
+Compiling source	 src/arch/riscv/sbi.c
+Compiling source	 src/arch/riscv/exceptions.S
+Compiling source	 src/arch/riscv/mem.c
+Compiling source	 src/arch/riscv/vm.c
+Compiling source	 src/arch/riscv/plic.c
+Compiling source	 src/arch/riscv/vmm.c
+Compiling source	 src/arch/riscv/interrupts.c
+Compiling source	 src/arch/riscv/sync_exceptions.c
+Compiling source	 src/arch/riscv/vplic.c
+Compiling source	 src/arch/riscv/cpu.c
+Compiling source	 src/arch/riscv/cache.c
+Compiling source	 src/arch/riscv/iommu.c
+Compiling source	 src/arch/riscv/relocate.S
+Compiling source	 src/core/init.c
+Compiling source	 src/core/mem.c
+Compiling source	 src/core/interrupts.c
+Compiling source	 src/core/cpu.c
+Compiling source	 src/core/vmm.c
+Compiling source	 src/core/vm.c
+Compiling source	 src/core/config.c
+Compiling source	 src/core/console.c
+Compiling source	 src/core/ipc.c
+Compiling source	 src/core/hypercall.c
+Compiling source	 src/core/mmu/mem.c
+Compiling source	 src/core/mmu/io.c
+Compiling source	 src/core/mmu/vmm.c
+Compiling source	 src/core/mmu/vm.c
+Compiling source	 src/platform/cva6/cva6_desc.c
+Compiling source	 src/platform/drivers/8250_uart/8250_uart.c
+Compiling source	 configs/cva6-dpr-baremetal/config.c
+Pre-processing		 src/linker.ld
+Linking			 bin/cva6/cva6-dpr-baremetal/bao.elf
+Generating binary	 bin/cva6/cva6-dpr-baremetal/bao.bin
+make : on quitte le répertoire « /home/jc/tmp/riscv-iommu-demo/bao-hypervisor »

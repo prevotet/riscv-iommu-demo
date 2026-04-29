@@ -14,7 +14,7 @@
  */
 
 #ifndef TEST_SELECT
-#define TEST_SELECT 7
+#define TEST_SELECT 5
 #endif
 
 #include <stdint.h>
@@ -44,7 +44,7 @@
 
 /* Tailles en mots 32 bits — mises à jour par 3_build_B2.sh */
 #define BS1_NWORDS   57231UL
-#define BS2_NWORDS   95829UL
+#define BS2_NWORDS   57231UL
 #define BS3_NWORDS   95829UL
 
 #define GPIO_BASE       0x40000000ULL

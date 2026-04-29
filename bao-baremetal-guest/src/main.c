@@ -27,8 +27,6 @@
 #include <idma.h>
 extern void icap_test(void);
 extern void dpr_test(void);
-extern void dpr_test_full(void);
-extern void dpr_test_full_debug(void);
 
 #define TIMER_INTERVAL  (TIME_S(1))
 
@@ -342,11 +340,7 @@ void main(void){
         //timer_set(TIMER_INTERVAL);
         //irq_enable(TIMER_IRQ_ID);
         master_done = true;
-#ifdef TEST_SELECT
         dpr_test();
-#else
-        dpr_test_full_debug();
-#endif
         //icap_test();
     }
     irq_enable(UART_IRQ_ID);

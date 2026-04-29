@@ -162,6 +162,24 @@ Flags post-DPR (CFGERR=1, ID_ERROR=1, delta=0xa9ef8227) = comportement 7-series 
 
 test7 : 10 reconfigs accel2 sans erreur. accel1 inchangé. Les deux RPs validées indépendamment.
 
+### ✅ Étape 10 — Tests 1-7 passants sous BAO hypervisor (2026-04-29)
+
+Script : `2_BUILD_HB.sh` + `bao-baremetal-guest/src/dpr_test.c`
+
+Les mêmes tests 1-7 (standalone validés via `3_build_B2.sh`) tournent désormais dans une VM baremetal sous BAO hypervisor sur CVA6.
+
+**Structure sources BAO guest** :
+- `bao-baremetal-guest/src/sources.mk` : `src_c_srcs := dpr_test.c main.c`
+- Fichiers supprimés (inutilisés) : `dpr_client.c`, `dpr_test_full.c`, `dpr_manager.c`, `dpr_test_full_debug.c`, `dpr_ipc.h`
+- `main.c` : appel direct à `dpr_test()` (plus de `#ifdef TEST_SELECT`)
+- `2_BUILD_HB.sh` : `_set_test_select()` et `_restore_demo_mode()` écrivent `dpr_test.c main.c`
+
+**Mapping BAO (vm-configs/cva6-dpr-baremetal/config.c)** — tous PA=VA :
+- GPIO : `0x40000000`, size=0x1000
+- HWICAP : `0x40010000`, size=0x1000 (couvre ASR à 0x120)
+- DDR bitstreams : `0x81000000`, size=0x01000000
+- Accel1 : `0x50000000`, Accel2 : `0x50001000`
+
 ---
 
 ## Points techniques importants

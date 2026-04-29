@@ -116,7 +116,7 @@ FORCE_BAREMETAL="${FORCE_BAREMETAL:-0}"
 
 # Mode test (injecté via EXTRA_CPPFLAGS → TEST_SELECT)
 EXTRA_CPPFLAGS="${EXTRA_CPPFLAGS:-}"
-DPR_TEST_C="$ROOT_DIR/baremetal-dpr/src/dpr_test.c"
+DPR_TEST_C="$GUEST_DIR/src/dpr_test.c"
 SOURCES_MK="$GUEST_DIR/src/sources.mk"
 
 # Logging
@@ -260,6 +260,8 @@ do_dpr_manager() {
     if [[ "$FORCE_BAREMETAL" == "1" ]]; then
         make -C "$GUEST_DIR" CROSS_COMPILE="$CROSS_COMPILE" PLATFORM=cva6 \
             VARIANT=dpr_manager NAME=dpr_manager clean 2>/dev/null || true
+        # dpr_test.o est compilé hors de build/ (../../ path) → non nettoyé par make clean
+        rm -rf "$GUEST_DIR/baremetal-dpr"
     fi
 
     log_step "  → Log : $logfile"
@@ -305,6 +307,10 @@ do_bao() {
 
     check_file "$DPR_MANAGER_BIN"
 
+    if [[ "$FORCE_BAREMETAL" == "1" ]]; then
+        make -C "$BAO_SRCS" CROSS_COMPILE="$CROSS_COMPILE" PLATFORM=cva6 CONFIG="$BAO_CONFIG" clean 2>/dev/null || true
+    fi
+
     # Synchroniser configs et platform
     RUN cp -R "$ROOT_DIR/vm-configs/"*   "$BAO_SRCS/configs/"
     RUN cp -R "$ROOT_DIR/plat-configs/"* "$BAO_SRCS/src/platform/"
@@ -344,6 +350,10 @@ do_opensbi() {
         log_skip "fw_payload.bin plus récent que bao.bin — FORCE_BAREMETAL=1 pour forcer"
         _log_summary "opensbi" "SKIP" "(fw_payload à jour)"
         return
+    fi
+
+    if [[ "$FORCE_BAREMETAL" == "1" ]]; then
+        make -C "$ROOT_DIR/opensbi" CROSS_COMPILE="$CROSS_COMPILE" PLATFORM=fpga/ariane clean 2>/dev/null || true
     fi
 
     log_step "  → Log : $logfile"
@@ -537,7 +547,7 @@ do_load() {
     cat > "$gdb_script" << EOF
 target remote localhost:${OPENOCD_PORT}
 set confirm off
-set remotetimeout 60
+set remotetimeout 300
 set remote memory-write-packet-size 2048
 set remote memory-write-packet-size fixed
 
@@ -565,7 +575,7 @@ EOF
 
     echo ""
     log_step "Lancement GDB..."
-    "$GDB" -x "$gdb_script" --batch 2>&1
+    "$GDB" -x "$gdb_script"
     rm -f "$gdb_script"
     trap - EXIT INT TERM
 }
@@ -608,31 +618,29 @@ do_check_bitstreams() {
 # le guest BAO. TEST_SELECT est injecté via EXTRA_CPPFLAGS.
 # =============================================================================
 
-# Bascule sources.mk vers dpr_test.c + injecte TEST_SELECT dans EXTRA_CPPFLAGS
+# Modifie TEST_SELECT directement dans dpr_test.c (même approche que 3_build_B2.sh)
+# → make détecte le changement de source et recompile proprement
 _set_test_select() {
     local n="$1"
-    local test_src="src_c_srcs := ../../baremetal-dpr/src/dpr_test.c dpr_test_full_debug.c main.c"
-    local current
-    current=$(cat "$SOURCES_MK")
-    if [[ "$current" != "$test_src" ]]; then
-        log_step "sources.mk → mode test (dpr_test.c)"
-        echo "$test_src" > "$SOURCES_MK"
-        FORCE_BAREMETAL=1
+    local test_src="src_c_srcs := dpr_test.c main.c"
+    echo "$test_src" > "$SOURCES_MK"
+    EXTRA_CPPFLAGS="-DTEST_SELECT=$n"
+    local cur
+    cur=$(grep -oP '(?<=^#define TEST_SELECT )\d+' "$DPR_TEST_C" || echo "")
+    if [[ "$cur" != "$n" ]]; then
+        log_step "TEST_SELECT $cur → $n (modif dpr_test.c)"
+        sed -i "s/^#define TEST_SELECT [0-9]*/#define TEST_SELECT $n/" "$DPR_TEST_C"
     fi
-    local new_flags="-DTEST_SELECT=$n"
-    if [[ "${EXTRA_CPPFLAGS:-}" != "$new_flags" ]]; then
-        EXTRA_CPPFLAGS="$new_flags"
-        FORCE_BAREMETAL=1
-    fi
+    FORCE_BAREMETAL=1
 }
 
-# Restaure sources.mk vers dpr_test_full_debug.c (mode démo)
+# Restaure sources.mk vers le mode démo (sans TEST_SELECT)
 _restore_demo_mode() {
-    local demo_src="src_c_srcs := dpr_test_full_debug.c main.c"
+    local demo_src="src_c_srcs := dpr_test.c main.c"
     local current
     current=$(cat "$SOURCES_MK" 2>/dev/null || echo "")
     if [[ "$current" != "$demo_src" ]]; then
-        log_step "sources.mk → mode démo (dpr_test_full_debug.c)"
+        log_step "sources.mk → mode démo"
         echo "$demo_src" > "$SOURCES_MK"
     fi
     EXTRA_CPPFLAGS=""
@@ -666,7 +674,8 @@ _run_test() {
     {
         echo "target remote localhost:${OPENOCD_PORT}"
         echo "set confirm off"
-        echo "set remote memory-write-packet-size 4096"
+        echo "set remotetimeout 300"
+        echo "set remote memory-write-packet-size 2048"
         echo "set remote memory-write-packet-size fixed"
         while [[ $# -ge 2 ]]; do
             local addr="$1" bin="$2"; shift 2
@@ -681,7 +690,7 @@ _run_test() {
     } > "$gdb_script"
 
     log_step "GDB → Test $n (UART pour résultats)..."
-    "$GDB" -x "$gdb_script" --batch 2>&1
+    "$GDB" -x "$gdb_script"
     rm -f "$gdb_script"
     trap - EXIT INT TERM
 }

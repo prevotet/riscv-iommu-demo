@@ -452,3 +452,526 @@ Session : 20260428_154914 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A 
 ════════════════════════════════════════════════════════
 Session : 20260428_154920 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
 ════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_123447 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_123545 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [12:35:45] update_bs_constants                 OK accel1=57231 accel2=95829
+  [12:35:52] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_123545_dpr_manager.log
+  [12:35:59] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_123545_bao.log
+  [12:35:59] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_123447_program.log
+  [12:36:02] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_123545_opensbi.log
+  [12:36:02] baremetal                           OK fw_payload=2163512 octets
+
+════════════════════════════════════════════════════════
+Session : 20260429_123644 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_123657 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_124115 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_124121 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [12:41:22] dpr_manager                         FAIL /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_124121_dpr_manager.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_124749 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [12:47:49] update_bs_constants                 OK accel1=57231 accel2=95829
+  [12:47:50] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_124749_dpr_manager.log
+  [12:47:52] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_124749_bao.log
+  [12:47:52] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_124749_opensbi.log
+  [12:47:52] baremetal                           OK fw_payload=2163608 octets
+
+════════════════════════════════════════════════════════
+Session : 20260429_124754 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [12:47:55] dpr_manager                         FAIL /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_124754_dpr_manager.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_124836 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [12:48:36] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_124836_dpr_manager.log
+  [12:48:40] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_124836_bao.log
+  [12:48:40] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_124836_opensbi.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_124931 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [12:49:47] program                             FAIL /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_124931_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_125011 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [12:50:34] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_125011_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_125103 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_125133 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [12:51:34] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_125133_dpr_manager.log
+  [12:51:39] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_125133_bao.log
+  [12:51:39] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_125133_opensbi.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_125550 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_125553 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [12:55:54] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_125553_dpr_manager.log
+  [12:56:00] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_125553_bao.log
+  [12:56:00] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_125553_opensbi.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_125632 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_125634 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [12:56:36] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_125634_dpr_manager.log
+  [12:56:39] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_125634_bao.log
+  [12:56:40] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_125634_opensbi.log
+  [13:01:46] test1                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_130150 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:01:50] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_130150_dpr_manager.log
+  [13:01:54] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_130150_bao.log
+  [13:01:54] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_130150_opensbi.log
+  [13:04:25] test1                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_130442 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_130449 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:04:50] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_130449_dpr_manager.log
+  [13:04:53] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_130449_bao.log
+  [13:04:53] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_130449_opensbi.log
+  [13:07:33] test2                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_130740 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:08:00] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_130740_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_130818 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_130821 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:08:22] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_130821_dpr_manager.log
+  [13:08:27] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_130821_bao.log
+  [13:08:27] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_130821_opensbi.log
+  [13:10:14] test2                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_131020 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:10:35] program                             FAIL /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_131020_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_131041 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:11:04] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_131041_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_131108 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_131111 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:11:12] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_131111_dpr_manager.log
+  [13:11:18] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_131111_bao.log
+  [13:11:19] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_131111_opensbi.log
+  [13:15:40] test2                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_131917 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_131921 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:19:23] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_131921_dpr_manager.log
+  [13:19:27] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_131921_bao.log
+  [13:19:34] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_131921_opensbi.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_132328 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:23:31] test2                               RUN 
+  [13:23:48] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_132328_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_132359 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_132402 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:24:03] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_132402_dpr_manager.log
+  [13:24:08] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_132402_bao.log
+  [13:24:15] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_132402_opensbi.log
+  [13:27:29] test2                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_132739 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:27:39] update_bs_constants                 OK accel1=57231 accel2=95829
+  [13:27:39] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_132739_dpr_manager.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_132742 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:27:44] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_132739_bao.log
+  [13:27:50] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_132739_opensbi.log
+  [13:27:50] baremetal                           OK fw_payload=2163608 octets
+
+════════════════════════════════════════════════════════
+Session : 20260429_132755 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:27:56] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_132755_dpr_manager.log
+  [13:27:59] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_132755_bao.log
+  [13:28:07] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_132755_opensbi.log
+  [13:31:52] test2                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_133229 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_133232 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:32:32] update_bs_constants                 OK accel1=57231 accel2=95829
+  [13:32:33] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_133232_dpr_manager.log
+  [13:32:40] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_133232_bao.log
+  [13:32:51] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_133232_opensbi.log
+  [13:32:51] baremetal                           OK fw_payload=2163608 octets
+
+════════════════════════════════════════════════════════
+Session : 20260429_133303 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:33:04] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_133303_dpr_manager.log
+  [13:33:11] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_133303_bao.log
+  [13:33:24] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_133303_opensbi.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_133525 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_133531 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:35:51] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_133531_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_133554 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:35:57] test2                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_133601 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:36:01] update_bs_constants                 OK accel1=57231 accel2=95829
+  [13:36:02] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_133601_dpr_manager.log
+  [13:36:05] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_133601_bao.log
+  [13:36:13] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_133601_opensbi.log
+  [13:36:14] baremetal                           OK fw_payload=2163608 octets
+
+════════════════════════════════════════════════════════
+Session : 20260429_133618 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:36:19] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_133618_dpr_manager.log
+  [13:36:23] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_133618_bao.log
+  [13:36:30] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_133618_opensbi.log
+  [13:43:47] test2                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_134351 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_134357 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:43:57] update_bs_constants                 OK accel1=57231 accel2=95829
+  [13:43:58] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_134357_dpr_manager.log
+  [13:44:02] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_134357_bao.log
+  [13:44:10] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_134357_opensbi.log
+  [13:44:10] baremetal                           OK fw_payload=2163608 octets
+
+════════════════════════════════════════════════════════
+Session : 20260429_134425 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:44:26] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_134425_dpr_manager.log
+  [13:44:29] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_134425_bao.log
+  [13:44:37] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_134425_opensbi.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_135255 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:53:21] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_135255_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_135334 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_135338 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [13:53:39] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_135338_dpr_manager.log
+  [13:53:44] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_135338_bao.log
+  [13:53:52] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_135338_opensbi.log
+  [14:01:05] test2                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_140107 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_140113 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [14:01:13] update_bs_constants                 OK accel1=57231 accel2=95829
+  [14:01:14] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_140113_dpr_manager.log
+  [14:01:19] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_140113_bao.log
+  [14:01:27] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_140113_opensbi.log
+  [14:01:27] baremetal                           OK fw_payload=2163608 octets
+
+════════════════════════════════════════════════════════
+Session : 20260429_140140 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [14:01:41] dpr_manager                         FAIL /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_140140_dpr_manager.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_140220 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [14:02:21] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_140220_dpr_manager.log
+  [14:02:25] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_140220_bao.log
+  [14:02:33] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_140220_opensbi.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_140903 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [14:09:26] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_140903_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_140929 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_140934 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [14:09:35] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_140934_dpr_manager.log
+  [14:09:42] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_140934_bao.log
+  [14:09:54] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_140934_opensbi.log
+  [14:30:02] test3                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_145221 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [14:52:41] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_145221_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_145246 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_163923 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [16:39:24] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_163923_dpr_manager.log
+  [16:39:29] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_163923_bao.log
+  [16:39:35] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_163923_opensbi.log
+  [16:42:06] test1                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_164209 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [16:42:10] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_164209_dpr_manager.log
+  [16:42:14] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_164209_bao.log
+  [16:42:20] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_164209_opensbi.log
+  [16:46:36] test2                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_165427 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [16:54:47] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_165427_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_165452 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_165607 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [16:56:08] dpr_manager                         FAIL /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_165607_dpr_manager.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_165713 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [16:57:14] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_165713_dpr_manager.log
+  [16:57:18] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_165713_bao.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_165725 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [16:57:26] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_165713_opensbi.log
+  [17:17:48] test2                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_172752 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_172808 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [17:28:09] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_172808_dpr_manager.log
+  [17:28:14] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_172808_bao.log
+  [17:28:23] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_172808_opensbi.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_173238 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [17:32:43] test2                               RUN 
+  [17:32:57] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_173238_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_173308 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_173311 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [17:33:11] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_173311_dpr_manager.log
+  [17:33:16] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_173311_bao.log
+  [17:33:22] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_173311_opensbi.log
+  [17:37:18] test2                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_173722 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [17:37:42] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_173722_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_173744 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_173746 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [17:37:47] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_173746_dpr_manager.log
+  [17:37:52] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_173746_bao.log
+  [17:38:00] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_173746_opensbi.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_174111 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [17:41:13] test3                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_174116 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [17:41:17] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_174116_dpr_manager.log
+  [17:41:20] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_174116_bao.log
+  [17:41:29] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_174116_opensbi.log
+  [17:44:09] test4                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_174416 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [17:44:36] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_174416_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_174440 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_174442 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [17:44:43] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_174442_dpr_manager.log
+  [17:44:47] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_174442_bao.log
+  [17:44:53] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_174442_opensbi.log
+  [17:52:07] test4                               RUN 
+
+════════════════════════════════════════════════════════
+Session : 20260429_175209 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_175214 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [17:52:15] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_175214_dpr_manager.log
+  [17:52:20] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_175214_bao.log
+  [17:52:28] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_175214_opensbi.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_175553 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [17:55:57] test5                               RUN 
+  [17:56:18] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_175553_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_175621 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_175624 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [17:56:25] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_175624_dpr_manager.log
+  [17:56:29] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_175624_bao.log
+  [17:56:38] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_175624_opensbi.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_180136 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [18:01:45] test5                               RUN 
+  [18:01:57] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_180136_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_180202 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_180203 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [18:02:04] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_180203_dpr_manager.log
+  [18:02:08] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_180203_bao.log
+  [18:02:17] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_180203_opensbi.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_180544 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [18:05:47] test6                               RUN 
+  [18:06:04] program                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_180544_program.log
+
+════════════════════════════════════════════════════════
+Session : 20260429_180607 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════
+Session : 20260429_180610 — BAO_CONFIG=cva6-dpr-baremetal — RM_INIT=accel_A RM_TARGET=accel_B
+════════════════════════════════════════════════════════
+  [18:06:12] dpr_manager                         OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_180610_dpr_manager.log
+  [18:06:16] bao                                 OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_180610_bao.log
+  [18:06:23] opensbi                             OK /home/jc/tmp/riscv-iommu-demo/logs/bao-dpr/20260429_180610_opensbi.log
