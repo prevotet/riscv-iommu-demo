@@ -67,6 +67,36 @@ module wrapper #(
 
     
 );
+
+// =============================================================================
+// Profil de bitstream : DEMO (defaut) vs BENCH (`+define+BENCH_PROFILE`)
+//
+//   DEMO  : blocages longs (~15 s @50 MHz), fenetre de flux large, seuil MSI bas
+//           -> penalite visible a l'oeil pour la demo interactive (main.c)
+//   BENCH : blocages courts (~2 ms), fenetre courte, seuil MSI haut
+//           -> permet d'enchainer les iterations de bench_runner.c
+//
+// Les seuils de *detection* (MAX_FAILURES, MAX_REQ_PER_WINDOW, MAX_OUTSTANDING,
+// MAX_RATIO_MSI_DMA) sont volontairement identiques dans les deux profils :
+// seules les durees de reaction et le seuil MSI changent.
+//
+// Activation cote Vivado :
+//   set_property verilog_define {BENCH_PROFILE} [current_fileset]
+// =============================================================================
+`ifdef BENCH_PROFILE
+    localparam logic [31:0] BLOCK_DURATION_C     = 32'd100_000;  // ~2 ms @50 MHz
+    localparam int unsigned FLOW_WINDOW_C        = 100;
+    localparam int unsigned FLOW_BLOCK_CYCLES_C  = 4;
+    localparam int unsigned OUTS_BLOCK_CYCLES_C  = 10;
+    localparam int unsigned MAX_MSI_C            = 32;
+`else // profil DEMO
+    localparam logic [31:0] BLOCK_DURATION_C     = 32'd750_000_000;  // ~15 s @50 MHz
+    localparam int unsigned FLOW_WINDOW_C        = 50_000;
+    localparam int unsigned FLOW_BLOCK_CYCLES_C  = 750_000_000;
+    localparam int unsigned OUTS_BLOCK_CYCLES_C  = 750_000_000;
+    localparam int unsigned MAX_MSI_C            = 4;
+`endif
+
 resp_slv_t resp_delayed;
 
 logic [DevIDWidth-1:0] Device_ID_o;                         //Extracted_ID
@@ -175,7 +205,7 @@ response_manager #(
 );
 security_monitor #(
     .MAX_FAILURES(3),
-    .BLOCK_DURATION(32'd100000)
+    .BLOCK_DURATION(BLOCK_DURATION_C)
 ) sec_mon (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
@@ -187,9 +217,9 @@ security_monitor #(
 );
 
 request_flow_monitor #(
-    .WINDOW_CYCLES(100),
+    .WINDOW_CYCLES(FLOW_WINDOW_C),
     .MAX_REQ_PER_WINDOW(8),
-    .BLOCK_CYCLES(4),
+    .BLOCK_CYCLES(FLOW_BLOCK_CYCLES_C),
     .req_iommu_t(req_iommu_t),
     .resp_slv_t(resp_slv_t)
 
@@ -206,7 +236,7 @@ request_flow_monitor #(
 
 outs_req_monitor #(
     .MAX_OUTSTANDING(16),
-    .BLOCK_CYCLES(10),
+    .BLOCK_CYCLES(OUTS_BLOCK_CYCLES_C),
     .resp_slv_t(resp_slv_t),
     .req_iommu_t(req_iommu_t)
 ) outs_monitor_inst (
@@ -220,7 +250,7 @@ outs_req_monitor #(
 );
 interrupt_monitor #(
     .WINDOW_CYCLES(1024),
-    .MAX_MSI_PER_WINDOW(32),
+    .MAX_MSI_PER_WINDOW(MAX_MSI_C),
     .MAX_RATIO_MSI_DMA(2)
 ) int_monitor_inst (
     .clk_i(clk_i),

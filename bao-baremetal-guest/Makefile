@@ -84,6 +84,13 @@ CPPFLAGS =	$(ARCH_CPPFLAGS) $(addprefix -I, $(INC_DIRS)) -MD -MF $@.d
 ifneq ($(SINGLE_CORE),)
 CPPFLAGS+=-DSINGLE_CORE=y
 endif
+ifeq ($(BENCH_IOMMU),1)
+ifeq ($(BENCH_ARMOR),1)
+CPPFLAGS += -DBENCH_PLATFORM_ARMOR=1
+else
+CPPFLAGS += -DBENCH_PLATFORM_SANS_ARMOR=1
+endif
+endif
 LDFLAGS = $(GENERIC_FLAGS) $(ARCH_LDFLAGS) -nostartfiles
 all: $(TARGET).bin
 

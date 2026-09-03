@@ -26,12 +26,21 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VIVADO_VERSION="${VIVADO_VERSION:-2022.2}"
 VIVADO_DIR="${VIVADO_DIR:-/tools/Xilinx/Vivado/${VIVADO_VERSION}}"
 
-RISCV_BARE="${RISCV_BARE:-/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-}"
-RISCV_LINUX_DIR="${RISCV_LINUX_DIR:-/home/jc/Software/riscv}"
+# Toolchain bare-metal : newlib construite en rv64imac / lp64 / medany
+# (le guest est lie a PLAT_MEM_BASE=0x90000000, medlow ne peut pas l'atteindre)
+RISCV_BARE="${RISCV_BARE:-/home/jc/Work/Software/riscv-imac/bin/riscv64-unknown-elf-}"
+RISCV_LINUX_DIR="${RISCV_LINUX_DIR:-/usr}"
 export RISCV="${RISCV:-$RISCV_LINUX_DIR}"
 
 export CROSS_COMPILE="${CROSS_COMPILE:-$RISCV_BARE}"
 export PATH="$RISCV_LINUX_DIR/bin:$PATH"
+
+# OpenSBI v1.0 avec un GCC recent (defaut C23) :
+#   - sbi_types.h fait `typedef int bool`, interdit depuis C23 -> -std=gnu11
+#   - l'ISA devinee via `gcc -v --with-arch` est tronquee au premier `_`,
+#     d'ou une -march sans zicsr/zifencei -> csrr/csrw non reconnus
+OPENSBI_CC="${OPENSBI_CC:-${RISCV_BARE}gcc -std=gnu11}"
+OPENSBI_RISCV_ISA="${OPENSBI_RISCV_ISA:-rv64imac_zicsr_zifencei}"
 
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
 JOBS="${JOBS:-$(nproc)}"
@@ -156,10 +165,33 @@ do_clean() {
 
 do_fpga() {
     log_step "Synthèse FPGA (CVA6)"
+
+    # RTL ARMOR : la source de verite est armor/ a la racine du depot, recopiee
+    # dans le sous-module (idem 2_build_HB.sh)
+    log_step "  → Copie du RTL ARMOR"
+    RUN mkdir -p "$ROOT_DIR/cva6/corev_apu/fpga/src/armor/SRC" \
+                 "$ROOT_DIR/cva6/corev_apu/fpga/src/armor/Include"
+    RUN cp -f "$ROOT_DIR/armor/SRC/"*.sv     "$ROOT_DIR/cva6/corev_apu/fpga/src/armor/SRC/"
+    RUN cp -f "$ROOT_DIR/armor/Include/"*.*  "$ROOT_DIR/cva6/corev_apu/fpga/src/armor/Include/"
+
+    # Overlay : fichiers du sous-module cva6 modifies et conserves dans le depot
+    # principal, sinon effaces par le `git reset --hard` de init_submodules.
+    # (arborescence miroir : cva6-overlay/<chemin relatif dans cva6/>)
+    if [[ -d "$ROOT_DIR/cva6-overlay" ]]; then
+        log_step "  → Overlay cva6 (run.tcl, …)"
+        RUN cp -a "$ROOT_DIR/cva6-overlay/." "$ROOT_DIR/cva6/"
+    fi
+
     source "$VIVADO_DIR/settings64.sh"
-    if [[ -d "$ROOT_DIR/cva6/build" ]]; then
-        log_warn "Synthèse déjà réalisée — pour forcer, supprimer cva6/build"
+
+    local bit="$ROOT_DIR/cva6/corev_apu/fpga/work-fpga/ariane_xilinx.bit"
+    if [[ -f "$bit" ]] && [[ "${FORCE_FPGA:-0}" != "1" ]]; then
+        log_warn "Bitstream déjà présent — synthèse ignorée (FORCE_FPGA=1 pour refaire)"
+        log_warn "  → $bit"
     else
+        [[ -f "$bit" ]] && log_warn "FORCE_FPGA=1 — suppression du bitstream existant"
+        RUN rm -f "$bit"
+        RUN rm -rf "$ROOT_DIR/cva6/build"
         RUN make -C "$ROOT_DIR/cva6" fpga
     fi
     copy_if_changed \
@@ -249,6 +281,8 @@ do_opensbi() {
     log_step "Compilation de OpenSBI"
     RUN make -C "$ROOT_DIR/opensbi" \
         CROSS_COMPILE="$CROSS_COMPILE" \
+        CC="$OPENSBI_CC" \
+        PLATFORM_RISCV_ISA="$OPENSBI_RISCV_ISA" \
         PLATFORM=fpga/ariane \
         FW_PAYLOAD=y \
         FW_PAYLOAD_PATH="$BAO_SRCS/bin/cva6/cva6-baremetal-linux/bao.bin" \
@@ -406,7 +440,10 @@ case "$TARGET" in
         echo "  VIVADO_VERSION     (défaut: 2022.2)"
         echo "  VIVADO_DIR         (défaut: /tools/Xilinx/Vivado/\$VIVADO_VERSION)"
         echo "  CROSS_COMPILE      (défaut: riscv64-unknown-elf- toolchain)"
-        echo "  RISCV_LINUX_DIR    (défaut: /home/jc/Software/riscv)"
+        echo "  FORCE_FPGA=1       (refait la synthèse même si le bitstream existe)"
+        echo "  OPENSBI_CC         (défaut: \$RISCV_BARE gcc -std=gnu11)"
+        echo "  OPENSBI_RISCV_ISA  (défaut: rv64imac_zicsr_zifencei)"
+        echo "  RISCV_LINUX_DIR    (défaut: /usr)"
         echo "  BUILD_DIR          (défaut: <root>/build)"
         echo "  JOBS               (défaut: nproc)"
         echo "  DRY_RUN=1          (affiche les commandes sans les exécuter)"

@@ -30,7 +30,16 @@ struct config config = {
                     }
                 },
 
-                .dev_num = 7,
+                /* --------------------------------------------------------
+                 * ORIGINAL : .dev_num = 7  (UART, Timer, SPI, Ethernet,
+                 *            GPIO, LHA "DMA", IOMMU). Pas de MHA.
+                 * MODIFIED : .dev_num = 8  -- ajout du MHA (DEVICE_ID=2)
+                 *            pour permettre au guest baremetal d'accéder
+                 *            à ses registres MMIO. L'hyperviseur Bao doit
+                 *            connaître tous les devices exposés au guest,
+                 *            sinon trap d'accès.
+                 * -------------------------------------------------------- */
+                .dev_num = 8,
                 .devs =  (struct vm_dev_region[]) {
                     {   // UART
                         .pa = 0x10000000,   
@@ -67,13 +76,28 @@ struct config config = {
                         .interrupt_num = 0,
                         .interrupts = (irqid_t[]) {}
                     },
-                    {   // iDMA
+                    {   // LHA (Legitimate Hardware Accelerator, DEVICE_ID=1)
                         .pa = 0x50000000,
                         .va = 0x50000000,
                         .size = 0x00001000,
                         .interrupt_num = 0,
                         .interrupts = (irqid_t[]) {},
                         .id = 1
+                    },
+                    /* ----------------------------------------------------
+                     * ADDED : nouveau device MHA.
+                     * Accélérateur malicieux ajouté à côté du LHA pour les
+                     * scénarios d'attaque (spoofing ID + DoS storm).
+                     * .id = 2 -> stream_id transmis à l'IOMMU pour la
+                     *           vérification DDT[2].V (=0 -> blocage).
+                     * ---------------------------------------------------- */
+                    {   // MHA (Malicious Hardware Accelerator, DEVICE_ID=2)
+                        .pa = 0x50001000,
+                        .va = 0x50001000,
+                        .size = 0x00001000,
+                        .interrupt_num = 0,
+                        .interrupts = (irqid_t[]) {},
+                        .id = 2
                     },
                     {   // IOMMU (demo only)
                         .pa = 0x50010000,   
