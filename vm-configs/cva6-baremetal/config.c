@@ -34,12 +34,16 @@ struct config config = {
                  * ORIGINAL : .dev_num = 7  (UART, Timer, SPI, Ethernet,
                  *            GPIO, LHA "DMA", IOMMU). Pas de MHA.
                  * MODIFIED : .dev_num = 8  -- ajout du MHA (DEVICE_ID=2)
+                 * MODIFIED : .dev_num = 10 -- ajout des fenetres CSR des deux
+                 *            sec_wrappers ARMOR (0x50002000 / 0x50003000).
+                 *            Ce compteur est en dur : l'oublier fait ignorer
+                 *            silencieusement les entrees ajoutees.
                  *            pour permettre au guest baremetal d'accéder
                  *            à ses registres MMIO. L'hyperviseur Bao doit
                  *            connaître tous les devices exposés au guest,
                  *            sinon trap d'accès.
                  * -------------------------------------------------------- */
-                .dev_num = 8,
+                .dev_num = 10,
                 .devs =  (struct vm_dev_region[]) {
                     {   // UART
                         .pa = 0x10000000,   
@@ -98,6 +102,28 @@ struct config config = {
                         .interrupt_num = 0,
                         .interrupts = (irqid_t[]) {},
                         .id = 2
+                    },
+                    /* ----------------------------------------------------
+                     * Fenetres CSR des sec_wrappers ARMOR. Sans ces deux
+                     * regions, la premiere lecture du registre MAGIC en
+                     * 0x50002058 sort en "no emulation handler for abort" :
+                     * l'adresse n'est pas mappee dans la VM.
+                     * Pas de .id : ce sont de simples esclaves MMIO, ils
+                     * n'emettent aucune transaction DMA vers l'IOMMU.
+                     * ---------------------------------------------------- */
+                    {   // sec_wrapper #1 (surveille le LHA)
+                        .pa = 0x50002000,
+                        .va = 0x50002000,
+                        .size = 0x00001000,
+                        .interrupt_num = 0,
+                        .interrupts = (irqid_t[]) {}
+                    },
+                    {   // sec_wrapper #2 (surveille le MHA)
+                        .pa = 0x50003000,
+                        .va = 0x50003000,
+                        .size = 0x00001000,
+                        .interrupt_num = 0,
+                        .interrupts = (irqid_t[]) {}
                     },
                     {   // IOMMU (demo only)
                         .pa = 0x50010000,   
