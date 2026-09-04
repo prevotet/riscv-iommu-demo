@@ -60,7 +60,13 @@ module wrapper #(
     //CPU_Wrapper Interface   (Slave)
 
     input   req_slv_t       req_CPU_Wrapper__i,
-    output  resp_slv_t      resp_CPU_Wrapper_o
+    output  resp_slv_t      resp_CPU_Wrapper_o,
+
+    // Verdicts remontes a l'IP surveillee, pour son registre STATUS :
+    // {MSI, OUTS, STORM, BANNED, BLOCKED} = armor_status[7:3].
+    // Signaux instantanes : c'est a l'IP de les memoriser si elle veut les
+    // observer apres coup (accel_wrap le fait par transaction).
+    output  logic [4:0]     armor_verdict_o
 
 
 
@@ -550,6 +556,8 @@ always_comb begin
         default: csr_rdata = 64'h0;
     endcase
 end
+
+assign armor_verdict_o = armor_status[7:3];
 
 // Reponse AXI
 always_comb begin

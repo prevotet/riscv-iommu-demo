@@ -38,6 +38,29 @@
 #define LHA_SIZE_OFF            (0x18ULL)
 #define LHA_CONFIG_OFF          (0x20ULL)
 
+/* CSR des sec_wrappers ARMOR (interface CPU du wrapper).
+ * Sans cette configuration, ENFORCE vaut 0 au reset : les moniteurs observent
+ * mais ne bloquent jamais, et la campagne mesurerait 0 % de detection. */
+#define WRAP1_BASE_ADDR         (0x50002000ULL)   /* sec_wrapper du LHA (ID=1) */
+#define WRAP2_BASE_ADDR         (0x50003000ULL)   /* sec_wrapper du MHA (ID=2) */
+#define WRAP_ID_CFG_OFF         (0x00ULL)
+#define WRAP_MSI_ADDR_OFF       (0x08ULL)
+#define WRAP_CTRL_OFF           (0x10ULL)
+#define WRAP_STATUS_OFF         (0x18ULL)
+#define WRAP_STICKY_OFF         (0x20ULL)
+#define WRAP_FAILCNT_OFF        (0x28ULL)
+#define WRAP_CNT_BANNED_OFF     (0x30ULL)
+#define WRAP_CNT_STORM_OFF      (0x38ULL)
+#define WRAP_CNT_OUTS_OFF       (0x40ULL)
+#define WRAP_CNT_MSI_OFF        (0x48ULL)
+#define WRAP_DEVID_LAST_OFF     (0x50ULL)
+#define WRAP_MAGIC_OFF          (0x58ULL)
+
+#define WRAP_CTRL_ENFORCE       (1ULL << 0)
+#define WRAP_CTRL_STICKY_CLR    (1ULL << 1)
+#define WRAP_CTRL_CNT_CLR       (1ULL << 2)
+#define WRAP_MAGIC_EXPECTED     (0x41524D4F52000001ULL)
+
 #define IOMMU_BASE_ADDR         (0x50010000ULL)
 #define IOMMU_DDTP_OFF          (0x10ULL)
 #define DDT_BASE_ADDR           (0xAFFFF000ULL)
@@ -128,6 +151,68 @@ static void set_iommu_mode(uint64_t mode) {
 }
 
 #define DDT_ENTRY_BYTES 64
+
+/* Arme les deux sec_wrappers ARMOR.
+ *   ID_CFG   : identifiant legitime attendu = STREAM_ID cable dans accel_wrap
+ *              (1 pour le LHA, 2 pour le MHA). id_comparator exige fixed_id != 0,
+ *              donc sans cette ecriture legit_hit reste a 0 et request_manager
+ *              fermerait tout le chemin des que ENFORCE passe a 1.
+ *   MSI_ADDR : adresse surveillee par msi_detector. Le scenario SC04 ecrit sur
+ *              LEGIT_DST, c'est donc cette adresse qu'il faut declarer.
+ *   ENFORCE  : arme le blocage. A 0 (reset) le wrapper est transparent, ce qui
+ *              donne la baseline "sans ARMOR" dans le meme bitstream.
+ */
+static void armor_wrap_init(int enforce) {
+    volatile uint64_t *w1 = (volatile uint64_t *)WRAP1_BASE_ADDR;
+    volatile uint64_t *w2 = (volatile uint64_t *)WRAP2_BASE_ADDR;
+
+    uint64_t m1 = w1[WRAP_MAGIC_OFF / 8];
+    uint64_t m2 = w2[WRAP_MAGIC_OFF / 8];
+    printf("# ARMOR CSR magic : wrap1=0x%08x%08x wrap2=0x%08x%08x\r\n",
+           (unsigned)(m1 >> 32), (unsigned)m1,
+           (unsigned)(m2 >> 32), (unsigned)m2);
+    if (m1 != WRAP_MAGIC_EXPECTED || m2 != WRAP_MAGIC_EXPECTED) {
+        printf("# ATTENTION : magic ARMOR inattendu — bitstream sans interface CSR ?\r\n");
+    }
+
+    w1[WRAP_ID_CFG_OFF   / 8] = 1ULL;         /* LHA : STREAM_ID = 1 */
+    w2[WRAP_ID_CFG_OFF   / 8] = 2ULL;         /* MHA : STREAM_ID = 2 */
+    w2[WRAP_MSI_ADDR_OFF / 8] = LEGIT_DST;    /* cible des ecritures SC04 */
+
+    uint64_t ctrl = (enforce ? WRAP_CTRL_ENFORCE : 0ULL)
+                  | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
+    w1[WRAP_CTRL_OFF / 8] = ctrl;
+    w2[WRAP_CTRL_OFF / 8] = ctrl;
+    fence();
+
+    printf("# ARMOR arme : ENFORCE=%d, ID_CFG w1=1 w2=2, MSI_ADDR=0x%08x\r\n",
+           enforce, (unsigned)LEGIT_DST);
+    printf("# ARMOR devid_last : w1=%lu w2=%lu\r\n",
+           (unsigned long)w1[WRAP_DEVID_LAST_OFF / 8],
+           (unsigned long)w2[WRAP_DEVID_LAST_OFF / 8]);
+}
+
+/* Vide les compteurs d'evenements ARMOR entre deux scenarios. */
+static void armor_wrap_clear(void) {
+    volatile uint64_t *w2 = (volatile uint64_t *)WRAP2_BASE_ADDR;
+    uint64_t cur = w2[WRAP_CTRL_OFF / 8];
+    w2[WRAP_CTRL_OFF / 8] = cur | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
+    fence();
+}
+
+/* Imprime les compteurs cotes wrapper : mesure independante des verdicts vus
+ * par l'accelerateur, utile pour recouper les FN. */
+static void armor_wrap_report(const char *tag) {
+    volatile uint64_t *w2 = (volatile uint64_t *)WRAP2_BASE_ADDR;
+    printf("# ARMORCNT,%s,sticky=0x%08x,fail=%lu,ban=%lu,storm=%lu,outs=%lu,msi=%lu\r\n",
+           tag,
+           (unsigned)w2[WRAP_STICKY_OFF      / 8],
+           (unsigned long)w2[WRAP_FAILCNT_OFF    / 8],
+           (unsigned long)w2[WRAP_CNT_BANNED_OFF / 8],
+           (unsigned long)w2[WRAP_CNT_STORM_OFF  / 8],
+           (unsigned long)w2[WRAP_CNT_OUTS_OFF   / 8],
+           (unsigned long)w2[WRAP_CNT_MSI_OFF    / 8]);
+}
 
 /* Initialise la DDT (copié de main.c) :
  *   DDT[0] = invalide
@@ -319,6 +404,7 @@ static void run_scenario(const char *tag, char accel, uint64_t mode,
                          int expected_block, stats_t *st)
 {
     stat_init(st, tag);
+    armor_wrap_clear();     /* compteurs ARMOR remis a zero par scenario */
     printf("# === %s : N=%d accel=%c mode=%lu cfg=0x%lx expect_block=%d\r\n",
            tag, N, accel, (unsigned long)mode,
            (unsigned long)cfg_bits, expected_block);
@@ -358,6 +444,7 @@ static void run_scenario(const char *tag, char accel, uint64_t mode,
            "OUTS=%d MSI=%d ERR=%d UNK=%d\r\n",
            tag, (unsigned long)*st_reg,
            c_done, c_blk, c_ban, c_storm, c_outs, c_msi, c_err, c_unk);
+    armor_wrap_report(tag);   /* recoupement cote wrapper, independant de l'accel */
 }
 
 /* ============================================================
@@ -433,6 +520,13 @@ void main(void) {
     set_iommu_mode(2);
     printf("# IOMMU DDT init OK (DDT @ 0x%08x, LHA=allow ID=1, MHA=block ID=2)\r\n",
            (unsigned)DDT_BASE_ADDR);
+
+    /* Arme ARMOR. Compiler avec -DARMOR_ENFORCE=0 pour la baseline sans
+     * blocage (meme bitstream, meme binaire a un define pres). */
+#ifndef ARMOR_ENFORCE
+#define ARMOR_ENFORCE 1
+#endif
+    armor_wrap_init(ARMOR_ENFORCE);
 
     /* Configurer DDT : LHA(id=1) autorisé sur 0x91000000, MHA(id=2) interdit */
     /* (à adapter selon ton init DDT existante de main.c) */
