@@ -25,6 +25,12 @@
 //    0x20  CONFIG       RW  bit0 = 1 lecture / 0 ecriture ; bit1 = continu
 //    0x28  ATTACK_MODE  RW  0..6, voir ci-dessous
 //    0x30  BLOCKED_CNT  R   nombre de transactions avortees sur timeout
+//    0x38  MSI_ADDR     RW  adresse visee par le mode 6, a tenir identique au
+//                           MSI_ADDR du sec_wrapper. Elle DOIT differer de
+//                           l'adresse du trafic legitime : le msi_detector
+//                           classe en MSI toute ecriture vers l'adresse
+//                           configuree, donc les faire coincider revient a
+//                           compter toute la charge normale comme des MSI.
 //    0x58  BTN_STATE    R   {btnc, btnr, btnl, btnd, btnu}
 //
 //  Modes d'attaque :
@@ -93,6 +99,7 @@ module accel_wrap #(
     logic [63:0] reg_conf_q;      // 0x20 CONFIG
     logic [63:0] reg_mode_q;      // 0x28 ATTACK_MODE
     logic [31:0] reg_blkcnt_q;    // 0x30 BLOCKED_CNT
+    logic [63:0] reg_msiaddr_q;   // 0x38 MSI_ADDR
 
     logic        start_pulse;     // impulsion issue de l'ecriture de CTRL
     logic        busy_q, done_q, error_q;
@@ -141,6 +148,7 @@ module accel_wrap #(
             5'd4:    cfg_rdata = reg_conf_q;               // CONFIG
             5'd5:    cfg_rdata = reg_mode_q;               // ATTACK_MODE
             5'd6:    cfg_rdata = {32'h0, reg_blkcnt_q};    // BLOCKED_CNT
+            5'd7:    cfg_rdata = reg_msiaddr_q;             // MSI_ADDR
             5'd11:   cfg_rdata = {59'h0, btn_state};       // BTN_STATE (0x58)
             default: cfg_rdata = 64'h0;
         endcase
@@ -154,8 +162,9 @@ module accel_wrap #(
             reg_base_q  <= 64'h0;
             reg_size_q  <= 64'h0;
             reg_conf_q  <= 64'h0;
-            reg_mode_q  <= 64'h0;
-            start_pulse <= 1'b0;
+            reg_mode_q    <= 64'h0;
+            reg_msiaddr_q <= 64'h0;
+            start_pulse   <= 1'b0;
         end else begin
             start_pulse <= 1'b0;
 
@@ -175,7 +184,8 @@ module accel_wrap #(
                             5'd2: reg_base_q  <= axi_cfg.w_data;
                             5'd3: reg_size_q  <= axi_cfg.w_data;
                             5'd4: reg_conf_q  <= axi_cfg.w_data;
-                            5'd5: reg_mode_q  <= axi_cfg.w_data;
+                            5'd5: reg_mode_q    <= axi_cfg.w_data;
+                            5'd7: reg_msiaddr_q <= axi_cfg.w_data;
                             default: ; // lecture seule
                         endcase
                         cw_idx_q <= cw_idx_q + 1'b1;
@@ -297,6 +307,7 @@ module accel_wrap #(
                 burst_len = 8'd0;
             end
             3'd6: begin // tempete MSI : ecritures repetees vers l'adresse surveillee
+                addr_eff  = reg_msiaddr_q;
                 n_req     = MSI_REQS[7:0];
                 vary_id   = 1'b1;
                 is_write  = 1'b1;

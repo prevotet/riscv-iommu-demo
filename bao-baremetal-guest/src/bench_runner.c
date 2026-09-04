@@ -30,6 +30,7 @@
 #define MHA_SIZE_OFF            (0x18ULL)
 #define MHA_CONFIG_OFF          (0x20ULL)
 #define MHA_ATTACK_MODE_OFF     (0x28ULL)
+#define MHA_MSI_ADDR_OFF        (0x38ULL)
 
 #define LHA_BASE_ADDR           (0x50000000ULL)
 #define LHA_CTRL_OFF            (0x00ULL)
@@ -67,6 +68,12 @@
 
 #define ATTACK_DST              (0x80000000ULL)   /* zone OpenSBI (interdite) */
 #define LEGIT_DST               (0x91000000ULL)   /* zone guest (autorisée) */
+/* Adresse surveillée par le msi_detector, VOLONTAIREMENT distincte de
+ * LEGIT_DST. Le détecteur classe en MSI toute écriture vers l'adresse
+ * configurée : les faire coïncider comptait tout le trafic légitime comme des
+ * MSI et saturait interrupt_monitor (mesuré : 1 024 012 événements pour 1000
+ * transactions). Seul le mode 6 vise cette adresse. */
+#define MSI_TARGET_DST          (0x91008000ULL)
 /* Taille de transfert réaliste (64 B = 8 beats @ 64 bits). NB : avec
  * MAX_REQ_PER_WINDOW=16, (64,16) GÈLE tant que le wedge SC04 n'est pas corrigé
  * en RTL (block_req sur write MSI -> AW orphelin -> B IOMMU non drainé). Voir
@@ -113,6 +120,7 @@ static volatile uint64_t *mha_base    = (volatile uint64_t *)(MHA_BASE_ADDR + MH
 static volatile uint64_t *mha_size    = (volatile uint64_t *)(MHA_BASE_ADDR + MHA_SIZE_OFF);
 static volatile uint64_t *mha_config  = (volatile uint64_t *)(MHA_BASE_ADDR + MHA_CONFIG_OFF);
 static volatile uint64_t *mha_mode    = (volatile uint64_t *)(MHA_BASE_ADDR + MHA_ATTACK_MODE_OFF);
+static volatile uint64_t *mha_msi_addr= (volatile uint64_t *)(MHA_BASE_ADDR + MHA_MSI_ADDR_OFF);
 
 static volatile uint64_t *lha_ctrl    = (volatile uint64_t *)(LHA_BASE_ADDR + LHA_CTRL_OFF);
 static volatile uint64_t *lha_status  = (volatile uint64_t *)(LHA_BASE_ADDR + LHA_STATUS_OFF);
@@ -177,7 +185,8 @@ static void armor_wrap_init(int enforce) {
 
     w1[WRAP_ID_CFG_OFF   / 8] = 1ULL;         /* LHA : STREAM_ID = 1 */
     w2[WRAP_ID_CFG_OFF   / 8] = 2ULL;         /* MHA : STREAM_ID = 2 */
-    w2[WRAP_MSI_ADDR_OFF / 8] = LEGIT_DST;    /* cible des ecritures SC04 */
+    w2[WRAP_MSI_ADDR_OFF / 8] = MSI_TARGET_DST;   /* cible des ecritures SC04 */
+    *mha_msi_addr             = MSI_TARGET_DST;   /* meme adresse cote accel */
 
     uint64_t ctrl = (enforce ? WRAP_CTRL_ENFORCE : 0ULL)
                   | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
@@ -186,7 +195,7 @@ static void armor_wrap_init(int enforce) {
     fence();
 
     printf("# ARMOR arme : ENFORCE=%d, ID_CFG w1=1 w2=2, MSI_ADDR=0x%08x\r\n",
-           enforce, (unsigned)LEGIT_DST);
+           enforce, (unsigned)MSI_TARGET_DST);
     printf("# ARMOR devid_last : w1=%lu w2=%lu\r\n",
            (unsigned long)w1[WRAP_DEVID_LAST_OFF / 8],
            (unsigned long)w2[WRAP_DEVID_LAST_OFF / 8]);
@@ -194,24 +203,33 @@ static void armor_wrap_init(int enforce) {
 
 /* Vide les compteurs d'evenements ARMOR entre deux scenarios. */
 static void armor_wrap_clear(void) {
+    volatile uint64_t *w1 = (volatile uint64_t *)WRAP1_BASE_ADDR;
     volatile uint64_t *w2 = (volatile uint64_t *)WRAP2_BASE_ADDR;
-    uint64_t cur = w2[WRAP_CTRL_OFF / 8];
-    w2[WRAP_CTRL_OFF / 8] = cur | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
+    w1[WRAP_CTRL_OFF / 8] = w1[WRAP_CTRL_OFF / 8] | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
+    w2[WRAP_CTRL_OFF / 8] = w2[WRAP_CTRL_OFF / 8] | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
     fence();
 }
 
-/* Imprime les compteurs cotes wrapper : mesure independante des verdicts vus
- * par l'accelerateur, utile pour recouper les FN. */
+/* Imprime les compteurs des DEUX wrappers : mesure independante des verdicts
+ * vus par l'accelerateur, utile pour recouper les FN. Ne lire que le wrapper 2
+ * laissait aveugle sur les scenarios LHA (SC06), qui passent par le wrapper 1.
+ * NB : fail= est le failure_count interne au security_monitor ; il est libre,
+ * non remis a zero par CNT_CLR, et repasse par 0 tous les 256. */
+static void armor_wrap_report_one(const char *tag, const char *who, uint64_t base) {
+    volatile uint64_t *w = (volatile uint64_t *)base;
+    printf("# ARMORCNT,%s,%s,sticky=0x%08x,fail=%lu,ban=%lu,storm=%lu,outs=%lu,msi=%lu\r\n",
+           tag, who,
+           (unsigned)w[WRAP_STICKY_OFF      / 8],
+           (unsigned long)w[WRAP_FAILCNT_OFF    / 8],
+           (unsigned long)w[WRAP_CNT_BANNED_OFF / 8],
+           (unsigned long)w[WRAP_CNT_STORM_OFF  / 8],
+           (unsigned long)w[WRAP_CNT_OUTS_OFF   / 8],
+           (unsigned long)w[WRAP_CNT_MSI_OFF    / 8]);
+}
+
 static void armor_wrap_report(const char *tag) {
-    volatile uint64_t *w2 = (volatile uint64_t *)WRAP2_BASE_ADDR;
-    printf("# ARMORCNT,%s,sticky=0x%08x,fail=%lu,ban=%lu,storm=%lu,outs=%lu,msi=%lu\r\n",
-           tag,
-           (unsigned)w2[WRAP_STICKY_OFF      / 8],
-           (unsigned long)w2[WRAP_FAILCNT_OFF    / 8],
-           (unsigned long)w2[WRAP_CNT_BANNED_OFF / 8],
-           (unsigned long)w2[WRAP_CNT_STORM_OFF  / 8],
-           (unsigned long)w2[WRAP_CNT_OUTS_OFF   / 8],
-           (unsigned long)w2[WRAP_CNT_MSI_OFF    / 8]);
+    armor_wrap_report_one(tag, "w1", WRAP1_BASE_ADDR);
+    armor_wrap_report_one(tag, "w2", WRAP2_BASE_ADDR);
 }
 
 /* Initialise la DDT (copié de main.c) :

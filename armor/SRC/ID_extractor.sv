@@ -14,6 +14,26 @@ module ID_extractor #(
     output logic                   Device_ID_write_enable_o
 );
 
+    // Detection de front sur AxVALID — meme motif que ADDR_extractor : le
+    // declenchement sur niveau relancait la comparaison d'identifiant a chaque
+    // cycle d'attente, gonflant artificiellement failure_count du
+    // security_monitor sur une simple requete calee.
+    logic aw_prev, ar_prev;
+    logic aw_edge, ar_edge;
+
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            aw_prev <= 1'b0;
+            ar_prev <= 1'b0;
+        end else begin
+            aw_prev <= req_i.aw_valid;
+            ar_prev <= req_i.ar_valid;
+        end
+    end
+
+    assign aw_edge = req_i.aw_valid & ~aw_prev;
+    assign ar_edge = req_i.ar_valid & ~ar_prev;
+
     // Sequential capture of Device ID based on AXI request validity
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
@@ -22,10 +42,10 @@ module ID_extractor #(
         end else begin
             Device_ID_write_enable_o <= 1'b0; // default
 
-            if (req_i.aw_valid) begin
+            if (aw_edge) begin
                 Device_ID_o              <= req_i.aw.stream_id;
                 Device_ID_write_enable_o <= 1'b1;
-            end else if (req_i.ar_valid) 
+            end else if (ar_edge) 
             begin
                 Device_ID_o              <= req_i.ar.stream_id;
                 Device_ID_write_enable_o <= 1'b1;
