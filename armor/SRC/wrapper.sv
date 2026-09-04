@@ -125,7 +125,33 @@ logic                  msi_storm;
 logic                  block_msi;
 
 
-assign block_req_i = block_ip_o | block_req_flow| block_req_outs| block_msi;
+// Registres de configuration/statut ARMOR — declares ici car referencés
+// des la gate ci-dessous ; leur logique est en fin de module.
+localparam int unsigned CSR_IDX_W = 5;   // 32 registres de 8 octets
+localparam logic [63:0] ARMOR_STICKY_MASK = 64'h0000_0000_0000_0FF8; // bits [11:3]
+
+logic [63:0]            csr_id_cfg_q;
+logic [63:0]            csr_msi_addr_q;
+logic                   csr_enforce_q;
+logic [63:0]            csr_sticky_q;
+logic [31:0]            cnt_banned_q, cnt_storm_q, cnt_outs_q, cnt_msi_q;
+logic [DevIDWidth-1:0]  dev_id_last_q;
+logic                   csr_sticky_clr, csr_cnt_clr;
+
+// Signaux effectifs, apres la gate ENFORCE (CTRL[0], cf. bloc CSR en fin de
+// module). ENFORCE = 0 -> le wrapper laisse tout passer et se contente
+// d'observer ; ENFORCE = 1 -> comportement ARMOR complet.
+logic legit_hit_eff;
+logic block_ip_eff;
+
+assign block_req_i   = csr_enforce_q &
+                       (block_ip_o | block_req_flow | block_req_outs | block_msi);
+
+// request_manager bloque toute requete dont legit_hit est nul. Forcer
+// legit_hit_eff a 1 quand ENFORCE = 0 est ce qui rend le wrapper reellement
+// transparent — sans cela, un ID_CFG non configure fermerait le chemin.
+assign legit_hit_eff = legit_hit | ~csr_enforce_q;
+assign block_ip_eff  = block_ip_o &  csr_enforce_q;
 
 
 
@@ -186,7 +212,7 @@ request_manager #(
 )request_manager_module(
     .clk_i(clk_i),
     .rst_ni(rst_ni),
-    .legit_hit(legit_hit),
+    .legit_hit(legit_hit_eff),
     .req_IP_wrapper_i(req_IP_wrapper_i),
     .block_req_i(block_req_i),      // signal combiné
     .req_wrapper_iommu_o(req_wrapper_iommu_o)
@@ -199,7 +225,7 @@ response_manager #(
     .clk_i(clk_i),
     .rst_ni(rst_ni),
     .block_req_i(block_req_i),
-    .block_ip_i(block_ip_o),
+    .block_ip_i(block_ip_eff),
     .resp_wrapper_iommu_i(resp_wrapper_iommu_i),
     .resp_IP_wrapper_o(resp_IP_wrapper_o)
 );
@@ -271,6 +297,279 @@ response_delayer #(
     .resp_in_i(resp_wrapper_iommu_i),    // Réponses de l'IOMMU
     .resp_out_o(resp_delayed)             // Réponses retardées
 );
+
+
+
+// =============================================================================
+// Interface CSR CPU   (sec_wrapper #1 -> 0x5000_2000, #2 -> 0x5000_3000)
+//
+// Avant cette version, req_CPU_Wrapper__i / resp_CPU_Wrapper_o etaient declares
+// dans la liste de ports mais jamais references dans le corps du module. Vivado
+// signalait 30 nets sans driver ; les deux consequences fonctionnelles etaient :
+//
+//   - fixed_ID_reg et msi_address_config restaient constants a 0. Comme
+//     id_comparator applique la garde `(fixed_id == dynamic_id) && (fixed_id != '0)`,
+//     legit_hit valait 0 en permanence, et request_manager bloque toute requete
+//     dont legit_hit est nul : le chemin accel -> IOMMU etait ferme en toutes
+//     circonstances, independamment des moniteurs.
+//
+//   - aucun verdict (block_ip_o, storm_flag, block_req_outs, block_msi, ...) ne
+//     sortait du module : aucune observabilite logicielle.
+//
+// Carte des registres — 64 bits, index decode sur addr[7:3] (32 registres,
+// alias tous les 256 octets dans la fenetre de 4 KiB) :
+//
+//   0x00  ID_CFG       RW  identifiant legitime attendu = STREAM_ID de l'accel
+//                          (1 pour sec_wrapper #1, 2 pour #2, cf. accel_wrap.sv)
+//   0x08  MSI_ADDR     RW  adresse MSI surveillee par msi_detector
+//   0x10  CTRL         RW  b0 ENFORCE, b1 STICKY_CLR, b2 CNT_CLR
+//                          (b1/b2 sont des commandes a impulsion, auto-effacees)
+//   0x18  STATUS       RO  verdicts instantanes
+//   0x20  STICKY       RO  OU cumulatif de STATUS depuis le dernier STICKY_CLR
+//   0x28  FAIL_CNT     RO  security_monitor.failure_count (8 bits)
+//   0x30  CNT_BANNED   RO  nombre de bannissements (fronts montants)
+//   0x38  CNT_STORM    RO  nombre d'episodes de storm de requetes
+//   0x40  CNT_OUTS     RO  nombre d'episodes de saturation outstanding
+//   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
+//   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
+//   0x58  MAGIC        RO  0x41524D4F52000001 ("ARMOR" + version)
+//
+// STATUS et STICKY reprennent volontairement les positions de bits deja
+// utilisees cote logiciel (bench_runner.c / main.c), pour que classify() et
+// armor_blocked() fonctionnent sans modification :
+//
+//   [3] BLOCKED  blocage effectif (apres gate ENFORCE)
+//   [4] BANNED   block_ip_o          — brut, moniteur, non gate
+//   [5] STORM    block_req_flow      — brut
+//   [6] OUTS     block_req_outs      — brut
+//   [7] MSI      block_msi           — brut
+//   [8] threat_detected   [9] storm_flag   [10] outs_overflow   [11] msi_storm
+//   [12] legit_hit        [13] ENFORCE (echo de CTRL[0])
+//
+// ENFORCE (CTRL[0], valeur de reset 0) ne conditionne QUE le blocage. Les
+// moniteurs tournent en permanence, donc STATUS, STICKY et les compteurs
+// restent valides meme a 0. A 0 le wrapper est transparent : c'est la baseline
+// "sans ARMOR" obtenue dans le MEME bitstream, sans resynthese.
+// =============================================================================
+
+// Les deux nets jusqu'ici sans driver sont desormais pilotes par les CSR.
+assign fixed_ID_reg       = csr_id_cfg_q[DevIDWidth-1:0];
+assign msi_address_config = csr_msi_addr_q[AddrWidth-1:0];
+
+// -----------------------------------------------------------------------------
+// Vecteur de statut
+// -----------------------------------------------------------------------------
+logic [63:0] armor_status;
+
+always_comb begin
+    armor_status      = 64'h0;
+    armor_status[3]   = block_req_i;          // blocage effectif (gate incluse)
+    armor_status[4]   = block_ip_o;           // verdicts bruts des moniteurs :
+    armor_status[5]   = block_req_flow;       //   visibles meme si ENFORCE = 0,
+    armor_status[6]   = block_req_outs;       //   ce qui permet de mesurer la
+    armor_status[7]   = block_msi;            //   detection sans subir le blocage
+    armor_status[8]   = threat_detected;
+    armor_status[9]   = storm_flag;
+    armor_status[10]  = overflow_flag_outs;
+    armor_status[11]  = msi_storm;
+    armor_status[12]  = legit_hit;
+    armor_status[13]  = csr_enforce_q;
+end
+
+// -----------------------------------------------------------------------------
+// Sticky, compteurs d'evenements, dernier device ID observe
+// -----------------------------------------------------------------------------
+logic ban_d, storm_d, outs_d, msi_d;
+
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        ban_d         <= 1'b0;
+        storm_d       <= 1'b0;
+        outs_d        <= 1'b0;
+        msi_d         <= 1'b0;
+        csr_sticky_q  <= 64'h0;
+        cnt_banned_q  <= 32'h0;
+        cnt_storm_q   <= 32'h0;
+        cnt_outs_q    <= 32'h0;
+        cnt_msi_q     <= 32'h0;
+        dev_id_last_q <= '0;
+    end else begin
+        ban_d   <= block_ip_o;
+        storm_d <= block_req_flow;
+        outs_d  <= block_req_outs;
+        msi_d   <= block_msi;
+
+        if (Device_ID_write_enable_o) dev_id_last_q <= Device_ID_o;
+
+        // Les verdicts de flux ne durent que quelques cycles (BLOCK_CYCLES = 4
+        // et 10 en profil BENCH) : une lecture logicielle de STATUS les rate
+        // presque toujours. STICKY et les compteurs sont la seule mesure fiable.
+        // Seuls les bits d'evenement sont cumules. Les bits [12] legit_hit et
+        // [13] ENFORCE sont des echos d'etat : les rendre collants n'aurait
+        // aucun sens (ils resteraient a 1 des la premiere requete legitime).
+        if (csr_sticky_clr) csr_sticky_q <= 64'h0;
+        else                csr_sticky_q <= csr_sticky_q | (armor_status & ARMOR_STICKY_MASK);
+
+        if (csr_cnt_clr) begin
+            cnt_banned_q <= 32'h0;
+            cnt_storm_q  <= 32'h0;
+            cnt_outs_q   <= 32'h0;
+            cnt_msi_q    <= 32'h0;
+        end else begin
+            if (block_ip_o     && !ban_d)   cnt_banned_q <= cnt_banned_q + 1;
+            if (block_req_flow && !storm_d) cnt_storm_q  <= cnt_storm_q  + 1;
+            if (block_req_outs && !outs_d)  cnt_outs_q   <= cnt_outs_q   + 1;
+            if (block_msi      && !msi_d)   cnt_msi_q    <= cnt_msi_q    + 1;
+        end
+    end
+end
+
+// -----------------------------------------------------------------------------
+// Esclave AXI4 de configuration
+//
+// Portee volontairement minimale : un seul acces en vol par sens, rafales INCR
+// gerees en incrementant l'index de registre a chaque beat. Le port n'accepte
+// pas de W avant son AW — c'est licite en AXI4, le maitre maintient simplement
+// w_valid jusqu'a ce que l'AW soit passe.
+// -----------------------------------------------------------------------------
+typedef enum logic [1:0] { ARMOR_W_IDLE, ARMOR_W_DATA, ARMOR_W_RESP } armor_w_state_e;
+typedef enum logic       { ARMOR_R_IDLE, ARMOR_R_DATA }               armor_r_state_e;
+
+armor_w_state_e         w_state_q;
+armor_r_state_e         r_state_q;
+// On ne latche que les champs reellement utilises (id pour la reponse, len
+// pour le dernier beat) : latcher le canal entier laisserait des bascules
+// mortes que la synthese retire en emettant du bruit dans le log.
+logic [IdWidthSlv-1:0]  aw_id_q, ar_id_q;
+logic [7:0]             ar_len_q;
+logic [CSR_IDX_W-1:0]   w_idx_q, r_idx_q;
+logic [7:0]             r_beat_q;
+logic [63:0]            csr_rdata;
+
+// Canal ecriture
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        w_state_q      <= ARMOR_W_IDLE;
+        aw_id_q        <= '0;
+        w_idx_q        <= '0;
+        csr_id_cfg_q   <= 64'h0;
+        csr_msi_addr_q <= 64'h0;
+        csr_enforce_q  <= 1'b0;   // reset : wrapper transparent
+        csr_sticky_clr <= 1'b0;
+        csr_cnt_clr    <= 1'b0;
+    end else begin
+        csr_sticky_clr <= 1'b0;   // commandes a impulsion d'un cycle
+        csr_cnt_clr    <= 1'b0;
+
+        case (w_state_q)
+            ARMOR_W_IDLE: begin
+                if (req_CPU_Wrapper__i.aw_valid) begin
+                    aw_id_q   <= req_CPU_Wrapper__i.aw.id;
+                    w_idx_q   <= req_CPU_Wrapper__i.aw.addr[7:3];
+                    w_state_q <= ARMOR_W_DATA;
+                end
+            end
+
+            ARMOR_W_DATA: begin
+                if (req_CPU_Wrapper__i.w_valid) begin
+                    case (w_idx_q)
+                        5'd0: csr_id_cfg_q   <= req_CPU_Wrapper__i.w.data;
+                        5'd1: csr_msi_addr_q <= req_CPU_Wrapper__i.w.data;
+                        5'd2: begin
+                            csr_enforce_q  <= req_CPU_Wrapper__i.w.data[0];
+                            csr_sticky_clr <= req_CPU_Wrapper__i.w.data[1];
+                            csr_cnt_clr    <= req_CPU_Wrapper__i.w.data[2];
+                        end
+                        default: ; // registres en lecture seule
+                    endcase
+                    w_idx_q <= w_idx_q + 1'b1;
+                    if (req_CPU_Wrapper__i.w.last) w_state_q <= ARMOR_W_RESP;
+                end
+            end
+
+            ARMOR_W_RESP: begin
+                if (req_CPU_Wrapper__i.b_ready) w_state_q <= ARMOR_W_IDLE;
+            end
+
+            default: w_state_q <= ARMOR_W_IDLE;
+        endcase
+    end
+end
+
+// Canal lecture
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        r_state_q <= ARMOR_R_IDLE;
+        ar_id_q   <= '0;
+        ar_len_q  <= 8'h0;
+        r_idx_q   <= '0;
+        r_beat_q  <= 8'h0;
+    end else begin
+        case (r_state_q)
+            ARMOR_R_IDLE: begin
+                if (req_CPU_Wrapper__i.ar_valid) begin
+                    ar_id_q   <= req_CPU_Wrapper__i.ar.id;
+                    ar_len_q  <= req_CPU_Wrapper__i.ar.len;
+                    r_idx_q   <= req_CPU_Wrapper__i.ar.addr[7:3];
+                    r_beat_q  <= 8'h0;
+                    r_state_q <= ARMOR_R_DATA;
+                end
+            end
+
+            ARMOR_R_DATA: begin
+                if (req_CPU_Wrapper__i.r_ready) begin
+                    if (r_beat_q == ar_len_q) begin
+                        r_state_q <= ARMOR_R_IDLE;
+                    end else begin
+                        r_idx_q  <= r_idx_q  + 1'b1;
+                        r_beat_q <= r_beat_q + 8'h1;
+                    end
+                end
+            end
+
+            default: r_state_q <= ARMOR_R_IDLE;
+        endcase
+    end
+end
+
+// Multiplexeur de lecture
+always_comb begin
+    case (r_idx_q)
+        5'd0:    csr_rdata = csr_id_cfg_q;
+        5'd1:    csr_rdata = csr_msi_addr_q;
+        5'd2:    csr_rdata = {63'h0, csr_enforce_q};
+        5'd3:    csr_rdata = armor_status;
+        5'd4:    csr_rdata = csr_sticky_q;
+        5'd5:    csr_rdata = {56'h0, failure_count};
+        5'd6:    csr_rdata = {32'h0, cnt_banned_q};
+        5'd7:    csr_rdata = {32'h0, cnt_storm_q};
+        5'd8:    csr_rdata = {32'h0, cnt_outs_q};
+        5'd9:    csr_rdata = {32'h0, cnt_msi_q};
+        5'd10:   csr_rdata = {{(64-DevIDWidth){1'b0}}, dev_id_last_q};
+        5'd11:   csr_rdata = 64'h41524D4F52000001;
+        default: csr_rdata = 64'h0;
+    endcase
+end
+
+// Reponse AXI
+always_comb begin
+    resp_CPU_Wrapper_o          = '0;
+
+    resp_CPU_Wrapper_o.aw_ready = (w_state_q == ARMOR_W_IDLE);
+    resp_CPU_Wrapper_o.w_ready  = (w_state_q == ARMOR_W_DATA);
+    resp_CPU_Wrapper_o.b_valid  = (w_state_q == ARMOR_W_RESP);
+    resp_CPU_Wrapper_o.b.id     = aw_id_q;
+    resp_CPU_Wrapper_o.b.resp   = 2'b00;   // OKAY
+    resp_CPU_Wrapper_o.b.user   = '0;
+
+    resp_CPU_Wrapper_o.ar_ready = (r_state_q == ARMOR_R_IDLE);
+    resp_CPU_Wrapper_o.r_valid  = (r_state_q == ARMOR_R_DATA);
+    resp_CPU_Wrapper_o.r.id     = ar_id_q;
+    resp_CPU_Wrapper_o.r.data   = csr_rdata;
+    resp_CPU_Wrapper_o.r.resp   = 2'b00;   // OKAY
+    resp_CPU_Wrapper_o.r.last   = (r_beat_q == ar_len_q);
+    resp_CPU_Wrapper_o.r.user   = '0;
+end
 
 
 endmodule
