@@ -7,15 +7,15 @@ module outs_req_monitor #(
 )(
     input  logic        clk_i,
     input  logic        rst_ni,
-    
+
     // Signal réutilisé du request_flow_monitor
     input  logic        req_fire,
-    
+
     // Response interface (depuis IOMMU)
     input  resp_slv_t   resp_wrapper_iommu_i,
     input  req_iommu_t  req_IP_wrapper_i,
 
-    
+
     // Outputs
     output logic        overflow_flag,
     output logic        block_req
@@ -24,44 +24,67 @@ module outs_req_monitor #(
     // Détection des handshakes de réponses
     logic b_handshake, r_handshake;
     logic resp_complete;
-    
+
     assign b_handshake  = resp_wrapper_iommu_i.b_valid && req_IP_wrapper_i.b_ready;
     assign r_handshake  = resp_wrapper_iommu_i.r_valid && req_IP_wrapper_i.r_ready && resp_wrapper_iommu_i.r.last;
     assign resp_complete = b_handshake | r_handshake;
-    
+
     // Compteur de requêtes outstanding
     logic [$clog2(MAX_OUTSTANDING+1):0] outstanding;
-    
+
+    // Mécanisme de blocage temporaire (déclaré avant le compteur : la fin de
+    // blocage purge l'outstanding).
+    logic [$clog2(BLOCK_CYCLES):0] block_cnt;
+    logic blocking;
+    logic blocking_done;
+
+    assign blocking_done = blocking && (block_cnt == BLOCK_CYCLES-1);
+
+    // Purge si le bus est inactif. Le scénario d'attaque outstanding inonde des
+    // AR avec r_ready à 0 : ces lectures ne se complètent jamais, le compteur
+    // reste saturé et le verdict OUTS colle à tout le trafic qui suit — le
+    // trafic MHA légitime héritait ainsi d'un faux positif. Après 255 cycles
+    // sans aucune requête ni réponse, on considère le bus au repos et on purge.
+    logic [7:0] idle_cnt;
+    logic       idle_purge;
+
+    assign idle_purge = (idle_cnt == 8'hFF) && (outstanding != 0);
+
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
             outstanding <= 0;
+            idle_cnt    <= 0;
+        end else if (blocking_done || idle_purge) begin
+            outstanding <= 0;
+            idle_cnt    <= 0;
         end else begin
+            if (!req_fire && !resp_complete)
+                idle_cnt <= idle_cnt + 1'b1;
+            else
+                idle_cnt <= 0;
+
             case ({req_fire, resp_complete})
-                2'b10:   outstanding <= outstanding + 1;  // nouvelle requête
-                2'b01:   outstanding <= outstanding - 1;  // réponse reçue
-                default: outstanding <= outstanding;       // 00 ou 11
+                2'b10:   outstanding <= outstanding + 1;                        // nouvelle requête
+                2'b01:   outstanding <= (outstanding == 0) ? 0 : outstanding - 1; // réponse reçue
+                default: outstanding <= outstanding;                            // 00 ou 11
             endcase
         end
     end
-    
+
     // Détection de l'overflow
     assign overflow_flag = (outstanding >= MAX_OUTSTANDING);
-    
-    // Mécanisme de blocage temporaire
-    logic [$clog2(BLOCK_CYCLES):0] block_cnt;
-    logic blocking;
-    
+
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
             block_cnt <= 0;
             blocking  <= 1'b0;
         end else begin
             if (overflow_flag && !blocking) begin
-                blocking  <= 1'b1;
+                blocking  <= 1'b1;  // démarrage du blocage
                 block_cnt <= 0;
             end else if (blocking) begin
                 if (block_cnt == BLOCK_CYCLES-1) begin
-                    blocking  <= 1'b0;
+                    blocking  <= 1'b0; // fin du blocage
                     block_cnt <= 0;
                 end else begin
                     block_cnt <= block_cnt + 1;
@@ -69,7 +92,7 @@ module outs_req_monitor #(
             end
         end
     end
-    
+
     assign block_req = blocking;
 
 endmodule

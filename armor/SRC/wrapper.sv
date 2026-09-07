@@ -232,6 +232,7 @@ response_manager #(
     .rst_ni(rst_ni),
     .block_req_i(block_req_i),
     .block_ip_i(block_ip_eff),
+    .legit_hit(legit_hit_eff),
     .resp_wrapper_iommu_i(resp_wrapper_iommu_i),
     .resp_IP_wrapper_o(resp_IP_wrapper_o)
 );
@@ -260,6 +261,7 @@ request_flow_monitor #(
     .rst_ni(rst_ni),
     .req_IP_wrapper_i(req_IP_wrapper_i),
     .resp_wrapper_iommu_i(resp_wrapper_iommu_i),
+    .legit_hit_i(legit_hit_eff),
     .storm_flag(storm_flag),
     .block_req(block_req_flow),
     .req_fire(req_fire_signal) 
