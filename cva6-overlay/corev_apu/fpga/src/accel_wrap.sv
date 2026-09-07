@@ -42,11 +42,14 @@
 //    5 Saturation outstanding OUTS_REQS lectures sans consommer les reponses
 //    6 Tempete MSI          MSI_REQS ecritures vers l'adresse surveillee
 //
-//  NOTE sur les identifiants AXI : request_flow_monitor ne compte une requete
-//  que si `handshake && (premiere_req || id_change)`. Les modes de flood font
-//  donc varier aw_id/ar_id a chaque requete, sans quoi les moniteurs de flux et
-//  d'outstanding ne verraient qu'une seule requete et ne se declencheraient
-//  jamais.
+//  NOTE sur les identifiants AXI : request_flow_monitor comptait autrefois une
+//  requete par changement d'identifiant, ce qui obligeait les modes de flood a
+//  faire varier aw_id/ar_id sous peine de n'etre vus que comme une requete
+//  unique. Le comptage se fait desormais sur le front montant du handshake,
+//  independamment de l'ID. La variation d'ID est conservee (elle reste
+//  realiste pour un maitre multi-transactions) mais n'est plus necessaire a la
+//  detection : ce qui compte est que aw_valid/ar_valid retombe entre deux
+//  requetes, ce que fait la machine d'etats ci-dessous.
 // ============================================================
 
 module accel_wrap #(
@@ -321,8 +324,12 @@ module accel_wrap #(
     //  Generateur de trafic
     //
     //  Phase d'emission : n_req requetes, puis phase de drainage des reponses.
-    //  Un timeout borne l'attente : quand ARMOR bloque, request_manager retire
-    //  aw_valid/ar_valid en aval et le ready n'arrive jamais.
+    //  Un timeout borne l'attente. Depuis le passage de response_manager a la
+    //  terminaison gracieuse, un blocage ARMOR ne cale plus le maitre : il
+    //  renvoie un SLVERR immediat, la transaction se termine et la latence
+    //  mesuree est reelle. Le timeout ne sert donc plus que de filet de
+    //  securite (blocage en amont du wrapper, ou mode d'attente ~legit_hit
+    //  avant le verdict d'ID).
     // =========================================================================
     typedef enum logic [2:0] {
         G_IDLE, G_AW, G_W, G_AR, G_NEXT, G_DRAIN, G_FINISH

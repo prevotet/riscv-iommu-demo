@@ -13,58 +13,61 @@ module request_flow_monitor #(
     input req_iommu_t   req_IP_wrapper_i,
     input resp_slv_t    resp_wrapper_iommu_i,
 
+    // Garde de legitimite. Quand un device_id est banni, request_manager masque
+    // aw/ar vers l'IOMMU. Mais l'IP continue d'asserter aw_valid/ar_valid et
+    // l'IOMMU, au repos, maintient aw_ready/ar_ready hauts : le handshake brut
+    // est alors vrai a chaque cycle alors qu'aucune requete ne circule. Le
+    // compteur d'outstanding, qui reutilise req_fire, explose en 16 cycles et
+    // declenche un faux OUTS sur chaque tentative de spoof. On exige donc
+    // legit_hit_i pour ne compter que les requetes reellement emises.
+    input  logic        legit_hit_i,
 
     // Outputs
     output logic        storm_flag,
     output logic        block_req,
     output logic        req_fire        // signal injected in proceeding modules 
 );
-    // Detect VALID rising edges of AW or AR
+    // =========================================================================
+    //  Comptage : UN front montant de handshake = UNE requete.
+    //
+    //  La version precedente comptait « handshake ET (premiere requete OU
+    //  changement d'ID) », avec aw_id_prev/ar_id_prev declares sur 1 bit alors
+    //  que aw.id/ar.id en font plusieurs. La sauvegarde tronquait donc l'ID au
+    //  bit 0 et la comparaison etait quasi toujours vraie : req_fire montait a
+    //  chaque cycle de handshake, le seuil etait franchi par une seule lecture
+    //  legitime et tout le trafic sain etait marque storm.
+    //
+    //  Le comptage par identifiant est de toute facon inadapte a ces
+    //  scenarios : l'attaque storm emet ses ecritures avec un id constant (la
+    //  boucle RESP -> ADDR de l'accelerateur ne repasse pas par IDLE), donc un
+    //  comptage par-ID ne verrait qu'une requete et manquerait l'attaque ; et
+    //  la detection d'outstanding repose sur plusieurs requetes vues sur un
+    //  ar_valid maintenu, qu'un comptage par-ID sous-compterait.
+    //
+    //  Le front montant du handshake compte une fois par transfert AXI reel,
+    //  independamment de l'ID : le storm mono-ID reste detecte et une lecture
+    //  legitime ne compte qu'une fois.
+    // =========================================================================
     logic aw_prev,      ar_prev;
     logic aw_edge,      ar_edge;
     logic aw_handshake, ar_handshake;
-    logic aw_id_prev,   ar_id_prev;
-    logic aw_id_changed, ar_id_changed;
-    logic aw_first_req, ar_first_req;  // Pour gérer la première transaction
 
-    assign aw_handshake = req_IP_wrapper_i.aw_valid && resp_wrapper_iommu_i.aw_ready;
-    assign ar_handshake = req_IP_wrapper_i.ar_valid && resp_wrapper_iommu_i.ar_ready;
-    
+    assign aw_handshake = req_IP_wrapper_i.aw_valid && resp_wrapper_iommu_i.aw_ready && legit_hit_i;
+    assign ar_handshake = req_IP_wrapper_i.ar_valid && resp_wrapper_iommu_i.ar_ready && legit_hit_i;
 
-    // Edge detectors
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
             aw_prev <= 1'b0;
             ar_prev <= 1'b0;
-            aw_first_req  <= 1'b1;
-            ar_first_req  <= 1'b1;
         end else begin
-            //aw_prev <= req_IP_wrapper_i.aw_valid;
-            //ar_prev <= req_IP_wrapper_i.ar_valid;
-            //aw_id_prev <= req_IP_wrapper_i.aw.id;  // sauvegardé lors du handshake
-            //ar_id_prev <= req_IP_wrapper_i.ar.id;
-            if (aw_handshake) begin
-                aw_id_prev   <= req_IP_wrapper_i.aw.id;
-                aw_first_req <= 1'b0;
-            end
-            if (ar_handshake) begin
-                ar_id_prev   <= req_IP_wrapper_i.ar.id;
-                ar_first_req <= 1'b0;
-            end
+            aw_prev <= aw_handshake;
+            ar_prev <= ar_handshake;
         end
     end
 
-    //assign aw_edge = req_IP_wrapper_i.aw_valid & ~aw_prev;
-    //assign ar_edge = req_IP_wrapper_i.ar_valid & ~ar_prev;
-    assign aw_id_changed = (req_IP_wrapper_i.aw.id != aw_id_prev);
-    assign ar_id_changed = (req_IP_wrapper_i.ar.id != ar_id_prev);
-
-
-
-    // A request is fired on a rising edge of AW or AR
-    //assign req_fire = aw_edge | ar_edge;
- // Une requête est comptée si : handshake ET (première req OU changement d'ID)
-    assign req_fire = (aw_handshake && (aw_first_req || aw_id_changed)) || (ar_handshake && (ar_first_req || ar_id_changed));
+    assign aw_edge  = aw_handshake & ~aw_prev;
+    assign ar_edge  = ar_handshake & ~ar_prev;
+    assign req_fire = aw_edge | ar_edge;
 
 
     logic [$clog2(WINDOW_CYCLES):0] window_cnt;
