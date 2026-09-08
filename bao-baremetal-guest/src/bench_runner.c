@@ -234,15 +234,33 @@ static void armor_wrap_report(const char *tag) {
 
 /* Initialise la DDT (copié de main.c) :
  *   DDT[0] = invalide
- *   DDT[1] = VALIDE   (LHA, ID=1 -> passthrough)
- *   DDT[2] = INVALIDE (MHA, ID=2 -> SLVERR)
+ *   DDT[1] = VALIDE (LHA, ID=1 -> passthrough)
+ *   DDT[2] = VALIDE (MHA, ID=2 -> passthrough)
  * IMPORTANT : sans cette init la DDT contient du garbage et LHA peut être
  * bloqué (boucle infinie sur wait_done) tandis que MHA peut passer.
+ *
+ * DDT[2] est posée UNE SEULE FOIS et n'est plus rebasculée pendant la
+ * campagne. La version précédente la rendait valide avant chaque scénario MHA
+ * et invalide après, avec un simple `fence rw, rw`. Or l'IOMMU RISC-V met en
+ * cache les entrées du répertoire de devices : la spec impose une commande
+ * IODIR.INVAL_DDT après toute modification, et ce bench ne configure aucune
+ * file de commandes (seul `ddtp` est écrit). Le fence n'ordonne que les accès
+ * du CPU, il ne touche ni le cache de l'IOMMU ni la recopie en DDR de la ligne
+ * de cache CPU, que l'IOMMU relit par son propre port. L'entrée cachée pour
+ * DID=2 restait donc invalide quoi qu'on écrive en mémoire : toutes les
+ * requêtes MHA fautaient (FQ : CAUSE 258, DID 2), ne se complétaient jamais et
+ * restaient en travers du multiplexeur AXI 2:1 partagé — le LHA, pourtant
+ * autorisé, se retrouvait bloqué en tête de file derrière elles.
+ *
+ * Bloquer le MHA au niveau de l'IOMMU n'était de toute façon pas souhaitable :
+ * c'est le rôle d'ARMOR de rattraper l'usurpation d'ID, et mesurer un scénario
+ * où l'IOMMU bloque déjà en parallèle brouille l'attribution du verdict.
  */
 static void setup_iommu_ddt(void) {
     volatile uint64_t *ddt = (volatile uint64_t *)DDT_BASE_ADDR;
     for (int i = 0; i < 512; i++) ddt[i] = 0;
     ddt[(1 * DDT_ENTRY_BYTES) / 8] = 0x1ULL;   /* DDT[1].tc.V = 1 */
+    ddt[(2 * DDT_ENTRY_BYTES) / 8] = 0x1ULL;   /* DDT[2].tc.V = 1 */
     fence();
 }
 
@@ -536,7 +554,7 @@ void main(void) {
     /* IOMMU activé (mode 1LVL) pour tous les tests */
     setup_iommu_ddt();      /* DOIT précéder set_iommu_mode(2) */
     set_iommu_mode(2);
-    printf("# IOMMU DDT init OK (DDT @ 0x%08x, LHA=allow ID=1, MHA=block ID=2)\r\n",
+    printf("# IOMMU DDT init OK (DDT @ 0x%08x, LHA=allow ID=1, MHA=allow ID=2)\r\n",
            (unsigned)DDT_BASE_ADDR);
 
     /* Arme ARMOR. Compiler avec -DARMOR_ENFORCE=0 pour la baseline sans
@@ -546,14 +564,15 @@ void main(void) {
 #endif
     armor_wrap_init(ARMOR_ENFORCE);
 
-    /* Configurer DDT : LHA(id=1) autorisé sur 0x91000000, MHA(id=2) interdit */
+    /* Configurer DDT : LHA(id=1) et MHA(id=2) autorisés sur 0x91000000.
+     * Le filtrage des accès illégitimes est le rôle d'ARMOR, pas de la DDT. */
     /* (à adapter selon ton init DDT existante de main.c) */
 
     /* IMPORTANT : 'static' obligatoire — ce tableau pèse ~64 KiB et la pile
      * baremetal-guest est limitée à STACK_SIZE = 0x4000 (16 KiB), cf.
      * src/arch/riscv/start.S. Sans 'static' → stack overflow → "no emulation
      * handler for abort" sous Bao. */
-    static stats_t s[8];
+    static stats_t s[9];
     int n = 0;
 
     /* Mode "smoke test" : N petits pour valider la chaîne complète et obtenir
@@ -569,9 +588,10 @@ void main(void) {
 
     /* ====================================================================
      * Toutes les attaques ET le trafic légitime ciblent la zone guest
-     * (LEGIT_DST = 0x91000000). Pour les scénarios MHA, on active DDT[2]
-     * temporairement afin que les requêtes traversent l'IOMMU et soient
-     * effectivement vues par les moniteurs ARMOR.
+     * (LEGIT_DST = 0x91000000). DDT[1] et DDT[2] sont valides pour toute la
+     * campagne (cf. setup_iommu_ddt) : les requêtes traversent l'IOMMU et sont
+     * effectivement vues par les moniteurs ARMOR, qui seuls décident du
+     * blocage.
      * ==================================================================== */
 
     /* Ordre NUMÉRIQUE (campagne d'origine) : SC01..04 (attaques) -> SC06 (LHA
@@ -580,6 +600,33 @@ void main(void) {
      * pendant les baselines légitimes (SC06 pilote lui-même le LHA ; SC07 write
      * doit être propre, et l'IOMMU réchauffé par SC01..04 l'empêche de geler). */
 
+#ifdef BENCH_SC06_FIRST
+    /* ====================================================================
+     * DIAGNOSTIC (compiler avec -DBENCH_SC06_FIRST) — pas un scénario de
+     * campagne.
+     *
+     * Joue la lecture LHA légitime EN PREMIER : avant tout trafic MHA, avant
+     * le fond LHA continu, sur un device autorisé par la DDT. C'est le seul
+     * moyen de savoir si le chemin accélérateur -> ARMOR -> mux -> IOMMU ->
+     * DDR fonctionne, une bonne fois, sans rien qui l'ait précédé.
+     *
+     * Motivation : aucun run n'a jamais produit un seul verdict D (DONE).
+     * Toutes les transactions se terminent en E (timeout de l'accélérateur) ou
+     * par un bit de moniteur ARMOR. Le seul tx court jamais observé (SC01 à
+     * 2366 ticks) était une réponse SLVERR fabriquée par ARMOR, pas une
+     * transaction aboutie.
+     *
+     *   verdict D + latence réaliste -> les lectures passent, le défaut est
+     *                                   circonscrit au chemin d'écriture ;
+     *   encore un timeout            -> rien ne traverse, il faut exposer
+     *                                   g_state_q dans le STATUS de
+     *                                   l'accélérateur pour voir sur quel
+     *                                   handshake ça cale.
+     * ==================================================================== */
+    printf("# === DIAG SC06-FIRST : lecture LHA seule, aucun trafic prealable\r\n");
+    run_scenario("SC06-FIRST", 'L', /*mode*/0, LEGIT_DST, /*cfg*/0, N_OK, 0, &s[n++]);
+#endif
+
     /* Trafic de fond : LHA continu pour les attaques SC01..SC04. */
     lha_bg_start();
     printf("# LHA background CONTINU arme (%s) base=0x%08x\r\n",
@@ -587,40 +634,19 @@ void main(void) {
 
     /* SC-01 : ID spoofing — attendu BANNED par ARMOR
      *   Le détecteur de spoof regarde le TID AXI : indépendant de la dest. */
-    {
-        volatile uint64_t *ddt = (volatile uint64_t *)DDT_BASE_ADDR;
-        ddt[(2 * DDT_ENTRY_BYTES) / 8] = 0x1ULL;
-        fence();
-        run_scenario("SC01-SPOOF", 'M', /*mode*/1, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
-        ddt[(2 * DDT_ENTRY_BYTES) / 8] = 0x0ULL;
-        fence();
-    }
+    run_scenario("SC01-SPOOF", 'M', /*mode*/1, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
 
     /* SC-02 : Request storm — attendu STORM, observé FN (cf. .tex).
      * NB : le STORM n'est PAS un bit coincé (vérifié : SC07 garde son FP storm
      * quelle que soit la position de SC02), donc l'ordre de SC02 n'a pas d'effet
      * de contamination. */
-    {
-        volatile uint64_t *ddt = (volatile uint64_t *)DDT_BASE_ADDR;
-        ddt[(2 * DDT_ENTRY_BYTES) / 8] = 0x1ULL;
-        fence();
-        run_scenario("SC02-STORM", 'M', /*mode*/4, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
-        ddt[(2 * DDT_ENTRY_BYTES) / 8] = 0x0ULL;
-        fence();
-    }
+    run_scenario("SC02-STORM", 'M', /*mode*/4, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
 
     /* SC-04 : MSI storm — attendu MSI
      *   Le MSI-monitor voit l'AW avant l'IOMMU, donc la dest configurée
      *   sur le MHA importe peu (le mode 6 redirige vers la zone MSI). On
      *   reste néanmoins sur LEGIT_DST pour homogénéité. */
-    {
-        volatile uint64_t *ddt = (volatile uint64_t *)DDT_BASE_ADDR;
-        ddt[(2 * DDT_ENTRY_BYTES) / 8] = 0x1ULL;
-        fence();
-        run_scenario("SC04-MSI",   'M', /*mode*/6, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
-        ddt[(2 * DDT_ENTRY_BYTES) / 8] = 0x0ULL;
-        fence();
-    }
+    run_scenario("SC04-MSI",   'M', /*mode*/6, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
 
     /* Coupe le fond LHA : SC06 (pilote le LHA) et SC07 (baseline write) propres. */
     lha_bg_stop();
@@ -628,34 +654,19 @@ void main(void) {
     /* SC-06 : LHA légitime seul. */
     run_scenario("SC06-LHAOK", 'L', /*mode*/0, LEGIT_DST, /*cfg*/0, N_OK, 0, &s[n++]);
 
-    /* SC-07 : MHA légitime (mode 0) — DDT[2] valide — en LECTURE (cfg=1).
+    /* SC-07 : MHA légitime (mode 0) — en LECTURE (cfg=1).
      * IMPORTANT : un write MHA qui PASSE ARMOR n'obtient jamais sa réponse B
      * dans ce bitstream (l'AW reste outstanding -> deadlock du bus partagé) ;
      * c'est confirmé indépendamment de la position/réchauffage IOMMU. Les writes
      * d'ATTAQUE (SC01..04) ne gèlent pas car ARMOR synthétise leur verdict sans
      * dépendre d'un vrai B. On mesure donc le baseline MHA légitime en LECTURE
      * (R/RVALID répond) ; un baseline write nécessiterait un fix RTL. */
-    {
-        volatile uint64_t *ddt = (volatile uint64_t *)DDT_BASE_ADDR;
-        ddt[(2 * DDT_ENTRY_BYTES) / 8] = 0x1ULL;
-        fence();
-        run_scenario("SC07-MHAOK", 'M', /*mode*/0, LEGIT_DST, /*cfg*/1, N_OK, 0, &s[n++]);
-        ddt[(2 * DDT_ENTRY_BYTES) / 8] = 0x0ULL;
-        fence();
-    }
+    run_scenario("SC07-MHAOK", 'M', /*mode*/0, LEGIT_DST, /*cfg*/1, N_OK, 0, &s[n++]);
 
     /* SC-08 : low-and-slow — vise LEGIT_DST avec DDT[2] valide pour que les
-     * rafales atteignent ARMOR (sinon IOMMU les tue avant). Fond LHA réactivé
-     * pour la contention. */
+     * rafales atteignent ARMOR. Fond LHA réactivé pour la contention. */
     lha_bg_start();
-    {
-        volatile uint64_t *ddt = (volatile uint64_t *)DDT_BASE_ADDR;
-        ddt[(2 * DDT_ENTRY_BYTES) / 8] = 0x1ULL;
-        fence();
-        run_sc08(&s[n++]);
-        ddt[(2 * DDT_ENTRY_BYTES) / 8] = 0x0ULL;
-        fence();
-    }
+    run_sc08(&s[n++]);
 
     /* SC-03 : Outstanding overflow — attendu OUTS — EXÉCUTÉ EN DERNIER.
      * Le mode 5 inonde des lectures AR avec r_ready=0 : ces lectures ne se
@@ -664,14 +675,7 @@ void main(void) {
      * avant SC04/SC07, ces scénarios héritaient d'un OUTS parasite (sticky_outs
      * se re-latche après chaque clear-au-start). En le plaçant tout à la fin,
      * plus aucun scénario ne s'exécute après -> aucune contamination. */
-    {
-        volatile uint64_t *ddt = (volatile uint64_t *)DDT_BASE_ADDR;
-        ddt[(2 * DDT_ENTRY_BYTES) / 8] = 0x1ULL;
-        fence();
-        run_scenario("SC03-OUTS",  'M', /*mode*/5, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
-        ddt[(2 * DDT_ENTRY_BYTES) / 8] = 0x0ULL;
-        fence();
-    }
+    run_scenario("SC03-OUTS",  'M', /*mode*/5, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
     lha_bg_stop();   /* arrêt du trafic de fond */
 
     printf("\r\n###### RESUME ######\r\n");
