@@ -1,0 +1,680 @@
+// =============================================================================
+//  tb_accel_armor -- banc xsim : accel_wrap + wrapper (ARMOR) + aval mort
+//
+//  But : reproduire en simulation le gel constate sur carte, ou le CPU se fige
+//  sur un acces MMIO des que le DMA cale (cf. campagne du 2026-09-07 : aucun
+//  verdict DONE, gel avant la premiere ligne CSV avec -DBENCH_SC06_FIRST).
+//
+//  Le point cle est que le chemin CSR NE TRAVERSE PAS ARMOR : le CPU attaque
+//  accel_wrap.axi_cfg via le XBAR, et le port CSR du wrapper directement.
+//  ARMOR est sur le chemin DMA. Un gel du CPU sur un acces MMIO met donc en
+//  cause un des deux ports de configuration, pas le filtrage. Le banc inclut
+//  les deux et un aval bloque, pour repondre a :
+//
+//      le CPU peut-il encore lire les registres pendant que le DMA est cale ?
+//
+//  Les deux FSM de accel_wrap (cw_state_q / cr_state_q) et celles du wrapper
+//  (w_state_q / r_state_q) sont individuellement conformes au protocole AXI,
+//  mais aucune n'a de timeout ni d'echappatoire : un seul handshake perdu
+//  verrouille le port, et avec lui le CPU.
+//
+//  Topologie :
+//
+//      TB (maitre AXI) --cfg--> accel_wrap --dma--> wrapper --out--> aval
+//      TB (maitre AXI) --csr----------------------> wrapper           |
+//                                                          jamais de B/R
+//
+//  Trois scenarios, choisis par +SCENARIO=<n> :
+//    0  aval sain          -- controle : la transaction doit aboutir (DONE)
+//    1  aval qui accepte AW/AR mais ne renvoie jamais B ni R  (le cas carte)
+//    2  aval qui n'accepte meme pas AW/AR
+//
+//  Dans les scenarios 1 et 2, le TB continue de lire STATUS et MAGIC pendant
+//  que le DMA est cale : si ces lectures cessent d'aboutir, le verrouillage du
+//  port de configuration est demontre, et c'est le premier defaut a corriger --
+//  sans quoi ajouter des registres d'observabilite ne sert a rien, on ne
+//  pourra pas les lire.
+// =============================================================================
+
+`timescale 1ns/1ps
+
+module tb_accel_armor;
+
+    // -------------------------------------------------------------------------
+    //  Parametres -- identiques a l'instanciation de ariane_peripherals_xilinx
+    // -------------------------------------------------------------------------
+    localparam int unsigned AxiAddrWidth = 64;
+    localparam int unsigned AxiDataWidth = 64;
+    localparam int unsigned AxiUserWidth = 1;
+    localparam int unsigned IdWidthDma   = ariane_soc::IdWidth - 1;   // 3
+    localparam int unsigned IdWidthSlv   = ariane_soc::IdWidthSlave;  // 6
+
+    // TIMEOUT_CYCLES de l'accelerateur reduit de 65536 a 2000 : la simulation
+    // doit voir le timeout sans durer une eternite.
+    localparam int unsigned AccelTimeout = 2000;
+
+    // Carte des registres de accel_wrap (index sur addr[7:3])
+    localparam logic [63:0] ACC_CTRL   = 64'h00;
+    localparam logic [63:0] ACC_STATUS = 64'h08;
+    localparam logic [63:0] ACC_BASE   = 64'h10;
+    localparam logic [63:0] ACC_SIZE   = 64'h18;
+    localparam logic [63:0] ACC_CONF   = 64'h20;
+    localparam logic [63:0] ACC_MODE   = 64'h28;
+    localparam logic [63:0] ACC_BLKCNT = 64'h30;
+    localparam logic [63:0] ACC_MSIADR = 64'h38;
+
+    // Carte des registres CSR du wrapper
+    localparam logic [63:0] CSR_ID_CFG = 64'h00;
+    localparam logic [63:0] CSR_MSIADR = 64'h08;
+    localparam logic [63:0] CSR_CTRL   = 64'h10;
+    localparam logic [63:0] CSR_STATUS = 64'h18;
+    localparam logic [63:0] CSR_STICKY = 64'h20;
+    localparam logic [63:0] CSR_MAGIC  = 64'h58;
+
+    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000001;
+
+    localparam logic [63:0] LEGIT_DST = 64'h0000_0000_9100_0000;
+
+    // -------------------------------------------------------------------------
+    //  Horloge et reset
+    // -------------------------------------------------------------------------
+    logic clk_i  = 1'b0;
+    logic rst_ni = 1'b0;
+
+    always #5ns clk_i = ~clk_i;   // 100 MHz
+
+    // -------------------------------------------------------------------------
+    //  Knobs de l'aval, pilotes par le scenario
+    // -------------------------------------------------------------------------
+    int    scenario   = 1;
+    logic  dn_accept  = 1'b1;   // l'aval accepte AW / W / AR
+    logic  dn_respond = 1'b1;   // l'aval renvoie B / R
+
+    // -------------------------------------------------------------------------
+    //  Bus
+    // -------------------------------------------------------------------------
+    AXI_BUS #(
+        .AXI_ADDR_WIDTH ( AxiAddrWidth ),
+        .AXI_DATA_WIDTH ( AxiDataWidth ),
+        .AXI_ID_WIDTH   ( IdWidthSlv   ),
+        .AXI_USER_WIDTH ( AxiUserWidth )
+    ) cfg ();
+
+    AXI_BUS_MMU #(
+        .AXI_ADDR_WIDTH ( AxiAddrWidth ),
+        .AXI_DATA_WIDTH ( AxiDataWidth ),
+        .AXI_ID_WIDTH   ( IdWidthDma   ),
+        .AXI_USER_WIDTH ( AxiUserWidth )
+    ) accel_dma ();
+
+    logic [4:0] armor_verdict;
+
+    // -------------------------------------------------------------------------
+    //  DUT 1 : accelerateur
+    // -------------------------------------------------------------------------
+    accel_wrap #(
+        .AXI_ADDR_WIDTH   ( AxiAddrWidth ),
+        .AXI_DATA_WIDTH   ( AxiDataWidth ),
+        .AXI_ID_WIDTH     ( IdWidthDma   ),
+        .AXI_USER_WIDTH   ( AxiUserWidth ),
+        .AXI_SLV_ID_WIDTH ( IdWidthSlv   ),
+        .STREAM_ID        ( 24'd1        ),
+        .TIMEOUT_CYCLES   ( AccelTimeout )
+    ) i_accel (
+        .clk_i, .rst_ni,
+        .testmode_i     ( 1'b0          ),
+        .axi_cfg        ( cfg           ),
+        .axi_dma        ( accel_dma     ),
+        .armor_status_i ( armor_verdict ),
+        .btnu_i         ( 1'b0          ),
+        .btnd_i         ( 1'b0          ),
+        .btnl_i         ( 1'b0          ),
+        .btnr_i         ( 1'b0          ),
+        .btnc_i         ( 1'b0          )
+    );
+
+    // -------------------------------------------------------------------------
+    //  Glue interface -> structs, recopiee de ariane_peripherals_xilinx.sv
+    //  (bloc accel1_dma <-> req_accel1_in / resp_accel1_in). C'est du
+    //  boilerplate : le recopier plutot que le retaper.
+    // -------------------------------------------------------------------------
+    ariane_axi_soc::req_mmu_t  req_in;
+    ariane_axi_soc::resp_slv_t resp_in;
+    ariane_axi_soc::req_mmu_t  req_out;
+    ariane_axi_soc::req_slv_t  req_csr;
+    ariane_axi_soc::resp_slv_t resp_csr;
+
+    // -------------------------------------------------------------------------
+    //  Type de la reponse aval -- LE defaut historique.
+    //
+    //  wrapper.resp_wrapper_iommu_i est declare resp_slv_t (88 bits, ids sur 6
+    //  bits). ariane_peripherals_xilinx.sv y raccordait un resp_t (84 bits, ids
+    //  sur 4 bits) : SystemVerilog complete alors par des zeros du cote MSB, ce
+    //  qui decale tous les champs.
+    //
+    //      aw_ready, ar_ready, w_ready, b_valid  ->  cables a 0
+    //      b.id     <- {aw_ready, ar_ready, w_ready, b_valid, b.id[3:2]}
+    //      r_valid  <- b.resp[0]        (0 pour OKAY comme pour SLVERR)
+    //      r.data   <- r.data decale de 4 bits
+    //
+    //  ARMOR ne voit donc JAMAIS le moindre ready ni le moindre valid venant de
+    //  l'aval, et l'accelerateur en amont non plus : aucune transaction ne peut
+    //  aboutir, en lecture comme en ecriture. C'est l'explication du "zero
+    //  verdict DONE" de toutes les campagnes.
+    //
+    //  Compiler avec -d BUG_RESP_T pour rejouer le defaut (BUG=1 ./run_sim.sh).
+    // -------------------------------------------------------------------------
+`ifdef BUG_RESP_T
+    ariane_axi_soc::resp_t     resp_out;
+`else
+    ariane_axi_soc::resp_slv_t resp_out;
+`endif
+
+    assign req_in.aw_valid            = accel_dma.aw_valid;
+    assign req_in.aw.id               = accel_dma.aw_id;
+    assign req_in.aw.addr             = accel_dma.aw_addr;
+    assign req_in.aw.len              = accel_dma.aw_len;
+    assign req_in.aw.size             = accel_dma.aw_size;
+    assign req_in.aw.burst            = accel_dma.aw_burst;
+    assign req_in.aw.lock             = accel_dma.aw_lock;
+    assign req_in.aw.cache            = accel_dma.aw_cache;
+    assign req_in.aw.prot             = accel_dma.aw_prot;
+    assign req_in.aw.qos              = accel_dma.aw_qos;
+    assign req_in.aw.region           = accel_dma.aw_region;
+    assign req_in.aw.atop             = accel_dma.aw_atop;
+    assign req_in.aw.user             = accel_dma.aw_user;
+    assign req_in.aw.stream_id        = accel_dma.aw_stream_id;
+    assign req_in.aw.ss_id_valid      = accel_dma.aw_ss_id_valid;
+    assign req_in.aw.substream_id     = accel_dma.aw_substream_id;
+    assign req_in.ar_valid            = accel_dma.ar_valid;
+    assign req_in.ar.id               = accel_dma.ar_id;
+    assign req_in.ar.addr             = accel_dma.ar_addr;
+    assign req_in.ar.len              = accel_dma.ar_len;
+    assign req_in.ar.size             = accel_dma.ar_size;
+    assign req_in.ar.burst            = accel_dma.ar_burst;
+    assign req_in.ar.lock             = accel_dma.ar_lock;
+    assign req_in.ar.cache            = accel_dma.ar_cache;
+    assign req_in.ar.prot             = accel_dma.ar_prot;
+    assign req_in.ar.qos              = accel_dma.ar_qos;
+    assign req_in.ar.region           = accel_dma.ar_region;
+    assign req_in.ar.user             = accel_dma.ar_user;
+    assign req_in.ar.stream_id        = accel_dma.ar_stream_id;
+    assign req_in.ar.ss_id_valid      = accel_dma.ar_ss_id_valid;
+    assign req_in.ar.substream_id     = accel_dma.ar_substream_id;
+    assign req_in.w_valid             = accel_dma.w_valid;
+    assign req_in.w.data              = accel_dma.w_data;
+    assign req_in.w.strb              = accel_dma.w_strb;
+    assign req_in.w.last              = accel_dma.w_last;
+    assign req_in.w.user              = accel_dma.w_user;
+    assign req_in.b_ready             = accel_dma.b_ready;
+    assign req_in.r_ready             = accel_dma.r_ready;
+
+    assign accel_dma.aw_ready = resp_in.aw_ready;
+    assign accel_dma.w_ready  = resp_in.w_ready;
+    assign accel_dma.b_valid  = resp_in.b_valid;
+    assign accel_dma.b_id     = resp_in.b.id[IdWidthDma-1:0];
+    assign accel_dma.b_resp   = resp_in.b.resp;
+    assign accel_dma.b_user   = resp_in.b.user;
+    assign accel_dma.ar_ready = resp_in.ar_ready;
+    assign accel_dma.r_valid  = resp_in.r_valid;
+    assign accel_dma.r_id     = resp_in.r.id[IdWidthDma-1:0];
+    assign accel_dma.r_data   = resp_in.r.data;
+    assign accel_dma.r_resp   = resp_in.r.resp;
+    assign accel_dma.r_last   = resp_in.r.last;
+    assign accel_dma.r_user   = resp_in.r.user;
+
+    // -------------------------------------------------------------------------
+    //  DUT 2 : wrapper ARMOR
+    // -------------------------------------------------------------------------
+    wrapper #(
+        .IdWidth            ( IdWidthDma                    ),
+        .IdWidthSlv         ( IdWidthSlv                    ),
+        .AddrWidth          ( AxiAddrWidth                  ),
+        .UserWidth          ( AxiUserWidth                  ),
+        .DevIDWidth         ( 24                            ),
+        .ProcIDWidth        ( 20                            ),
+        .DataWidth          ( AxiDataWidth                  ),
+        .StrbWidth          ( AxiDataWidth / 8              ),
+        .aw_chan_extended_t ( ariane_axi_soc::aw_chan_mmu_t ),
+        .aw_chan_slv_t      ( ariane_axi_soc::aw_chan_slv_t ),
+        .aw_chan_t          ( ariane_axi_soc::aw_chan_t     ),
+        .w_chan_t           ( ariane_axi_soc::w_chan_t      ),
+        .b_chan_t           ( ariane_axi_soc::b_chan_t      ),
+        .b_chan_slv_t       ( ariane_axi_soc::b_chan_slv_t  ),
+        .ar_chan_extended_t ( ariane_axi_soc::ar_chan_mmu_t ),
+        .ar_chan_slv_t      ( ariane_axi_soc::ar_chan_slv_t ),
+        .ar_chan_t          ( ariane_axi_soc::ar_chan_t     ),
+        .r_chan_t           ( ariane_axi_soc::r_chan_t      ),
+        .r_chan_slv_t       ( ariane_axi_soc::r_chan_slv_t  ),
+        .req_t              ( ariane_axi_soc::req_t         ),
+        .req_slv_t          ( ariane_axi_soc::req_slv_t     ),
+        .resp_t             ( ariane_axi_soc::resp_t        ),
+        .resp_slv_t         ( ariane_axi_soc::resp_slv_t    ),
+        .req_iommu_t        ( ariane_axi_soc::req_mmu_t     )
+    ) i_sec_wrap (
+        .clk_i, .rst_ni,
+        .req_IP_wrapper_i     ( req_in        ),
+        .resp_IP_wrapper_o    ( resp_in       ),
+        .resp_wrapper_iommu_i ( resp_out      ),
+        .req_wrapper_iommu_o  ( req_out       ),
+        .req_CPU_Wrapper__i   ( req_csr       ),
+        .resp_CPU_Wrapper_o   ( resp_csr      ),
+        .armor_verdict_o      ( armor_verdict )
+    );
+
+    // -------------------------------------------------------------------------
+    //  Aval comportemental (tient la place de l'IOMMU + DDR)
+    //
+    //  Ne modelise pas la latence de l'IOMMU : seul importe ici de savoir qui
+    //  cale quand l'aval ne repond pas. Les compteurs servent au rapport final.
+    // -------------------------------------------------------------------------
+    int unsigned aw_seen, w_seen, ar_seen, b_sent, r_sent;
+
+    logic                            b_pending;
+    logic [ariane_soc::IdWidth-1:0]  b_id_q;
+    logic                            r_pending;
+    logic [ariane_soc::IdWidth-1:0]  r_id_q;
+    logic [7:0]                      r_left_q;
+
+    assign resp_out.aw_ready = dn_accept & ~b_pending;
+    assign resp_out.w_ready  = dn_accept;
+    assign resp_out.ar_ready = dn_accept & ~r_pending;
+
+    assign resp_out.b_valid  = b_pending & dn_respond;
+    assign resp_out.b.id     = b_id_q;
+    assign resp_out.b.resp   = axi_pkg::RESP_OKAY;
+    assign resp_out.b.user   = '0;
+
+    assign resp_out.r_valid  = r_pending & dn_respond;
+    assign resp_out.r.id     = r_id_q;
+    assign resp_out.r.data   = 64'hCAFE_BABE_DEAD_BEEF;
+    assign resp_out.r.resp   = axi_pkg::RESP_OKAY;
+    assign resp_out.r.last   = (r_left_q == 8'd0);
+    assign resp_out.r.user   = '0;
+
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            aw_seen <= 0; w_seen <= 0; ar_seen <= 0; b_sent <= 0; r_sent <= 0;
+            b_pending <= 1'b0; b_id_q <= '0;
+            r_pending <= 1'b0; r_id_q <= '0; r_left_q <= 8'd0;
+        end else begin
+            // Ecriture : on ne prepare le B qu'apres avoir vu le dernier beat W,
+            // comme le ferait un esclave reel.
+            if (req_out.aw_valid && resp_out.aw_ready) begin
+                aw_seen <= aw_seen + 1;
+                b_id_q  <= req_out.aw.id;
+            end
+            if (req_out.w_valid && resp_out.w_ready) begin
+                w_seen <= w_seen + 1;
+                if (req_out.w.last) b_pending <= 1'b1;
+            end
+            if (resp_out.b_valid && req_out.b_ready) begin
+                b_pending <= 1'b0;
+                b_sent    <= b_sent + 1;
+            end
+
+            // Lecture
+            if (req_out.ar_valid && resp_out.ar_ready) begin
+                ar_seen   <= ar_seen + 1;
+                r_id_q    <= req_out.ar.id;
+                r_left_q  <= req_out.ar.len;
+                r_pending <= 1'b1;
+            end
+            if (resp_out.r_valid && req_out.r_ready) begin
+                r_sent <= r_sent + 1;
+                if (r_left_q == 8'd0) r_pending <= 1'b0;
+                else                  r_left_q  <= r_left_q - 8'd1;
+            end
+        end
+    end
+
+    // -------------------------------------------------------------------------
+    //  Maitre AXI sur le port de configuration de l'accelerateur (interface)
+    //
+    //  Chaque tache est bornee par un garde-fou : sans lui, un handshake perdu
+    //  fige la simulation exactement comme il fige le CPU -- ce qu'on veut
+    //  constater et nommer, pas subir.
+    // -------------------------------------------------------------------------
+    localparam int unsigned MMIO_GUARD = 500;   // cycles
+
+    logic cfg_timeout;   // leve des qu'un acces MMIO n'aboutit pas
+
+    task automatic cfg_reset();
+        cfg.aw_id     <= '0;  cfg.aw_addr  <= '0;  cfg.aw_len    <= 8'd0;
+        cfg.aw_size   <= 3'd3; cfg.aw_burst <= axi_pkg::BURST_INCR;
+        cfg.aw_lock   <= 1'b0; cfg.aw_cache <= '0;  cfg.aw_prot   <= '0;
+        cfg.aw_qos    <= '0;  cfg.aw_region<= '0;  cfg.aw_atop   <= '0;
+        cfg.aw_user   <= '0;  cfg.aw_valid <= 1'b0;
+        cfg.w_data    <= '0;  cfg.w_strb   <= '1;  cfg.w_last    <= 1'b1;
+        cfg.w_user    <= '0;  cfg.w_valid  <= 1'b0;
+        cfg.b_ready   <= 1'b0;
+        cfg.ar_id     <= '0;  cfg.ar_addr  <= '0;  cfg.ar_len    <= 8'd0;
+        cfg.ar_size   <= 3'd3; cfg.ar_burst <= axi_pkg::BURST_INCR;
+        cfg.ar_lock   <= 1'b0; cfg.ar_cache <= '0;  cfg.ar_prot   <= '0;
+        cfg.ar_qos    <= '0;  cfg.ar_region<= '0;  cfg.ar_user   <= '0;
+        cfg.ar_valid  <= 1'b0;
+        cfg.r_ready   <= 1'b0;
+    endtask
+
+    // Attend `sig` haut au front montant, au plus MMIO_GUARD cycles.
+    // `ok` retombe si le garde-fou expire -- c'est la signature du gel.
+    task automatic wait_hs(ref logic sig, input string what, output bit ok);
+        int unsigned n;
+        begin
+            n  = 0;
+            ok = 1'b1;
+            while (!sig) begin
+                @(posedge clk_i);
+                n = n + 1;
+                if (n > MMIO_GUARD) begin
+                    $display("[%0t] *** GEL MMIO : %s toujours bas apres %0d cycles",
+                             $time, what, MMIO_GUARD);
+                    ok = 1'b0;
+                    return;
+                end
+            end
+        end
+    endtask
+
+    task automatic acc_write(input logic [63:0] addr, input logic [63:0] data);
+        bit ok;
+        begin
+            @(posedge clk_i);
+            cfg.aw_addr  <= addr;
+            cfg.aw_id    <= 6'h1;
+            cfg.aw_valid <= 1'b1;
+            wait_hs(cfg.aw_ready, $sformatf("acc_write AW @0x%02h", addr), ok);
+            if (!ok) begin cfg_timeout <= 1'b1; return; end
+            @(posedge clk_i);
+            cfg.aw_valid <= 1'b0;
+            cfg.w_data   <= data;
+            cfg.w_last   <= 1'b1;
+            cfg.w_valid  <= 1'b1;
+            wait_hs(cfg.w_ready, $sformatf("acc_write W @0x%02h", addr), ok);
+            if (!ok) begin cfg_timeout <= 1'b1; return; end
+            @(posedge clk_i);
+            cfg.w_valid  <= 1'b0;
+            cfg.b_ready  <= 1'b1;
+            wait_hs(cfg.b_valid, $sformatf("acc_write B @0x%02h", addr), ok);
+            if (!ok) begin cfg_timeout <= 1'b1; return; end
+            @(posedge clk_i);
+            cfg.b_ready  <= 1'b0;
+        end
+    endtask
+
+    task automatic acc_read(input logic [63:0] addr, output logic [63:0] data);
+        bit ok;
+        begin
+            data = 64'hX;
+            @(posedge clk_i);
+            cfg.ar_addr  <= addr;
+            cfg.ar_id    <= 6'h1;
+            cfg.ar_len   <= 8'd0;
+            cfg.ar_valid <= 1'b1;
+            wait_hs(cfg.ar_ready, $sformatf("acc_read AR @0x%02h", addr), ok);
+            if (!ok) begin cfg_timeout <= 1'b1; return; end
+            @(posedge clk_i);
+            cfg.ar_valid <= 1'b0;
+            cfg.r_ready  <= 1'b1;
+            wait_hs(cfg.r_valid, $sformatf("acc_read R @0x%02h", addr), ok);
+            if (!ok) begin cfg_timeout <= 1'b1; return; end
+            data = cfg.r_data;
+            @(posedge clk_i);
+            cfg.r_ready  <= 1'b0;
+        end
+    endtask
+
+    // -------------------------------------------------------------------------
+    //  Maitre AXI sur le port CSR du wrapper (structs, pas d'interface)
+    // -------------------------------------------------------------------------
+    task automatic csr_reset();
+        req_csr <= '0;
+        req_csr.aw.size  <= 3'd3;
+        req_csr.aw.burst <= axi_pkg::BURST_INCR;
+        req_csr.ar.size  <= 3'd3;
+        req_csr.ar.burst <= axi_pkg::BURST_INCR;
+        req_csr.w.strb   <= '1;
+        req_csr.w.last   <= 1'b1;
+    endtask
+
+    task automatic csr_write(input logic [63:0] addr, input logic [63:0] data);
+        bit ok;
+        begin
+            @(posedge clk_i);
+            req_csr.aw.addr  <= addr;
+            req_csr.aw.id    <= 6'h2;
+            req_csr.aw_valid <= 1'b1;
+            wait_hs(resp_csr.aw_ready, $sformatf("csr_write AW @0x%02h", addr), ok);
+            if (!ok) begin cfg_timeout <= 1'b1; return; end
+            @(posedge clk_i);
+            req_csr.aw_valid <= 1'b0;
+            req_csr.w.data   <= data;
+            req_csr.w.last   <= 1'b1;
+            req_csr.w_valid  <= 1'b1;
+            wait_hs(resp_csr.w_ready, $sformatf("csr_write W @0x%02h", addr), ok);
+            if (!ok) begin cfg_timeout <= 1'b1; return; end
+            @(posedge clk_i);
+            req_csr.w_valid <= 1'b0;
+            req_csr.b_ready <= 1'b1;
+            wait_hs(resp_csr.b_valid, $sformatf("csr_write B @0x%02h", addr), ok);
+            if (!ok) begin cfg_timeout <= 1'b1; return; end
+            @(posedge clk_i);
+            req_csr.b_ready <= 1'b0;
+        end
+    endtask
+
+    task automatic csr_read(input logic [63:0] addr, output logic [63:0] data);
+        bit ok;
+        begin
+            data = 64'hX;
+            @(posedge clk_i);
+            req_csr.ar.addr  <= addr;
+            req_csr.ar.id    <= 6'h2;
+            req_csr.ar.len   <= 8'd0;
+            req_csr.ar_valid <= 1'b1;
+            wait_hs(resp_csr.ar_ready, $sformatf("csr_read AR @0x%02h", addr), ok);
+            if (!ok) begin cfg_timeout <= 1'b1; return; end
+            @(posedge clk_i);
+            req_csr.ar_valid <= 1'b0;
+            req_csr.r_ready  <= 1'b1;
+            wait_hs(resp_csr.r_valid, $sformatf("csr_read R @0x%02h", addr), ok);
+            if (!ok) begin cfg_timeout <= 1'b1; return; end
+            data = resp_csr.r.data;
+            @(posedge clk_i);
+            req_csr.r_ready <= 1'b0;
+        end
+    endtask
+
+    // -------------------------------------------------------------------------
+    //  Observation des etats internes (noms tels quels dans le RTL)
+    // -------------------------------------------------------------------------
+    function automatic string accel_state_str();
+        return $sformatf("cw=%0d cr=%0d busy=%0b done=%0b err=%0b",
+                         i_accel.cw_state_q, i_accel.cr_state_q,
+                         i_accel.busy_q, i_accel.done_q, i_accel.error_q);
+    endfunction
+
+    function automatic string wrapper_state_str();
+        return $sformatf("w=%0d r=%0d", i_sec_wrap.w_state_q, i_sec_wrap.r_state_q);
+    endfunction
+
+    // -------------------------------------------------------------------------
+    //  Scenario
+    // -------------------------------------------------------------------------
+    logic [63:0] rd;
+    logic [63:0] status;
+    int unsigned poll;
+    bit          saw_done;
+    bit          saw_busy;
+    bit          saw_error;
+
+    initial begin
+        if (!$value$plusargs("SCENARIO=%d", scenario)) scenario = 1;
+
+        case (scenario)
+            0: begin dn_accept = 1'b1; dn_respond = 1'b1; end
+            1: begin dn_accept = 1'b1; dn_respond = 1'b0; end
+            2: begin dn_accept = 1'b0; dn_respond = 1'b0; end
+            default: begin
+                $display("SCENARIO=%0d inconnu (0, 1 ou 2)", scenario);
+                $finish;
+            end
+        endcase
+
+        $display("=======================================================");
+        $display(" tb_accel_armor -- SCENARIO %0d", scenario);
+        $display("   aval : accepte AW/AR = %0b, renvoie B/R = %0b",
+                 dn_accept, dn_respond);
+        $display("   accel TIMEOUT_CYCLES = %0d, garde-fou MMIO = %0d cycles",
+                 AccelTimeout, MMIO_GUARD);
+        $display("=======================================================");
+
+        cfg_timeout = 1'b0;
+        saw_done    = 1'b0;
+        saw_busy    = 1'b0;
+        saw_error   = 1'b0;
+        cfg_reset();
+        csr_reset();
+
+        repeat (10) @(posedge clk_i);
+        rst_ni = 1'b1;
+        repeat (10) @(posedge clk_i);
+
+        // ---------------------------------------------------------------------
+        //  1. Le CPU lit MAGIC avant tout trafic. Si meme ceci echoue, le
+        //     probleme n'est pas dans le DMA.
+        // ---------------------------------------------------------------------
+        csr_read(CSR_MAGIC, rd);
+        if (cfg_timeout) begin
+            $display("[%0t] ECHEC : MAGIC illisible sur un bus vierge", $time);
+            report_and_finish();
+        end
+        $display("[%0t] MAGIC = 0x%016h (%s)", $time, rd,
+                 (rd == MAGIC_EXPECTED) ? "OK" : "INATTENDU");
+
+        // ID_CFG = STREAM_ID de l'accelerateur, sinon le comparateur d'ID voit
+        // un spoof sur du trafic parfaitement legitime.
+        csr_write(CSR_ID_CFG, 64'd1);
+        // ENFORCE = 0 : on veut mesurer le datapath, pas le filtrage. ARMOR a
+        // deja ete mis hors de cause (run -DARMOR_ENFORCE=0 sur carte).
+        csr_write(CSR_CTRL, 64'd0);
+
+        // ---------------------------------------------------------------------
+        //  2. Programmation de l'accelerateur, puis start
+        // ---------------------------------------------------------------------
+        acc_write(ACC_BASE, LEGIT_DST);
+        acc_write(ACC_SIZE, 64'd64);
+        acc_write(ACC_CONF, 64'd1);      // cfg=1 -> lecture (cf. bench_runner.c)
+        acc_write(ACC_MODE, 64'd0);      // trafic legitime
+        if (cfg_timeout) begin
+            $display("[%0t] ECHEC : programmation impossible avant meme le start",
+                     $time);
+            report_and_finish();
+        end
+
+        $display("[%0t] avant start : %s", $time, accel_state_str());
+        acc_write(ACC_CTRL, 64'd1);
+        if (cfg_timeout) begin
+            $display("[%0t] ECHEC : l'ecriture de CTRL n'a pas abouti", $time);
+            report_and_finish();
+        end
+        $display("[%0t] start emis : %s", $time, accel_state_str());
+
+        // ---------------------------------------------------------------------
+        //  3. Polling de STATUS pendant que le DMA tourne (ou cale).
+        //     C'est LA question du banc : le port de config repond-il encore ?
+        // ---------------------------------------------------------------------
+        for (poll = 0; poll < 40; poll++) begin
+            acc_read(ACC_STATUS, status);
+            if (cfg_timeout) begin
+                $display("[%0t] *** LE PORT DE CONFIG S'EST VERROUILLE au polling %0d",
+                         $time, poll);
+                $display("      accel   : %s", accel_state_str());
+                $display("      wrapper : %s", wrapper_state_str());
+                $display("      aval    : aw=%0d w=%0d ar=%0d b=%0d r=%0d",
+                         aw_seen, w_seen, ar_seen, b_sent, r_sent);
+                report_and_finish();
+            end
+
+            if (status[0]) saw_busy = 1'b1;
+            if (status[1]) saw_done  = 1'b1;
+            if (status[2]) saw_error = 1'b1;
+
+            $display("[%0t] poll %0d : STATUS=0x%016h busy=%0b done=%0b err=%0b armor=0x%02h | aval aw=%0d w=%0d ar=%0d b=%0d r=%0d",
+                     $time, poll, status, status[0], status[1], status[2],
+                     status[7:3], aw_seen, w_seen, ar_seen, b_sent, r_sent);
+
+            if (status[1] || status[2]) break;   // DONE ou ERROR : termine
+            repeat (100) @(posedge clk_i);
+        end
+
+        // ---------------------------------------------------------------------
+        //  4. Le CPU relit MAGIC apres coup : le port CSR du wrapper a-t-il
+        //     survecu au blocage du DMA ?
+        // ---------------------------------------------------------------------
+        csr_read(CSR_MAGIC, rd);
+        if (cfg_timeout)
+            $display("[%0t] *** LE PORT CSR DU WRAPPER S'EST VERROUILLE", $time);
+        else
+            $display("[%0t] MAGIC relu = 0x%016h (%s)", $time, rd,
+                     (rd == MAGIC_EXPECTED) ? "OK" : "INATTENDU");
+
+        csr_read(CSR_STATUS, rd);
+        if (!cfg_timeout) $display("[%0t] ARMOR STATUS = 0x%016h", $time, rd);
+
+        report_and_finish();
+    end
+
+    task automatic report_and_finish();
+        begin
+            $display("-------------------------------------------------------");
+            $display(" RESULTAT scenario %0d", scenario);
+            $display("   busy vu           : %0b", saw_busy);
+            $display("   done vu           : %0b", saw_done);
+            $display("   error vu          : %0b", saw_error);
+            $display("   requetes aval par transaction : ar=%0d (attendu 1)", ar_seen);
+            $display("   gel MMIO          : %0b", cfg_timeout);
+            $display("   aval : aw=%0d w=%0d ar=%0d b=%0d r=%0d",
+                     aw_seen, w_seen, ar_seen, b_sent, r_sent);
+            $display("   accel   : %s", accel_state_str());
+            $display("   wrapper : %s", wrapper_state_str());
+            $display("-------------------------------------------------------");
+            if (scenario == 0) begin
+                // done ET error ensemble = timeout de l'accelerateur, pas une
+                // transaction aboutie : c'est exactement ce que les campagnes
+                // sur carte rapportaient comme verdict 'E'.
+                if (saw_done && !saw_error && !cfg_timeout)
+                    $display(" VERDICT : datapath sain avec un aval ideal.");
+                else if (saw_error)
+                    $display(" VERDICT : timeout (done+error) malgre un aval ideal -- le defaut est en amont de l'IOMMU.");
+                else
+                    $display(" VERDICT : rien n'aboutit avec un aval ideal.");
+            end else begin
+                if (cfg_timeout)
+                    $display(" VERDICT : un aval qui ne repond pas verrouille un port de config. Gel CPU reproduit.");
+                else
+                    $display(" VERDICT : le DMA cale mais les ports de config repondent -- le gel carte a une autre cause.");
+            end
+            $finish;
+        end
+    endtask
+
+    // -------------------------------------------------------------------------
+    //  Garde-fou global : la simulation ne doit jamais tourner indefiniment.
+    // -------------------------------------------------------------------------
+    initial begin
+        #2ms;
+        $display("[%0t] *** GARDE-FOU GLOBAL : la simulation ne se termine pas", $time);
+        $display("      accel   : %s", accel_state_str());
+        $display("      wrapper : %s", wrapper_state_str());
+        $finish;
+    end
+
+    initial begin
+        if ($test$plusargs("WAVES")) begin
+            $dumpfile("tb_accel_armor.vcd");
+            $dumpvars(0, tb_accel_armor);
+        end
+    end
+
+endmodule
