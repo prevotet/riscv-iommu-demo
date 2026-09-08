@@ -528,7 +528,15 @@ module ariane_peripherals #(
         ariane_axi_soc::req_mmu_t  req_accel1_in;
         ariane_axi_soc::resp_slv_t resp_accel1_in;
         ariane_axi_soc::req_mmu_t  req_accel1_out;
-        ariane_axi_soc::resp_t     resp_accel1_out;
+        // resp_slv_t, PAS resp_t : wrapper.resp_wrapper_iommu_i est declare
+        // resp_slv_t (88 bits, ids sur 6 bits). Y raccorder un resp_t (84 bits,
+        // ids sur 4 bits) fait completer par des zeros du cote MSB, ce qui
+        // decale tous les champs : aw_ready/ar_ready/w_ready/b_valid vus par
+        // ARMOR tombent a 0 en permanence et r_valid recupere b.resp[0]. ARMOR
+        // ne voyait donc jamais l'aval accepter ni repondre, et aucune
+        // transaction ne pouvait aboutir -- d'ou le "zero verdict DONE" de
+        // toutes les campagnes. Reproduit et corrige dans armor/tb.
+        ariane_axi_soc::resp_slv_t resp_accel1_out;
         ariane_axi_soc::req_slv_t  req_cpu_wrap1;
         ariane_axi_soc::resp_slv_t resp_cpu_wrap1;
 
@@ -713,7 +721,8 @@ module ariane_peripherals #(
             ariane_axi_soc::req_mmu_t  req_accel2_in;
             ariane_axi_soc::resp_slv_t resp_accel2_in;
             ariane_axi_soc::req_mmu_t  req_accel2_out;
-            ariane_axi_soc::resp_t     resp_accel2_out;
+            // Meme correctif que pour resp_accel1_out ci-dessus.
+            ariane_axi_soc::resp_slv_t resp_accel2_out;
             ariane_axi_soc::req_slv_t  req_cpu_wrap2;
             ariane_axi_soc::resp_slv_t resp_cpu_wrap2;
 
