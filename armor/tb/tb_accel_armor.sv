@@ -817,8 +817,15 @@ module tb_accel_armor;
 
             // Trafic legitime d'abord : c'est la mesure des faux positifs, et
             // elle doit etre faite sur un wrapper vierge de tout verdict.
-            campaign_step("SC06-LHAOK", 3'd0, 1'b1, 5'd0,            1'b1, 8);
-            campaign_step("SC07-MHAOK", 3'd0, 1'b0, 5'd0,            1'b1, 8);
+            //
+            // Nommes par leur sens et non SC06/SC07 : le banc n'instancie qu'un
+            // accelerateur (le MHA), il ne peut donc pas distinguer le baseline
+            // LHA du baseline MHA. Les deux sens sont couverts parce qu'ils
+            // exercent des chemins de reponse differents -- R pour la lecture,
+            // B pour l'ecriture -- et c'est le retour du B qui manquait avant le
+            // correctif de largeur.
+            campaign_step("LEGIT-lect", 3'd0, 1'b1, 5'd0,            1'b1, 8);
+            campaign_step("LEGIT-ecr",  3'd0, 1'b0, 5'd0,            1'b1, 8);
 
             // ---------------------------------------------------------------
             //  SC08 AVANT tout spoof. Le bannissement de SC01 dure
@@ -843,14 +850,14 @@ module tb_accel_armor;
             $display("");
 
             campaign_step("SC01-SPOOF", 3'd1, 1'b0, BIT_BANNED[4:0], 1'b0, 8);
-            // Diagnostic : le meme trafic legitime que SC07, rejoue juste
+            // Diagnostic : le meme trafic legitime que LEGIT-ecr, rejoue juste
             // apres le spoof. Il DOIT ressortir banni -- c'est la mesure de la
             // contamination, pas un echec du detecteur. block_ip_o reste actif
             // BLOCK_DURATION_C = 100 000 cycles (~2 ms a 50 MHz) et aucun CSR
             // ne l'efface. Dans l'ordre de bench_runner.c (SC01, SC02, SC04,
             // SC06, SC07, SC08, SC03), tout ce qui demarre dans cette fenetre
             // herite du verdict.
-            campaign_step("SC07-apres01", 3'd0, 1'b0, BIT_BANNED[4:0], 1'b0, 8);
+            campaign_step("LEGIT-apres01", 3'd0, 1'b0, BIT_BANNED[4:0], 1'b0, 8);
 
             campaign_step("SC02-STORM", 3'd4, 1'b0, BIT_STORM[4:0],  1'b0, 8);
             campaign_step("SC04-MSI",   3'd6, 1'b0, BIT_MSI[4:0],    1'b0, 8);

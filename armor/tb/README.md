@@ -73,8 +73,8 @@ BLOCKED}`) :
 
 | scénario | mode | latence moy. | `fail_cnt` | verdict |
 |---|---|---|---|---|
-| SC06-LHAOK légitime lecture | 0 | 16 cy | 0 | `00000` |
-| SC07-MHAOK légitime écriture | 0 | 17 cy | 0 | `00000` |
+| LEGIT-lect légitime lecture | 0 | 16 cy | 0 | `00000` |
+| LEGIT-ecr légitime écriture | 0 | 17 cy | 0 | `00000` |
 | SC01-SPOOF | 1 | 515 cy | 3 | `00011` BANNED |
 | SC02-STORM | 4 | 55 cy | 3 | `00111` STORM |
 | SC04-MSI | 6 | 151 cy | 3 | `10111` MSI |
@@ -113,13 +113,13 @@ scénario ne démontre rien qu'SC02 ne démontre déjà.
 l'efface** : `STICKY_CLR` ne vide que le registre collant, `CNT_CLR` que les
 compteurs. `failure_count` reste d'ailleurs à 3 pour le reste de la campagne.
 
-Le banc le mesure : `SC07-apres01` rejoue exactement le trafic de `SC07-MHAOK`,
-mais juste après le spoof.
+Le banc le mesure : `LEGIT-apres01` rejoue exactement le trafic de
+`LEGIT-ecr`, mais juste après le spoof.
 
 | | verdict | err |
 |---|---|---|
-| SC07-MHAOK, wrapper vierge | `00000` | 0/8 |
-| SC07-apres01, après SC01 | `00011` BANNED | 8/8 |
+| LEGIT-ecr, wrapper vierge | `00000` | 0/8 |
+| LEGIT-apres01, après SC01 | `00011` BANNED | 8/8 |
 
 Conséquence pour la campagne sur carte : dans l'ordre de `bench_runner.c`
 (SC01, SC02, SC04, SC06, SC07, SC08, SC03), SC02 et SC04 démarrent forcément
@@ -177,7 +177,13 @@ entre LHA et MHA : le banc répond à « qui cale et pourquoi », pas à « comb
 de cycles coûte l'IOMMU ». Les latences ci-dessus sont donc celles d'ARMOR seul,
 non comparables telles quelles au coût mesuré sur carte.
 
-Un seul accélérateur est instancié, avec `STREAM_ID = 2` — le MHA, celui que la
+Un seul accélérateur est instancié : le banc ne peut donc pas distinguer le
+baseline LHA (SC06) du baseline MHA (SC07), et ses deux pas légitimes sont
+nommés par leur sens — `LEGIT-lect` et `LEGIT-ecr`. Les deux sens comptent :
+ils exercent des chemins de réponse différents, R pour la lecture et B pour
+l'écriture, et c'est le retour du B qui manquait avant le correctif de largeur.
+
+L'accélérateur porte `STREAM_ID = 2` — le MHA, celui que la
 campagne attaque. `SPOOF_STREAM_ID` vaut `24'd1` par défaut et n'est surchargé
 nulle part, donc le mode 1 n'usurpe réellement un identifiant que depuis un
 accélérateur dont le `STREAM_ID` diffère de 1 : le jouer sur le LHA ne
