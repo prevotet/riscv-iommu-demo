@@ -6,6 +6,7 @@
 #            ./run_sim.sh all            joue les trois
 #            WAVES=1 ./run_sim.sh 1      genere en plus tb_accel_armor.vcd
 #            BUG=1   ./run_sim.sh 0      rejoue le defaut resp_t/resp_slv_t
+#            PROFILE=demo ./run_sim.sh 3   profil DEMO au lieu de BENCH
 #
 #  Scenarios :
 #    0  aval sain                       -- controle, doit atteindre DONE
@@ -94,6 +95,16 @@ mkdir -p "$WORK"
 cd "$WORK"
 
 DEFINES=()
+
+# BENCH_PROFILE par defaut, comme le bitstream de campagne : fenetre de flux de
+# 100 cycles et blocages de ~2 ms, la ou le profil DEMO prend une fenetre de
+# 50 000 cycles pour le meme seuil de 8 requetes -- ce qui fait passer neuf
+# transactions legitimes en moins d'une milliseconde pour une tempete. Mettre
+# PROFILE=demo pour simuler le bitstream de demonstration interactive.
+if [[ "${PROFILE:-bench}" == "bench" ]]; then
+    DEFINES+=("-d" "BENCH_PROFILE")
+fi
+
 # BUG=1 : rejoue le defaut de largeur resp_t / resp_slv_t sur la reponse aval
 # (cf. le grand commentaire dans tb_accel_armor.sv). Sert de non-regression.
 [[ "${BUG:-0}" == "1" ]] && DEFINES+=("-d" "BUG_RESP_T")
@@ -117,6 +128,6 @@ run_one() {
 }
 
 case "${1:-1}" in
-    all) run_one 0; run_one 1; run_one 2 ;;
+    all) run_one 0; run_one 1; run_one 2; run_one 3 ;;
     *)   run_one "${1:-1}" ;;
 esac

@@ -68,12 +68,27 @@ module tb_accel_armor;
     localparam logic [63:0] CSR_MSIADR = 64'h08;
     localparam logic [63:0] CSR_CTRL   = 64'h10;
     localparam logic [63:0] CSR_STATUS = 64'h18;
-    localparam logic [63:0] CSR_STICKY = 64'h20;
+    localparam logic [63:0] CSR_STICKY  = 64'h20;
+    localparam logic [63:0] CSR_FAILCNT = 64'h28;
     localparam logic [63:0] CSR_MAGIC  = 64'h58;
 
     localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000001;
 
     localparam logic [63:0] LEGIT_DST = 64'h0000_0000_9100_0000;
+
+    // Adresse surveillee par msi_detector. Doit differer de LEGIT_DST : la
+    // pointer sur la destination legitime faisait compter tout le trafic normal
+    // comme MSI (defaut corrige en 8f4a25d).
+    localparam logic [63:0] MSI_WATCH = 64'h0000_0000_9200_0000;
+
+    localparam logic [23:0] ACCEL_SID = 24'd2;
+
+    // Bits de verdict, tels que armor_sticky_q les presente dans STATUS[7:3].
+    localparam int BIT_BLOCKED = 0;
+    localparam int BIT_BANNED  = 1;
+    localparam int BIT_STORM   = 2;
+    localparam int BIT_OUTS    = 3;
+    localparam int BIT_MSI     = 4;
 
     // -------------------------------------------------------------------------
     //  Horloge et reset
@@ -118,7 +133,12 @@ module tb_accel_armor;
         .AXI_ID_WIDTH     ( IdWidthDma   ),
         .AXI_USER_WIDTH   ( AxiUserWidth ),
         .AXI_SLV_ID_WIDTH ( IdWidthSlv   ),
-        .STREAM_ID        ( 24'd1        ),
+        // STREAM_ID = 2 : on joue l'accelerateur MHA, celui sur lequel la
+        // campagne lance toutes les attaques. Ce choix n'est pas cosmetique --
+        // SPOOF_STREAM_ID vaut 24'd1 par defaut et n'est surcharge nulle part,
+        // donc le mode 1 n'usurpe reellement un identifiant que depuis un
+        // accelerateur dont le STREAM_ID differe de 1.
+        .STREAM_ID        ( 24'd2        ),
         .TIMEOUT_CYCLES   ( AccelTimeout )
     ) i_accel (
         .clk_i, .rst_ni,
@@ -515,8 +535,9 @@ module tb_accel_armor;
             0: begin dn_accept = 1'b1; dn_respond = 1'b1; end
             1: begin dn_accept = 1'b1; dn_respond = 1'b0; end
             2: begin dn_accept = 1'b0; dn_respond = 1'b0; end
+            3: begin dn_accept = 1'b1; dn_respond = 1'b1; end   // campagne
             default: begin
-                $display("SCENARIO=%0d inconnu (0, 1 ou 2)", scenario);
+                $display("SCENARIO=%0d inconnu (0, 1, 2 ou 3)", scenario);
                 $finish;
             end
         endcase
@@ -552,9 +573,11 @@ module tb_accel_armor;
         $display("[%0t] MAGIC = 0x%016h (%s)", $time, rd,
                  (rd == MAGIC_EXPECTED) ? "OK" : "INATTENDU");
 
+        if (scenario == 3) run_campaign();   // ne revient pas
+
         // ID_CFG = STREAM_ID de l'accelerateur, sinon le comparateur d'ID voit
         // un spoof sur du trafic parfaitement legitime.
-        csr_write(CSR_ID_CFG, 64'd1);
+        csr_write(CSR_ID_CFG, {40'h0, ACCEL_SID});
         // ENFORCE = 0 : on veut mesurer le datapath, pas le filtrage. ARMOR a
         // deja ete mis hors de cause (run -DARMOR_ENFORCE=0 sur carte).
         csr_write(CSR_CTRL, 64'd0);
@@ -624,6 +647,132 @@ module tb_accel_armor;
 
         report_and_finish();
     end
+
+    // -------------------------------------------------------------------------
+    //  Campagne (scenario 3) : un pas par scenario de bench_runner.c
+    //
+    //  Chaque pas remet les bits collants a zero, programme l'accelerateur,
+    //  lance, puis attend la retombee de busy_q. La latence est mesuree sur ce
+    //  signal interne plutot que par sondage MMIO : le sondage a une granularite
+    //  de 100 cycles, sans rapport avec ce qu'on veut comparer aux ~1450 cycles
+    //  de l'implementation de reference.
+    // -------------------------------------------------------------------------
+    int unsigned n_pass, n_fail;
+
+    task automatic campaign_step(input string       name,
+                                 input logic  [2:0] mode,
+                                 input logic        is_read,
+                                 input logic  [4:0] expect_bits,
+                                 input bit          expect_clean,
+                                 input int unsigned iters);
+        logic [63:0] st, fails;
+        time         t0;
+        int unsigned cycles, cycles_tot;
+        int unsigned guard;
+        int unsigned n_err;
+        logic [4:0]  got, acc_bits;
+        bit          ok;
+        int unsigned k;
+        begin
+            // STICKY_CLR (CTRL bit 1) une seule fois, au debut du pas : sans
+            // cela un verdict deborde sur le scenario suivant et on retrouve
+            // les faux positifs en cascade des campagnes sur carte. A
+            // l'interieur d'un pas au contraire, les bits doivent s'accumuler :
+            // le bannissement demande MAX_FAILURES = 3 comparaisons d'ID
+            // fautives, donc au moins trois transactions. Une seule ne peut pas
+            // le declencher -- c'est pourquoi bench_runner.c lance N_ATK
+            // iterations par scenario.
+            csr_write(CSR_CTRL, 64'b011);   // ENFORCE=1, STICKY_CLR=1
+            if (cfg_timeout) return;
+
+            acc_write(ACC_BASE,   LEGIT_DST);
+            acc_write(ACC_SIZE,   64'd64);
+            acc_write(ACC_CONF,   is_read ? 64'd1 : 64'd0);
+            acc_write(ACC_MODE,   {61'h0, mode});
+            acc_write(ACC_MSIADR, MSI_WATCH);
+            if (cfg_timeout) return;
+
+            cycles_tot = 0;
+            n_err      = 0;
+            acc_bits   = 5'b0;
+
+            for (k = 0; k < iters; k++) begin
+                t0 = $time;
+                acc_write(ACC_CTRL, 64'd1);
+                if (cfg_timeout) return;
+
+                // Attente de fin sur le signal interne, bornee. Le sondage MMIO
+                // a une granularite de 100 cycles, sans rapport avec les
+                // ~1450 cycles de l'implementation de reference.
+                guard = 0;
+                while (i_accel.busy_q && guard < 4*AccelTimeout) begin
+                    @(posedge clk_i);
+                    guard = guard + 1;
+                end
+                cycles = ($time - t0) / 10;   // periode 10 ns
+                cycles_tot += cycles;
+
+                acc_read(ACC_STATUS, st);
+                if (cfg_timeout) return;
+                acc_bits |= st[7:3];
+                if (st[2]) n_err++;
+            end
+
+            got = acc_bits;
+            csr_read(CSR_FAILCNT, fails);
+            if (cfg_timeout) return;
+
+            ok = expect_clean ? (got == 5'b0) : (got[expect_bits] === 1'b1);
+            if (ok) n_pass++; else n_fail++;
+
+            // "err" et non "timeout" : error_q se leve aussi sur le SLVERR
+            // fabrique par ARMOR, qui revient en quelques cycles.
+            $display("  %-12s mode=%0d %-8s -> %5s | %2d iter | %6d cy moy | err %0d/%0d | fail_cnt=%0d | verdict=%b",
+                     name, mode, is_read ? "lecture" : "ecriture",
+                     ok ? "OK" : "ECHEC", iters, cycles_tot / iters,
+                     n_err, iters, fails[7:0], got);
+        end
+    endtask
+
+    task automatic run_campaign();
+        begin
+            n_pass = 0; n_fail = 0;
+
+            csr_write(CSR_ID_CFG, {40'h0, ACCEL_SID});
+            csr_write(CSR_MSIADR, MSI_WATCH);
+            csr_write(CSR_CTRL,   64'd1);          // ENFORCE = 1
+            if (cfg_timeout) begin
+                $display("ECHEC : CSR du wrapper inaccessibles");
+                report_and_finish();
+            end
+
+            $display("");
+            $display("  ID_CFG=%0d  MSI_WATCH=0x%08h  ENFORCE=1  aval sain",
+                     ACCEL_SID, MSI_WATCH[31:0]);
+            $display("  verdict = {MSI, OUTS, STORM, BANNED, BLOCKED}");
+            $display("");
+
+            // Trafic legitime d'abord : c'est la mesure des faux positifs, et
+            // elle doit etre faite sur un wrapper vierge de tout verdict.
+            campaign_step("SC06-LHAOK", 3'd0, 1'b1, 5'd0,            1'b1, 8);
+            campaign_step("SC07-MHAOK", 3'd0, 1'b0, 5'd0,            1'b1, 8);
+
+            campaign_step("SC01-SPOOF", 3'd1, 1'b0, BIT_BANNED[4:0], 1'b0, 8);
+            campaign_step("SC02-STORM", 3'd4, 1'b0, BIT_STORM[4:0],  1'b0, 8);
+            campaign_step("SC04-MSI",   3'd6, 1'b0, BIT_MSI[4:0],    1'b0, 8);
+            // SC03 en dernier : le mode 5 laisse des lectures sans reponse
+            // derriere lui, et il contaminait les scenarios suivants.
+            campaign_step("SC03-OUTS",  3'd5, 1'b1, BIT_OUTS[4:0],   1'b0, 8);
+
+            $display("");
+            $display("-------------------------------------------------------");
+            $display(" CAMPAGNE : %0d OK, %0d ECHEC", n_pass, n_fail);
+            if (cfg_timeout)
+                $display(" un acces MMIO n'a pas abouti : resultats incomplets");
+            $display("-------------------------------------------------------");
+            $finish;
+        end
+    endtask
 
     task automatic report_and_finish();
         begin
