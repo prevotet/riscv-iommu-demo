@@ -387,6 +387,19 @@ static void stat_add(stats_t *s, int expected_block, int observed_block,
  * 1 = lecture single (bit0=read). SC07 (MHA légitime) DOIT utiliser 1 : un
  * write MHA qui passe ARMOR n'obtient jamais sa réponse B dans ce bitstream et
  * deadlock le bus partagé (limitation RTL). En lecture, R/RVALID répond -> OK. */
+#ifdef BENCH_TRACE_MMIO
+/* Nombre d'appels traces PAR SCENARIO. Reamorce dans run_scenario : sinon les
+ * premieres traces sont consommees par le premier scenario de la campagne et
+ * celui qui gele n'en a plus une seule -- l'erreur du build precedent. */
+#  ifndef TRACE_N
+#    define TRACE_N 3
+#  endif
+static int g_trace_left = TRACE_N;
+#  define TRACE_ARM() do { g_trace_left = TRACE_N; } while (0)
+#else
+#  define TRACE_ARM() do { } while (0)
+#endif
+
 static uint64_t fire_one(char accel, uint64_t mode, uint64_t dst,
                          uint64_t cfg_bits, uint64_t *out_det, uint64_t *out_tx) {
     volatile uint64_t *ctrl, *status, *base, *sz, *cfg, *amode;
@@ -397,10 +410,37 @@ static uint64_t fire_one(char accel, uint64_t mode, uint64_t dst,
         ctrl=lha_ctrl; status=lha_status; base=lha_base;
         sz=lha_size; cfg=lha_config; amode=NULL;
     }
+#ifdef BENCH_TRACE_MMIO
+    /* DIAGNOSTIC (-DBENCH_TRACE_MMIO) — pas un mode de campagne.
+     *
+     * Le gel constaté sur carte est dans fire_one : la boucle de sondage
+     * ci-dessous est bornée par `to`, donc si les lectures revenaient on en
+     * sortirait et l'itération s'imprimerait. Un accès MMIO isolé ne revient
+     * donc jamais, et les FSM des ports de config (cw_state_q / cr_state_q de
+     * accel_wrap, w_state_q / r_state_q du wrapper) n'ont ni timeout ni
+     * échappatoire : un handshake perdu les verrouille définitivement.
+     *
+     * Chaque accès est encadré d'une trace. La DERNIÈRE ligne imprimée nomme
+     * l'accès qui ne revient pas. L'UART est un autre périphérique et continue
+     * de fonctionner pendant que le port de config est bloqué.
+     *
+     * Limité aux TRACE_N premiers appels, sinon la sortie noie la campagne. */
+    int tr = (g_trace_left > 0);
+    if (tr) g_trace_left--;
+#  define TRACE(msg) do { if (tr) printf("#   MMIO %s\r\n", (msg)); } while (0)
+#else
+#  define TRACE(msg) do { } while (0)
+#endif
+
+    TRACE("-> ecriture ATTACK_MODE");
     if (amode) *amode = mode;
+    TRACE("   ecriture ATTACK_MODE OK ; -> BASE");
     *base = dst;
+    TRACE("   BASE OK ; -> SIZE");
     *sz   = XFER_SIZE;
+    TRACE("   SIZE OK ; -> CONFIG");
     *cfg  = cfg_bits;
+    TRACE("   CONFIG OK");
     fence();
 
     /* On capture DEUX latences en un seul vol :
@@ -416,9 +456,13 @@ static uint64_t fire_one(char accel, uint64_t mode, uint64_t dst,
     int      got_event = 0;
     uint32_t to = 2000000;
     uint64_t t0 = read_mcycle();
+    TRACE("-> ecriture CTRL=1 (lancement)");
     *ctrl = 1;
+    TRACE("   CTRL OK ; -> 1re lecture STATUS");
+    int first_read = 1;
     do {
         st = *status;
+        if (first_read) { TRACE("   1re lecture STATUS OK, sondage en cours"); first_read = 0; }
         if (!got_event && (st & (ST_ANY_BLOCK | ST_DONE | ST_ERROR))) {
             t_event   = read_mcycle();   /* instant du 1er verdict (détection) */
             got_event = 1;
@@ -428,8 +472,12 @@ static uint64_t fire_one(char accel, uint64_t mode, uint64_t dst,
     if (!got_event) t_event = t1;        /* aucun verdict vu -> détection = tx */
     *out_det = t_event - t0;
     *out_tx  = t1 - t0;
-    return *status;
+    TRACE("-> lecture STATUS finale");
+    st = *status;
+    TRACE("   lecture STATUS finale OK");
+    return st;
 }
+#undef TRACE
 
 /* ============================================================
  * Run un scénario : N transactions, accumule stats
@@ -440,6 +488,7 @@ static void run_scenario(const char *tag, char accel, uint64_t mode,
                          int expected_block, stats_t *st)
 {
     stat_init(st, tag);
+    TRACE_ARM();            /* tracer les premiers acces MMIO DE CE scenario */
     armor_wrap_clear();     /* compteurs ARMOR remis a zero par scenario */
     printf("# === %s : N=%d accel=%c mode=%lu cfg=0x%lx expect_block=%d\r\n",
            tag, N, accel, (unsigned long)mode,
@@ -507,6 +556,7 @@ static void run_scenario(const char *tag, char accel, uint64_t mode,
 
 static void run_sc08(stats_t *st) {
     stat_init(st, "SC08-LAS");
+    TRACE_ARM();
     printf("# === SC08 low-and-slow : %d salves x %d AW gap=%d cy\r\n",
            LAS_REPEAT, LAS_BURST, LAS_GAP_CY);
     int passed = 0, blocked = 0;
@@ -648,8 +698,23 @@ void main(void) {
      * ne sont pas comparables à celles-ci. */
     run_scenario("SC07-MHAOK", 'M', /*mode*/0, LEGIT_DST, /*cfg*/0, N_OK, 0, &s[n++]);
 
-    /* Trafic de fond : LHA continu pour SC08 puis les attaques. */
+    /* Trafic de fond : LHA continu pour SC08 puis les attaques.
+     *
+     * -DBENCH_NO_LHA_BG le supprime. DIAGNOSTIC : l'ecriture de CTRL=1 de la
+     * premiere iteration de SC01 ne revient jamais, alors que les quatre
+     * ecritures precedentes passent par la meme FSM. CTRL est la seule a avoir
+     * un effet de bord -- elle lance l'accelerateur sur axi_dma, donc vers
+     * ARMOR, le mux 2:1 et l'IOMMU. Sans fond LHA, ce chemin n'est plus
+     * partage :
+     *   ne gele plus -> le gel exige la contention, le wedge est dans le mux
+     *                   ou l'IOMMU ;
+     *   gele encore  -> le spoof seul suffit, c'est la retenue d'ARMOR sur le
+     *                   wrapper 2. */
+#ifndef BENCH_NO_LHA_BG
     lha_bg_start();
+#else
+    printf("# DIAG : fond LHA DESACTIVE (-DBENCH_NO_LHA_BG)\r\n");
+#endif
     printf("# LHA background CONTINU arme (%s) base=0x%08x\r\n",
            LHA_BG_READ ? "READ" : "WRITE", (unsigned)LEGIT_DST);
 
@@ -679,7 +744,9 @@ void main(void) {
      * se re-latche après chaque clear-au-start). En le plaçant tout à la fin,
      * plus aucun scénario ne s'exécute après -> aucune contamination. */
     run_scenario("SC03-OUTS",  'M', /*mode*/5, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
+#ifndef BENCH_NO_LHA_BG
     lha_bg_stop();   /* arrêt du trafic de fond */
+#endif
 
     printf("\r\n###### RESUME ######\r\n");
     for (int i = 0; i < n; i++) dump(&s[i]);

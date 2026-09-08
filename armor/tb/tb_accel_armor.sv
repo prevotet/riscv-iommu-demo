@@ -349,6 +349,46 @@ module tb_accel_armor;
     end
 
     // -------------------------------------------------------------------------
+    //  Mesure directe du surcout d'ARMOR sur le chemin requete.
+    //
+    //  Delai entre le moment ou l'accelerateur presente AW/AR et celui ou le
+    //  wrapper le presente a l'aval. request_manager est un always_comb
+    //  passe-plat, mais il coupe aw_valid/ar_valid tant que !legit_hit : le
+    //  cout reel est donc le temps de montee de legit_hit, pas une profondeur
+    //  de pipeline fixe.
+    //
+    //  Point cle : legit_hit est un NIVEAU (ids_match_reg dans id_comparator),
+    //  pas une impulsion. Sur un flot de paquets au meme identifiant legitime,
+    //  il reste haut et le surcout retombe a zero des la deuxieme transaction.
+    // -------------------------------------------------------------------------
+    int unsigned aw_delay, ar_delay;
+    int unsigned n_aw_meas, n_ar_meas;
+
+    always @(posedge clk_i) begin
+        if (rst_ni) begin
+            if (accel_dma.aw_valid && !req_out.aw_valid) aw_delay <= aw_delay + 1;
+            if (accel_dma.ar_valid && !req_out.ar_valid) ar_delay <= ar_delay + 1;
+            if (accel_dma.aw_valid && req_out.aw_valid && resp_out.aw_ready)
+                n_aw_meas <= n_aw_meas + 1;
+            if (accel_dma.ar_valid && req_out.ar_valid && resp_out.ar_ready)
+                n_ar_meas <= n_ar_meas + 1;
+        end
+    end
+
+    task automatic delay_reset();
+        begin
+            aw_delay = 0; ar_delay = 0; n_aw_meas = 0; n_ar_meas = 0;
+        end
+    endtask
+
+    task automatic delay_report(input string what);
+        begin
+            $display("  %-22s AW retenus %0d cy / %0d transactions, AR retenus %0d cy / %0d",
+                     what, aw_delay, n_aw_meas, ar_delay, n_ar_meas);
+        end
+    endtask
+
+    // -------------------------------------------------------------------------
     //  Maitre AXI sur le port de configuration de l'accelerateur (interface)
     //
     //  Chaque tache est bornee par un garde-fou : sans lui, un handshake perdu
@@ -658,13 +698,16 @@ module tb_accel_armor;
     //  de l'implementation de reference.
     // -------------------------------------------------------------------------
     int unsigned n_pass, n_fail;
+    int unsigned last_cycles;
+    int unsigned cy_off_r, cy_on_r, cy_off_w, cy_on_w;
 
     task automatic campaign_step(input string       name,
                                  input logic  [2:0] mode,
                                  input logic        is_read,
                                  input logic  [4:0] expect_bits,
                                  input bit          expect_clean,
-                                 input int unsigned iters);
+                                 input int unsigned iters,
+                                 input logic        enforce);
         logic [63:0] st, fails;
         time         t0;
         int unsigned cycles, cycles_tot;
@@ -682,7 +725,7 @@ module tb_accel_armor;
             // fautives, donc au moins trois transactions. Une seule ne peut pas
             // le declencher -- c'est pourquoi bench_runner.c lance N_ATK
             // iterations par scenario.
-            csr_write(CSR_CTRL, 64'b011);   // ENFORCE=1, STICKY_CLR=1
+            csr_write(CSR_CTRL, {62'h0, 1'b1, enforce});   // STICKY_CLR=1
             if (cfg_timeout) return;
 
             acc_write(ACC_BASE,   LEGIT_DST);
@@ -731,6 +774,7 @@ module tb_accel_armor;
                      name, mode, is_read ? "lecture" : "ecriture",
                      ok ? "OK" : "ECHEC", iters, cycles_tot / iters,
                      n_err, iters, fails[7:0], got);
+            last_cycles = cycles_tot / iters;
         end
     endtask
 
@@ -824,8 +868,38 @@ module tb_accel_armor;
             // exercent des chemins de reponse differents -- R pour la lecture,
             // B pour l'ecriture -- et c'est le retour du B qui manquait avant le
             // correctif de largeur.
-            campaign_step("LEGIT-lect", 3'd0, 1'b1, 5'd0,            1'b1, 8);
-            campaign_step("LEGIT-ecr",  3'd0, 1'b0, 5'd0,            1'b1, 8);
+            // -----------------------------------------------------------
+            //  Coût d'insertion d'ARMOR sur un paquet valide.
+            //
+            //  ENFORCE=0 rend le wrapper transparent : legit_hit_eff vaut 1 en
+            //  permanence, donc request_manager ne coupe plus aw_valid/ar_valid
+            //  et le chemin est purement combinatoire. ENFORCE=1 attend que
+            //  legit_hit monte, ce qui prend la profondeur du pipeline d'ID.
+            //  La différence des deux est le surcoût, mesuré et non déduit.
+            // -----------------------------------------------------------
+            delay_reset();
+            campaign_step("LEGIT-lect/off", 3'd0, 1'b1, 5'd0, 1'b1, 8, 1'b0);
+            delay_report("ENFORCE=0 lecture");
+            delay_reset();
+            cy_off_r = last_cycles;
+            campaign_step("LEGIT-ecr/off",  3'd0, 1'b0, 5'd0, 1'b1, 8, 1'b0);
+            cy_off_w = last_cycles;
+
+            delay_reset();
+            campaign_step("LEGIT-lect", 3'd0, 1'b1, 5'd0,            1'b1, 8, 1'b1);
+            delay_report("ENFORCE=1 lecture");
+            delay_reset();
+            cy_on_r = last_cycles;
+            campaign_step("LEGIT-ecr",  3'd0, 1'b0, 5'd0,            1'b1, 8, 1'b1);
+            cy_on_w = last_cycles;
+
+            $display("");
+            $display("  SURCOUT ARMOR sur paquet valide (ENFORCE 1 - ENFORCE 0) :");
+            $display("     lecture  : %0d - %0d = %0d cycles",
+                     cy_on_r, cy_off_r, cy_on_r - cy_off_r);
+            $display("     ecriture : %0d - %0d = %0d cycles",
+                     cy_on_w, cy_off_w, cy_on_w - cy_off_w);
+            $display("");
 
             // ---------------------------------------------------------------
             //  SC08 AVANT tout spoof. Le bannissement de SC01 dure
@@ -849,7 +923,7 @@ module tb_accel_armor;
             campaign_sc08("SC08-mode0",  3'd0, 12, 7, 200, 1'b1);
             $display("");
 
-            campaign_step("SC01-SPOOF", 3'd1, 1'b0, BIT_BANNED[4:0], 1'b0, 8);
+            campaign_step("SC01-SPOOF", 3'd1, 1'b0, BIT_BANNED[4:0], 1'b0, 8, 1'b1);
             // Diagnostic : le meme trafic legitime que LEGIT-ecr, rejoue juste
             // apres le spoof. Il DOIT ressortir banni -- c'est la mesure de la
             // contamination, pas un echec du detecteur. block_ip_o reste actif
@@ -857,13 +931,13 @@ module tb_accel_armor;
             // ne l'efface. Dans l'ordre de bench_runner.c (SC01, SC02, SC04,
             // SC06, SC07, SC08, SC03), tout ce qui demarre dans cette fenetre
             // herite du verdict.
-            campaign_step("LEGIT-apres01", 3'd0, 1'b0, BIT_BANNED[4:0], 1'b0, 8);
+            campaign_step("LEGIT-apres01", 3'd0, 1'b0, BIT_BANNED[4:0], 1'b0, 8, 1'b1);
 
-            campaign_step("SC02-STORM", 3'd4, 1'b0, BIT_STORM[4:0],  1'b0, 8);
-            campaign_step("SC04-MSI",   3'd6, 1'b0, BIT_MSI[4:0],    1'b0, 8);
+            campaign_step("SC02-STORM", 3'd4, 1'b0, BIT_STORM[4:0],  1'b0, 8, 1'b1);
+            campaign_step("SC04-MSI",   3'd6, 1'b0, BIT_MSI[4:0],    1'b0, 8, 1'b1);
             // SC03 en dernier : le mode 5 laisse des lectures sans reponse
             // derriere lui, et il contaminait les scenarios suivants.
-            campaign_step("SC03-OUTS",  3'd5, 1'b1, BIT_OUTS[4:0],   1'b0, 8);
+            campaign_step("SC03-OUTS",  3'd5, 1'b1, BIT_OUTS[4:0],   1'b0, 8, 1'b1);
 
             $display("");
             $display("-------------------------------------------------------");
