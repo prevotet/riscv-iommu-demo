@@ -7,7 +7,7 @@
 [submodule "cva6"]
 	path = cva6
 	url = git@github.com:prevotet/cva6.git
-	branch = jc_dev
+	branch = testbench
 [submodule "linux"]
 	path = linux
 	url = git@github.com:prevotet/linux.git
