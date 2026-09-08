@@ -278,6 +278,15 @@ do_program() {
     cat > "$tcl_script" <<EOF
 open_hw_manager
 connect_hw_server -url localhost:3121
+# current_hw_target est OBLIGATOIRE : sans lui, open_hw_target devine une cible,
+# se trompe de nom et sort « No devices detected on target » alors que le JTAG
+# repond parfaitement. Constate le 2026-09-08 sur la Genesys2.
+set targets [get_hw_targets -quiet]
+if {[llength \$targets] == 0} {
+    puts "ERREUR : aucune cible JTAG. Carte alimentee ? Cable branche ?"
+    exit 1
+}
+current_hw_target [lindex \$targets 0]
 open_hw_target
 set dev [lindex [get_hw_devices xc7k*] 0]
 current_hw_device \$dev
