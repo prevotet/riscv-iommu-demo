@@ -11,11 +11,16 @@ signaux sont visibles en quelques secondes.
 ./run_sim.sh 0        # aval sain          — contrôle, doit atteindre DONE
 ./run_sim.sh 1        # aval qui accepte AW/AR mais ne renvoie jamais B ni R
 ./run_sim.sh 2        # aval qui n'accepte rien
-./run_sim.sh all      # les trois
+./run_sim.sh 3        # campagne : les six scénarios de bench_runner.c
+./run_sim.sh all      # les quatre
 
-BUG=1   ./run_sim.sh 0   # rejoue le défaut resp_t/resp_slv_t (non-régression)
-WAVES=1 ./run_sim.sh 1   # produit en plus work/tb_accel_armor.vcd
+BUG=1   ./run_sim.sh 0        # rejoue le défaut resp_t/resp_slv_t (non-régression)
+PROFILE=demo ./run_sim.sh 3   # profil DEMO au lieu de BENCH
+WAVES=1 ./run_sim.sh 1        # produit en plus work/tb_accel_armor.vcd
 ```
+
+Le banc compile avec `BENCH_PROFILE` par défaut, comme le bitstream de
+campagne. Ce n'est pas un détail : voir plus bas.
 
 `xvlog`/`xelab`/`xsim` viennent de Vivado 2022.2 ; le script sourcera
 `settings64.sh` tout seul si `xvlog` n'est pas dans le `PATH` (surcharger avec
@@ -62,6 +67,44 @@ timeout dans les FSM `cw_state_q`/`cr_state_q` de `accel_wrap` et
 `w_state_q`/`r_state_q` du wrapper reste une fragilité réelle, mais ce n'est
 pas ce qui figeait la campagne.
 
+**La campagne discrimine enfin** (scénario 3, `BENCH_PROFILE`, aval sain,
+`ENFORCE=1`, 8 itérations par scénario, verdict = `{MSI, OUTS, STORM, BANNED,
+BLOCKED}`) :
+
+| scénario | mode | latence moy. | `fail_cnt` | verdict |
+|---|---|---|---|---|
+| SC06-LHAOK légitime lecture | 0 | 16 cy | 0 | `00000` |
+| SC07-MHAOK légitime écriture | 0 | 17 cy | 0 | `00000` |
+| SC01-SPOOF | 1 | 515 cy | 3 | `00011` BANNED |
+| SC02-STORM | 4 | 55 cy | 3 | `00111` STORM |
+| SC04-MSI | 6 | 151 cy | 3 | `10111` MSI |
+| SC03-OUTS | 5 | 79 cy | 3 | `01111` OUTS |
+
+Chaque attaque lève son bit et **le trafic légitime n'en lève aucun** — les
+faux positifs en nappe des campagnes sur carte ont disparu. Les latences sont
+du même ordre que l'implémentation de référence (~1450 cy), là où toutes les
+mesures précédentes étaient bloquées à `TIMEOUT_CYCLES`.
+
+Deux choses à savoir pour interpréter ces lignes :
+
+- **Une attaque ne se détecte pas en une transaction.** Le bannissement demande
+  `MAX_FAILURES = 3` comparaisons d'identifiant fautives. Avec une seule
+  itération, SC01-SPOOF ne lève aucun bit et part en timeout : la transaction
+  n'est ni bloquée ni laissée passer, elle est simplement retenue. C'est
+  pourquoi `bench_runner.c` lance `N_ATK` itérations, et pourquoi le banc en
+  fait 8.
+- **`err` n'est pas un timeout.** `error_q` se lève aussi sur le SLVERR fabriqué
+  par ARMOR, qui revient en quelques cycles. C'est le cas des `err 8/8` des
+  lignes d'attaque, dont la latence reste faible.
+
+**Le profil compte autant que le RTL.** En profil DEMO, `FLOW_WINDOW_C` vaut
+50 000 cycles pour le même `MAX_REQ_PER_WINDOW = 8` : neuf transactions
+légitimes en moins d'une milliseconde suffisent alors à déclencher STORM.
+`PROFILE=demo ./run_sim.sh 3` le montre — SC06 et SC07 passent à `00101`
+(BLOCKED + STORM) sans qu'une ligne de RTL ait changé. Toute campagne jouée sur
+un bitstream DEMO produira des faux positifs de tempête sur le trafic normal,
+quel que soit l'état des détecteurs.
+
 ## Structure
 
 Le banc instancie la chaîne réelle, pas un modèle :
@@ -88,7 +131,16 @@ d'instanciation, sinon la simulation dure inutilement longtemps.
 
 L'aval ne modélise pas la latence de l'IOMMU ni le multiplexeur 2:1 partagé
 entre LHA et MHA : le banc répond à « qui cale et pourquoi », pas à « combien
-de cycles coûte l'IOMMU ». Un seul accélérateur est instancié, donc les
-scénarios de contention (SC08 low-and-slow, blocage en tête de file) restent
-hors de portée. Le comportement sur carte après ce correctif n'est pas encore
-vérifié.
+de cycles coûte l'IOMMU ». Les latences ci-dessus sont donc celles d'ARMOR seul,
+non comparables telles quelles au coût mesuré sur carte.
+
+Un seul accélérateur est instancié, avec `STREAM_ID = 2` — le MHA, celui que la
+campagne attaque. `SPOOF_STREAM_ID` vaut `24'd1` par défaut et n'est surchargé
+nulle part, donc le mode 1 n'usurpe réellement un identifiant que depuis un
+accélérateur dont le `STREAM_ID` diffère de 1 : le jouer sur le LHA ne
+prouverait rien. Les scénarios de contention (SC08 low-and-slow, blocage en
+tête de file) restent hors de portée faute du second accélérateur et du
+multiplexeur.
+
+Le comportement sur carte après ces correctifs n'est pas vérifié : la Genesys2
+n'est toujours pas détectée.
