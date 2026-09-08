@@ -488,6 +488,18 @@ static void run_scenario(const char *tag, char accel, uint64_t mode,
  * On envoie K AW, on attend WINDOW+1 cycles, on recommence.
  * Si flow_monitor a WINDOW=100 cy en BENCH, on attend 200 cy.
  * On compte combien de transactions PASSENT (FN attendu).
+ *
+ * MODE 0, PAS MODE 4. Le mode 4 est le mode tempête : il émet
+ * STORM_REQS = 16 requêtes par appel, si bien que LAS_BURST=7 faisait
+ * 7 x 16 = 112 requêtes par salve — très au-dessus du seuil de 8 sous
+ * lequel ce scénario est censé rester. Il était donc systématiquement
+ * détecté et ne mesurait rien qu'SC02 ne mesure déjà. Le mode 0 émet
+ * une requête par appel, donc LAS_BURST requêtes par salve.
+ *
+ * Vérifié en simulation (armor/tb, scénario 3), à salve et écart
+ * identiques (12 salves x 7, gap 200 cy) :
+ *   mode 4 -> 0 passées, 84 bloquées, verdict STORM
+ *   mode 0 -> 84 passées, 0 bloquées, aucun verdict  <- l'évasion voulue
  * ============================================================ */
 #define LAS_BURST   7      /* sous le seuil de 8 */
 #define LAS_REPEAT  100    /* nb de salves */
@@ -501,7 +513,7 @@ static void run_sc08(stats_t *st) {
     for (int s = 0; s < LAS_REPEAT; s++) {
         for (int k = 0; k < LAS_BURST; k++) {
             uint64_t lat_det = 0, lat_tx = 0;
-            uint64_t status = fire_one('M', 4 /* mode storm */,
+            uint64_t status = fire_one('M', 0 /* trafic normal : 1 requete */,
                                        LEGIT_DST, 0 /* write */, &lat_det, &lat_tx);
             if (armor_blocked(status)) { blocked++; }
             else                       { passed++;  }
@@ -594,52 +606,59 @@ void main(void) {
      * blocage.
      * ==================================================================== */
 
-    /* Ordre NUMÉRIQUE (campagne d'origine) : SC01..04 (attaques) -> SC06 (LHA
-     * légitime) -> SC07 (MHA légitime write) -> SC08 (low-and-slow).
-     * Fond LHA continu : actif pendant les attaques (SC01..04 et SC08), coupé
-     * pendant les baselines légitimes (SC06 pilote lui-même le LHA ; SC07 write
-     * doit être propre, et l'IOMMU réchauffé par SC01..04 l'empêche de geler). */
-
-#ifdef BENCH_SC06_FIRST
     /* ====================================================================
-     * DIAGNOSTIC (compiler avec -DBENCH_SC06_FIRST) — pas un scénario de
-     * campagne.
+     * ORDRE : les scénarios LÉGITIMES ET SC08 D'ABORD, les attaques ensuite.
      *
-     * Joue la lecture LHA légitime EN PREMIER : avant tout trafic MHA, avant
-     * le fond LHA continu, sur un device autorisé par la DDT. C'est le seul
-     * moyen de savoir si le chemin accélérateur -> ARMOR -> mux -> IOMMU ->
-     * DDR fonctionne, une bonne fois, sans rien qui l'ait précédé.
+     * Ce n'est pas cosmétique. security_monitor maintient block_ip_o pendant
+     * BLOCK_DURATION_C = 100 000 cycles, soit ~2 ms à 50 MHz, et AUCUN CSR ne
+     * l'efface : STICKY_CLR ne vide que le registre collant, CNT_CLR que les
+     * compteurs, et failure_count reste à 3 pour le reste de la campagne. Tout
+     * scénario démarrant dans cette fenêtre après SC01 hérite du verdict
+     * BANNED, quel que soit son trafic.
      *
-     * Motivation : aucun run n'a jamais produit un seul verdict D (DONE).
-     * Toutes les transactions se terminent en E (timeout de l'accélérateur) ou
-     * par un bit de moniteur ARMOR. Le seul tx court jamais observé (SC01 à
-     * 2366 ticks) était une réponse SLVERR fabriquée par ARMOR, pas une
-     * transaction aboutie.
+     * Dans l'ordre numérique précédent (SC01, SC02, SC04, SC06, SC07, SC08,
+     * SC03), SC02 et SC04 démarraient forcément dans cette fenêtre et les
+     * premières itérations de SC06 pouvaient y être encore : une source de
+     * faux positifs indépendante de tout défaut de détecteur.
      *
-     *   verdict D + latence réaliste -> les lectures passent, le défaut est
-     *                                   circonscrit au chemin d'écriture ;
-     *   encore un timeout            -> rien ne traverse, il faut exposer
-     *                                   g_state_q dans le STATUS de
-     *                                   l'accélérateur pour voir sur quel
-     *                                   handshake ça cale.
+     * Vérifié en simulation (armor/tb, scénario 3) : le trafic de SC07 rejoué
+     * juste après SC01 sort verdict BANNED avec err 8/8, contre aucun verdict
+     * et err 0/8 sur un wrapper vierge.
+     *
+     * SC03-OUTS reste en dernier pour la raison d'origine, ci-dessous.
+     *
+     * Fond LHA continu : coupé pendant SC06 (qui pilote lui-même le LHA) et
+     * SC07, actif pour SC08 et les attaques.
      * ==================================================================== */
-    printf("# === DIAG SC06-FIRST : lecture LHA seule, aucun trafic prealable\r\n");
-    run_scenario("SC06-FIRST", 'L', /*mode*/0, LEGIT_DST, /*cfg*/0, N_OK, 0, &s[n++]);
-#endif
 
-    /* Trafic de fond : LHA continu pour les attaques SC01..SC04. */
+    /* SC-06 : LHA légitime seul, sur un wrapper vierge de tout verdict. */
+    run_scenario("SC06-LHAOK", 'L', /*mode*/0, LEGIT_DST, /*cfg*/0, N_OK, 0, &s[n++]);
+
+    /* SC-07 : MHA légitime (mode 0) — en LECTURE (cfg=1).
+     * Le commentaire d'origine justifiait la lecture par le fait qu'un write
+     * MHA passant ARMOR n'obtenait jamais sa réponse B. C'était la conséquence
+     * du décalage resp_t/resp_slv_t sur la réponse aval, corrigé depuis : en
+     * simulation le write légitime aboutit en 17 cycles sans verdict. Repasser
+     * ce baseline en écriture (cfg=0) est donc désormais possible, mais c'est
+     * un choix de mesure — laissé tel quel pour ne pas changer la grandeur
+     * comparée aux campagnes précédentes. */
+    run_scenario("SC07-MHAOK", 'M', /*mode*/0, LEGIT_DST, /*cfg*/1, N_OK, 0, &s[n++]);
+
+    /* Trafic de fond : LHA continu pour SC08 puis les attaques. */
     lha_bg_start();
     printf("# LHA background CONTINU arme (%s) base=0x%08x\r\n",
            LHA_BG_READ ? "READ" : "WRITE", (unsigned)LEGIT_DST);
 
+    /* SC-08 : low-and-slow — AVANT tout spoof, sinon il est mesuré sur un
+     * device banni et tout y paraît bloqué. Fond LHA actif pour la contention. */
+    run_sc08(&s[n++]);
+
     /* SC-01 : ID spoofing — attendu BANNED par ARMOR
-     *   Le détecteur de spoof regarde le TID AXI : indépendant de la dest. */
+     *   Le détecteur de spoof regarde le TID AXI : indépendant de la dest.
+     *   À partir d'ici et pour ~2 ms, le device reste banni. */
     run_scenario("SC01-SPOOF", 'M', /*mode*/1, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
 
-    /* SC-02 : Request storm — attendu STORM, observé FN (cf. .tex).
-     * NB : le STORM n'est PAS un bit coincé (vérifié : SC07 garde son FP storm
-     * quelle que soit la position de SC02), donc l'ordre de SC02 n'a pas d'effet
-     * de contamination. */
+    /* SC-02 : Request storm — attendu STORM. */
     run_scenario("SC02-STORM", 'M', /*mode*/4, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
 
     /* SC-04 : MSI storm — attendu MSI
@@ -647,26 +666,6 @@ void main(void) {
      *   sur le MHA importe peu (le mode 6 redirige vers la zone MSI). On
      *   reste néanmoins sur LEGIT_DST pour homogénéité. */
     run_scenario("SC04-MSI",   'M', /*mode*/6, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
-
-    /* Coupe le fond LHA : SC06 (pilote le LHA) et SC07 (baseline write) propres. */
-    lha_bg_stop();
-
-    /* SC-06 : LHA légitime seul. */
-    run_scenario("SC06-LHAOK", 'L', /*mode*/0, LEGIT_DST, /*cfg*/0, N_OK, 0, &s[n++]);
-
-    /* SC-07 : MHA légitime (mode 0) — en LECTURE (cfg=1).
-     * IMPORTANT : un write MHA qui PASSE ARMOR n'obtient jamais sa réponse B
-     * dans ce bitstream (l'AW reste outstanding -> deadlock du bus partagé) ;
-     * c'est confirmé indépendamment de la position/réchauffage IOMMU. Les writes
-     * d'ATTAQUE (SC01..04) ne gèlent pas car ARMOR synthétise leur verdict sans
-     * dépendre d'un vrai B. On mesure donc le baseline MHA légitime en LECTURE
-     * (R/RVALID répond) ; un baseline write nécessiterait un fix RTL. */
-    run_scenario("SC07-MHAOK", 'M', /*mode*/0, LEGIT_DST, /*cfg*/1, N_OK, 0, &s[n++]);
-
-    /* SC-08 : low-and-slow — vise LEGIT_DST avec DDT[2] valide pour que les
-     * rafales atteignent ARMOR. Fond LHA réactivé pour la contention. */
-    lha_bg_start();
-    run_sc08(&s[n++]);
 
     /* SC-03 : Outstanding overflow — attendu OUTS — EXÉCUTÉ EN DERNIER.
      * Le mode 5 inonde des lectures AR avec r_ready=0 : ces lectures ne se

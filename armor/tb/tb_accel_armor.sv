@@ -830,16 +830,16 @@ module tb_accel_armor;
             //  12 salves au lieu des 100 de bench_runner.c : le mecanisme se
             //  voit en quelques salves.
             // ---------------------------------------------------------------
-            // Tel qu'ecrit dans bench_runner.c : fire_one(mode 4), c'est-a-dire
-            // STORM_REQS = 16 requetes PAR appel. Les 7 du LAS_BURST ne sont
-            // donc pas 7 requetes mais 7 x 16 = 112 par salve, tres au-dessus
-            // du seuil de 8. Detection attendue -- l'inverse de ce que le
-            // scenario annonce mesurer.
-            campaign_sc08("SC08-tel-quel", 3'd4, 12, 7, 200, 1'b0);
-            // Ce que le commentaire de bench_runner.c decrit : 7 requetes par
-            // salve (mode 0 = 1 requete par appel), espacees de plus d'une
-            // fenetre. Evasion attendue.
-            campaign_sc08("SC08-corrige",  3'd0, 12, 7, 200, 1'b1);
+            // Mode 4 : ce que run_sc08() faisait avant. Le mode 4 est le mode
+            // tempete, STORM_REQS = 16 requetes PAR appel, donc les 7 du
+            // LAS_BURST font 7 x 16 = 112 requetes par salve, tres au-dessus du
+            // seuil de 8. Detection -- l'inverse de ce que le scenario annonce
+            // mesurer. Garde ici comme non-regression.
+            campaign_sc08("SC08-mode4", 3'd4, 12, 7, 200, 1'b0);
+            // Mode 0 : ce que run_sc08() fait desormais, et ce que son
+            // commentaire decrivait depuis le debut -- 7 requetes par salve,
+            // espacees de plus d'une fenetre. Evasion attendue.
+            campaign_sc08("SC08-mode0",  3'd0, 12, 7, 200, 1'b1);
             $display("");
 
             campaign_step("SC01-SPOOF", 3'd1, 1'b0, BIT_BANNED[4:0], 1'b0, 8);
