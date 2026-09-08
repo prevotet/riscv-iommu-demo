@@ -734,6 +734,69 @@ module tb_accel_armor;
         end
     endtask
 
+    // -------------------------------------------------------------------------
+    //  SC08 low-and-slow.
+    //
+    //  L'idee du scenario : rester SOUS le seuil du detecteur de flux
+    //  (MAX_REQ_PER_WINDOW = 8) en espacant les salves de plus d'une fenetre
+    //  (FLOW_WINDOW_C = 100 cycles en profil BENCH), pour montrer qu'un
+    //  attaquant patient passe au travers. Le resultat attendu est donc une
+    //  EVASION, pas une detection : c'est une limite connue des detecteurs a
+    //  fenetre glissante, et elle est publiable telle quelle.
+    //
+    //  Le banc joue deux variantes, parce que ce que fait bench_runner.c ne
+    //  correspond pas a ce que son commentaire annonce -- voir le README.
+    // -------------------------------------------------------------------------
+    task automatic campaign_sc08(input string       name,
+                                 input logic  [2:0] mode,
+                                 input int unsigned salvos,
+                                 input int unsigned burst,
+                                 input int unsigned gap_cy,
+                                 input bit          expect_evasion);
+        logic [63:0] st;
+        int unsigned sv, k, guard;
+        int unsigned n_passed, n_blocked;
+        logic [4:0]  acc_bits;
+        bit          ok;
+        begin
+            csr_write(CSR_CTRL, 64'b011);   // ENFORCE=1, STICKY_CLR=1
+            if (cfg_timeout) return;
+
+            acc_write(ACC_BASE,   LEGIT_DST);
+            acc_write(ACC_SIZE,   64'd64);
+            acc_write(ACC_CONF,   64'd0);      // ecriture
+            acc_write(ACC_MODE,   {61'h0, mode});
+            acc_write(ACC_MSIADR, MSI_WATCH);
+            if (cfg_timeout) return;
+
+            n_passed = 0; n_blocked = 0; acc_bits = 5'b0;
+
+            for (sv = 0; sv < salvos; sv++) begin
+                for (k = 0; k < burst; k++) begin
+                    acc_write(ACC_CTRL, 64'd1);
+                    if (cfg_timeout) return;
+                    guard = 0;
+                    while (i_accel.busy_q && guard < 4*AccelTimeout) begin
+                        @(posedge clk_i);
+                        guard = guard + 1;
+                    end
+                    acc_read(ACC_STATUS, st);
+                    if (cfg_timeout) return;
+                    acc_bits |= st[7:3];
+                    if (st[BIT_BLOCKED+3] || st[BIT_STORM+3]) n_blocked++;
+                    else                                       n_passed++;
+                end
+                repeat (gap_cy) @(posedge clk_i);
+            end
+
+            ok = expect_evasion ? (n_blocked == 0) : (n_blocked > 0);
+            $display("  %-12s mode=%0d %2d salves x %0d, gap %0d cy -> %5s | passe %0d, bloque %0d | verdict=%b",
+                     name, mode, salvos, burst, gap_cy,
+                     ok ? "OK" : "ECHEC", n_passed, n_blocked, acc_bits);
+            if (ok) n_pass++; else n_fail++;
+        end
+    endtask
+
     task automatic run_campaign();
         begin
             n_pass = 0; n_fail = 0;
@@ -757,7 +820,38 @@ module tb_accel_armor;
             campaign_step("SC06-LHAOK", 3'd0, 1'b1, 5'd0,            1'b1, 8);
             campaign_step("SC07-MHAOK", 3'd0, 1'b0, 5'd0,            1'b1, 8);
 
+            // ---------------------------------------------------------------
+            //  SC08 AVANT tout spoof. Le bannissement de SC01 dure
+            //  BLOCK_DURATION_C = 100 000 cycles (~2 ms a 50 MHz) et aucun CSR
+            //  ne l'efface : STICKY_CLR ne vide que le registre collant,
+            //  CNT_CLR que les compteurs. Mesurer SC08 apres SC01 revient a le
+            //  mesurer sur un device banni, et tout y parait bloque.
+            //
+            //  12 salves au lieu des 100 de bench_runner.c : le mecanisme se
+            //  voit en quelques salves.
+            // ---------------------------------------------------------------
+            // Tel qu'ecrit dans bench_runner.c : fire_one(mode 4), c'est-a-dire
+            // STORM_REQS = 16 requetes PAR appel. Les 7 du LAS_BURST ne sont
+            // donc pas 7 requetes mais 7 x 16 = 112 par salve, tres au-dessus
+            // du seuil de 8. Detection attendue -- l'inverse de ce que le
+            // scenario annonce mesurer.
+            campaign_sc08("SC08-tel-quel", 3'd4, 12, 7, 200, 1'b0);
+            // Ce que le commentaire de bench_runner.c decrit : 7 requetes par
+            // salve (mode 0 = 1 requete par appel), espacees de plus d'une
+            // fenetre. Evasion attendue.
+            campaign_sc08("SC08-corrige",  3'd0, 12, 7, 200, 1'b1);
+            $display("");
+
             campaign_step("SC01-SPOOF", 3'd1, 1'b0, BIT_BANNED[4:0], 1'b0, 8);
+            // Diagnostic : le meme trafic legitime que SC07, rejoue juste
+            // apres le spoof. Il DOIT ressortir banni -- c'est la mesure de la
+            // contamination, pas un echec du detecteur. block_ip_o reste actif
+            // BLOCK_DURATION_C = 100 000 cycles (~2 ms a 50 MHz) et aucun CSR
+            // ne l'efface. Dans l'ordre de bench_runner.c (SC01, SC02, SC04,
+            // SC06, SC07, SC08, SC03), tout ce qui demarre dans cette fenetre
+            // herite du verdict.
+            campaign_step("SC07-apres01", 3'd0, 1'b0, BIT_BANNED[4:0], 1'b0, 8);
+
             campaign_step("SC02-STORM", 3'd4, 1'b0, BIT_STORM[4:0],  1'b0, 8);
             campaign_step("SC04-MSI",   3'd6, 1'b0, BIT_MSI[4:0],    1'b0, 8);
             // SC03 en dernier : le mode 5 laisse des lectures sans reponse
