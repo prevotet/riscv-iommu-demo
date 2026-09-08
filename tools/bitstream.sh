@@ -55,6 +55,20 @@ rtl_hash() {
     } | sha256sum | cut -d' ' -f1
 }
 
+# -----------------------------------------------------------------------------
+#  Le dépôt est-il modifié ? Les sous-modules cva6 et bao-hypervisor sont
+#  EXCLUS : le build y recopie armor/SRC, cva6-overlay et plat-configs, si bien
+#  qu'ils sont sales par construction après toute synthèse. Les compter ferait
+#  marquer -dirty toute provenance, y compris celle d'un arbre parfaitement
+#  propre, et un marqueur qui s'allume toujours n'apprend plus rien.
+# -----------------------------------------------------------------------------
+tree_dirty() {
+    if [[ -n "$(git -C "$ROOT" status --porcelain --untracked-files=no \
+                -- . ':(exclude)cva6' ':(exclude)bao-hypervisor')" ]]; then
+        echo "-dirty"
+    fi
+}
+
 case "$ACTION" in
 
 save)
@@ -64,7 +78,7 @@ save)
     cat > "$PROV" <<EOF
 profil          : $PROFILE
 commit          : $(git -C "$ROOT" rev-parse HEAD)
-commit court    : $(git -C "$ROOT" describe --always --dirty 2>/dev/null || echo '?')
+commit court    : $(git -C "$ROOT" rev-parse --short HEAD)$(tree_dirty)
 branche         : $(git -C "$ROOT" rev-parse --abbrev-ref HEAD)
 sous-module cva6: $(git -C "$ROOT" rev-parse HEAD:cva6 2>/dev/null || echo '?')
 date            : $(date -Iseconds)
