@@ -634,15 +634,19 @@ void main(void) {
     /* SC-06 : LHA légitime seul, sur un wrapper vierge de tout verdict. */
     run_scenario("SC06-LHAOK", 'L', /*mode*/0, LEGIT_DST, /*cfg*/0, N_OK, 0, &s[n++]);
 
-    /* SC-07 : MHA légitime (mode 0) — en LECTURE (cfg=1).
-     * Le commentaire d'origine justifiait la lecture par le fait qu'un write
-     * MHA passant ARMOR n'obtenait jamais sa réponse B. C'était la conséquence
-     * du décalage resp_t/resp_slv_t sur la réponse aval, corrigé depuis : en
-     * simulation le write légitime aboutit en 17 cycles sans verdict. Repasser
-     * ce baseline en écriture (cfg=0) est donc désormais possible, mais c'est
-     * un choix de mesure — laissé tel quel pour ne pas changer la grandeur
-     * comparée aux campagnes précédentes. */
-    run_scenario("SC07-MHAOK", 'M', /*mode*/0, LEGIT_DST, /*cfg*/1, N_OK, 0, &s[n++]);
+    /* SC-07 : MHA légitime (mode 0) — en ÉCRITURE (cfg=0).
+     * Ce baseline était mesuré en lecture parce qu'un write MHA passant ARMOR
+     * n'obtenait jamais sa réponse B et gelait le bus partagé. C'était la
+     * conséquence du décalage resp_t/resp_slv_t sur la réponse aval : le
+     * wrapper voyait aw_ready, w_ready et b_valid câblés à 0. Corrigé, et le
+     * write légitime aboutit — vérifié en simulation (armor/tb, scénario 3) :
+     * 17 cycles, aucun verdict, err 0/8.
+     *
+     * Le retour en écriture rend ce baseline comparable aux scénarios
+     * d'attaque, qui sont tous des écritures sauf SC03. Les campagnes
+     * antérieures à ce correctif mesuraient une lecture : leurs latences SC07
+     * ne sont pas comparables à celles-ci. */
+    run_scenario("SC07-MHAOK", 'M', /*mode*/0, LEGIT_DST, /*cfg*/0, N_OK, 0, &s[n++]);
 
     /* Trafic de fond : LHA continu pour SC08 puis les attaques. */
     lha_bg_start();
