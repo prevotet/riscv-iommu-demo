@@ -79,11 +79,54 @@ BLOCKED}`) :
 | SC02-STORM | 4 | 55 cy | 3 | `00111` STORM |
 | SC04-MSI | 6 | 151 cy | 3 | `10111` MSI |
 | SC03-OUTS | 5 | 79 cy | 3 | `01111` OUTS |
+| SC08 low-and-slow | 4 / 0 | — | — | voir plus bas |
 
 Chaque attaque lève son bit et **le trafic légitime n'en lève aucun** — les
 faux positifs en nappe des campagnes sur carte ont disparu. Les latences sont
 du même ordre que l'implémentation de référence (~1450 cy), là où toutes les
 mesures précédentes étaient bloquées à `TIMEOUT_CYCLES`.
+
+### SC08 low-and-slow mesure l'inverse de ce qu'il annonce
+
+`run_sc08()` appelle `fire_one('M', 4, ...)`, or **le mode 4 est le mode
+tempête** : il émet `STORM_REQS = 16` requêtes par appel. Les 7 de `LAS_BURST`
+ne sont donc pas 7 requêtes mais 7 × 16 = 112 par salve, très au-dessus du
+seuil de 8 — alors que le commentaire du scénario dit explicitement « on envoie
+K AW », `LAS_BURST 7 /* sous le seuil de 8 */`.
+
+Les deux variantes, jouées à salve et écart identiques (12 salves × 7, gap
+200 cy > `FLOW_WINDOW_C` = 100) :
+
+| variante | requêtes/salve | passées | bloquées | verdict |
+|---|---|---|---|---|
+| telle qu'écrite (mode 4) | 112 | 0 | 84 | `00101` STORM |
+| conforme au commentaire (mode 0) | 7 | 84 | 0 | `00000` |
+
+L'évasion — la limite intéressante et publiable des détecteurs à fenêtre
+glissante — est parfaitement obtenable, mais seulement en mode 0. En mode 4 le
+scénario ne démontre rien qu'SC02 ne démontre déjà.
+
+### Le bannissement contamine tout ce qui suit dans les 2 ms
+
+`security_monitor` maintient `block_ip_o` pendant `BLOCK_DURATION` =
+`BLOCK_DURATION_C` = 100 000 cycles, soit ~2 ms à 50 MHz, et **aucun CSR ne
+l'efface** : `STICKY_CLR` ne vide que le registre collant, `CNT_CLR` que les
+compteurs. `failure_count` reste d'ailleurs à 3 pour le reste de la campagne.
+
+Le banc le mesure : `SC07-apres01` rejoue exactement le trafic de `SC07-MHAOK`,
+mais juste après le spoof.
+
+| | verdict | err |
+|---|---|---|
+| SC07-MHAOK, wrapper vierge | `00000` | 0/8 |
+| SC07-apres01, après SC01 | `00011` BANNED | 8/8 |
+
+Conséquence pour la campagne sur carte : dans l'ordre de `bench_runner.c`
+(SC01, SC02, SC04, SC06, SC07, SC08, SC03), SC02 et SC04 démarrent forcément
+dans cette fenêtre de 2 ms, et les premières itérations de SC06 peuvent y être
+encore. C'est une source de faux positifs indépendante de tout défaut de
+détecteur. Les scénarios légitimes doivent être joués **avant** tout spoof, ou
+espacés de plus de 2 ms.
 
 Deux choses à savoir pour interpréter ces lignes :
 
