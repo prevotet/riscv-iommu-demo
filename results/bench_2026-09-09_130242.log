@@ -1,0 +1,265 @@
+Hello World!
+init SPI
+status: 0x0000000000000025
+status: 0x0000000000000025
+SPI initialized!
+initializing SD... 
+SD command cmd0 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 00
+sd initialized!
+gpt partition table header:
+	signature:	5452415020494645
+	revision:	00010000
+	size:		0000005C
+	crc_header:	B2B05612
+	reserved:	00000000
+	current lba:	0000000000000001
+	backup lda:	000000000EB81FFF
+	partition entries lba:   	0000000000000002
+	number partition entries:	00000080
+	size partition entries:  	00000080
+gpt partition entry 00
+	partition type guid:	D5F7127456A1134B81DC867174929325
+	partition guid:     	E87048CC99D7474C86BD91EF187AB354
+	first lba:	0000000000000800
+	last lba:	00000000000107FF
+	attributes:	0000000000000000
+	name:	000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+gpt partition entry 01
+	partition type guid:	AF3DC60F838472478E793D69D8477DE4
+	partition guid:     	8CC1F3CE8193C8478BC04D72C5B9F184
+	first lba:	0000000000010800
+	last lba:	000000000EB81FDE
+	attributes:	0000000000000000
+	name:	000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+gpt partition entry 02
+	partition type guid:	00000000000000000000000000000000
+	partition guid:     	00000000000000000000000000000000
+	first lba:	0000000000000000
+	last lba:	0000000000000000
+	attributes:	0000000000000000
+	name:	000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+gpt partition entry 03
+	partition type guid:	00000000000000000000000000000000
+	partition guid:     	00000000000000000000000000000000
+	first lba:	0000000000000000
+	last lba:	0000000000000000
+	attributes:	0000000000000000
+	name:	000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+copying boot image ................................................................. done!
+
+OpenSBI v1.0
+   ____                    _____ ____ _____
+  / __ \                  / ____|  _ \_   _|
+ | |  | |_ __   ___ _ __ | (___ | |_) || |
+ | |  | | '_ \ / _ \ '_ \ \___ \|  _ < | |
+ | |__| | |_) |  __/ | | |____) | |_) || |_
+  \____/| .__/ \___|_| |_|_____/|____/_____|
+        | |
+        |_|
+
+Platform Name             : ARIANE RISC-V
+Platform Features         : medeleg
+Platform HART Count       : 1
+Platform IPI Device       : aclint-mswi
+Platform Timer Device     : aclint-mtimer @ 1000000Hz
+Platform Console Device   : uart8250
+Platform HSM Device       : ---
+Platform Reboot Device    : ---
+Platform Shutdown Device  : ---
+Firmware Base             : 0x80000000
+Firmware Size             : 220 KB
+Runtime SBI Version       : 0.3
+
+Domain0 Name              : root
+Domain0 Boot HART         : 0
+Domain0 HARTs             : 0*
+Domain0 Region00          : 0x0000000002008000-0x000000000200bfff (I)
+Domain0 Region01          : 0x0000000002000000-0x0000000002007fff (I)
+Domain0 Region02          : 0x0000000080000000-0x000000008003ffff ()
+Domain0 Region03          : 0x0000000000000000-0xffffffffffffffff (R,W,X)
+Domain0 Next Address      : 0x0000000080200000
+Domain0 Next Arg1         : 0x0000000082200000
+Domain0 Next Mode         : S-mode
+Domain0 SysReset          : yes
+
+Boot HART ID              : 0
+Boot HART Domain          : root
+Boot HART ISA             : rv64imafdcsuh
+Boot HART Features        : scounteren,mcounteren
+Boot HART PMP Count       : 16
+Boot HART PMP Granularity : 8
+Boot HART PMP Address Bits: 54
+Boot HART MHPM Count      : 0
+Boot HART MIDELEG         : 0x0000000000000666
+Boot HART MEDELEG         : 0x0000000000f0b509
+Bao Hypervisor
+BAO WARNING: trying to flush caches but the operation is not defined for this platform
+
+
+###### ARMOR BENCH RUNNER ######
+# CSV header : scenario,iter,expected_block,verdict,det_lat_cy,tx_lat_cy
+# det_lat = DETECTION (lancement -> 1er verdict ARMOR/DONE)
+# tx_lat  = TRANSACTION (lancement -> BUSY=0, round-trip complet)
+# verdict : M=MSI O=OUTS S=STORM B=BANNED b=BLOCKED D=DONE E=ERROR
+# SUMMARY-DET / SUMMARY-TX,name,N,n,n_lat,TP,FP,FN,TN,Lmin,Lavg,Lp50,Lp99,Lmax
+# CALIB : une lecture de `cycle` coute 26 (min) / 26 (moy sur 64)
+# CALIB : `det` et `tx` sont separes par exactement une de ces lectures
+# UNITE : compteur = cycle, cycles coeur 50 MHz
+# IOMMU DDT init OK (DDT @ 0xaffff000, LHA=allow ID=1, MHA=allow ID=2)
+# ARMOR CSR magic : wrap1=0x41524d4f52000001 wrap2=0x41524d4f52000001
+# ARMOR arme : ENFORCE=1, ID_CFG w1=1 w2=2, MSI_ADDR=0x91008000
+# ARMOR devid_last : w1=0 w2=0
+
+# ===== SONDE DE WEDGE =====
+# Prechauffage : 8 transactions legitimes pour porter legit_hit a 1.
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# Prechauffage OK (dernier verdict=D).
+# ID_CFG w2 <- 99 : le MHA (STREAM_ID=2) devient illegitime aux yeux d'ARMOR.
+# Le trafic reste du mode 0, legitime. Seul ARMOR change d'avis.
+# PHASE 1/2 : LECTURE bloquee (cfg=1) x3 — attendu : passe si le wedge est propre aux ecritures
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+#   lecture 0 : verdict=E det=0 tx=0 status=0x6
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+#   lecture 1 : verdict=E det=0 tx=0 status=0x6
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+#   lecture 2 : verdict=E det=0 tx=0 status=0x6
+# PHASE 1/2 TERMINEE : une lecture bloquee ne gele pas.
+# Reprechauffage avant la phase 2.
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# PHASE 2/2 : ECRITURE bloquee (cfg=0) x3 — c'est ici que le gel est attendu
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+#   MMIO -> ecriture CTRL=1 (lancement)
+ 
