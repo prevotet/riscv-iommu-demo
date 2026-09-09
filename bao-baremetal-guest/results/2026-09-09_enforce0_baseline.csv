@@ -1,0 +1,40 @@
+# Campagne ARMOR — baseline ENFORCE=0, build sans traces MMIO
+#
+# Bitstream : bitstreams/ariane_xilinx_bench.bit (profil BENCH, commit 72d797b)
+# Guest     : BENCH=1 QUICK VERBOSE_CSV=1 BENCH_NO_LHA_BG ARMOR_ENFORCE=0
+#             (fond LHA COUPE : pas de mesure de contention dans ce run)
+# Firmware  : fw_payload.bin du 2026-09-09 08:23
+# Sources   : bench_runner.c au commit 8ca152d
+#
+# UNITES : ticks du CSR `time` a 25 MHz = 2 cycles coeur a 50 MHz.
+#
+# NE PAS PUBLIER LES VALEURS ABSOLUES. Une lecture de `time` coute 638 ticks
+# (mesure : ligne # CALIB du log), et `det` = `tx` moins exactement une de ces
+# lectures : SUMMARY-DET n'est pas une latence de detection. La transaction DMA
+# se termine a l'interieur du premier sondage MMIO -- SC01 usurpe (673) et SC06
+# avec ecriture DDR complete (709) sont a 36 ticks l'un de l'autre.
+# Publier les DIFFERENCES entre scenarios : le surcout de sonde est commun et
+# s'annule. Publier Lp50, pas Lavg.
+#
+# ENFORCE=0 : TP/FN comptent des BITS DE VERDICT OBSERVES, pas des blocages.
+# Rien n'a ete bloque dans ce run. Cote detection, ARMOR voit 50/50 sur SC01
+# (ARMORCNT fail=50) la ou l'IOMMU seul ne voit rien : l'ID usurpe est 1, soit
+# l'identifiant legitime du LHA.
+#
+# n     = echantillons dans la moyenne
+# n_lat = remplissage du buffer de percentiles, sature a LAT_CAP = 512 (cf. SC08)
+kind,name,N,n,n_lat,TP,FP,FN,TN,Lmin,Lavg,Lp50,Lp99,Lmax
+SUMMARY-DET,SC06-LHAOK,100,100,100,0,0,0,100,709,712,709,746,925
+SUMMARY-TX,SC06-LHAOK,100,100,100,0,0,0,100,1354,1359,1355,1403,1590
+SUMMARY-DET,SC07-MHAOK,100,100,100,0,0,0,100,709,711,709,717,717
+SUMMARY-TX,SC07-MHAOK,100,100,100,0,0,0,100,1354,1357,1357,1369,1369
+SUMMARY-DET,SC08-LAS,700,700,512,0,0,700,0,708,710,709,716,717
+SUMMARY-TX,SC08-LAS,700,700,512,0,0,700,0,1353,1356,1355,1365,1367
+SUMMARY-DET,SC01-SPOOF,50,50,50,16,0,34,0,673,698,709,715,717
+SUMMARY-TX,SC01-SPOOF,50,50,50,16,0,34,0,1351,1356,1355,1364,1364
+SUMMARY-DET,SC02-STORM,50,50,50,27,0,23,0,789,813,803,843,845
+SUMMARY-TX,SC02-STORM,50,50,50,27,0,23,0,1460,1473,1475,1488,1491
+SUMMARY-DET,SC04-MSI,50,50,50,46,0,4,0,1013,1070,1019,1196,1196
+SUMMARY-TX,SC04-MSI,50,50,50,46,0,4,0,1684,1740,1693,1841,1843
+SUMMARY-DET,SC03-OUTS,50,50,50,50,0,0,0,33176,33194,33178,33445,33446
+SUMMARY-TX,SC03-OUTS,50,50,50,50,0,0,0,33847,33867,33852,34095,34097
