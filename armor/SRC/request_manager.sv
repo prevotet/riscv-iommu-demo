@@ -46,6 +46,19 @@
 //
 //  Dans le mode d'attente pur (~legit_hit sans verdict), rien n'a ete accepte en
 //  aval et le maitre doit garder la main sur ses propres ready.
+//
+//  COUPURE DU CANAL W (correctif du « W orphelin », 2026-09-09).
+//  Couper AW sans couper W laissait l'aval avaler les donnees d'une ecriture
+//  dont il ne recevrait jamais l'adresse : le canal W du crossbar restait
+//  decale d'un beat et le premier acces CPU par ce chemin ne revenait plus.
+//  C'est le gel isole par la sonde du 2026-09-09 -- specifique aux ecritures,
+//  puisqu'une lecture n'a pas de canal W.
+//
+//  On coupe donc W dans la meme fenetre que AW, mais SOUS GARDE : uniquement
+//  quand w_cut_allowed_i dit qu'aucun AW deja admis en aval n'attend ses
+//  donnees. Sans cette garde on retomberait sur le Bug #16 (couper W tue les
+//  transactions deja acceptees et l'interconnexion meurt). Le wrapper calcule la
+//  garde a partir des handshakes reels de l'aval.
 // =============================================================================
 module request_manager #(
     parameter type req_iommu_t = logic
@@ -56,6 +69,7 @@ module request_manager #(
     input  logic        block_req_i,
     input  logic        bad_id_i,        // verdict rendu, et mauvais
     input  logic        verdict_known_i, // le verdict de la requete presentee est rendu
+    input  logic        w_cut_allowed_i, // aucun AW admis en aval n'attend ses W
     input  req_iommu_t  req_IP_wrapper_i,
     output req_iommu_t  req_wrapper_iommu_o
 );
@@ -71,6 +85,10 @@ module request_manager #(
         if (block_req_i || !legit_hit || !verdict_known_i) begin
             req_wrapper_iommu_o.aw_valid = 1'b0;
             req_wrapper_iommu_o.ar_valid = 1'b0;
+            // Les donnees qui accompagnent l'adresse qu'on vient de couper ne
+            // doivent pas partir seules. La garde preserve le Bug #16.
+            if (w_cut_allowed_i)
+                req_wrapper_iommu_o.w_valid = 1'b0;
         end
 
         // Blocage effectif : on avale les reponses en vol (anti-wedge).

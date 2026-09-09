@@ -751,17 +751,41 @@ module tb_accel_armor;
     // -------------------------------------------------------------------------
     int unsigned aw_owed, aw_owed_max;
 
+    // -------------------------------------------------------------------------
+    //  Moniteur du W ORPHELIN — le MIROIR de aw_owed, et l'angle mort du banc.
+    //
+    //  aw_owed surveille « AW accepte, W jamais fourni ». Le defaut symetrique
+    //  n'etait pas observe : un beat W accepte en aval alors qu'AUCUN AW ne l'a
+    //  precede. request_manager coupe aw_valid tant que le verdict n'est pas
+    //  rendu, mais ne coupe PAS w_valid ; un aval qui tient w_ready haut (c'est
+    //  le cas ici, resp_out.w_ready = dn_accept, comme un crossbar reel qui
+    //  bufferise) avale donc les donnees d'une ecriture dont il ne verra jamais
+    //  l'adresse. Le canal W du crossbar est des lors decale d'un beat pour
+    //  toujours : le premier acces CPU empruntant ce chemin ne revient pas.
+    //
+    //  w_excess_tot les compte. L'ecart sur un pas de campagne doit rester nul :
+    //  toute valeur non nulle est la signature du gel observe sur carte.
+    // -------------------------------------------------------------------------
+    int unsigned w_excess_tot;
+
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
-            aw_owed     <= 0;
-            aw_owed_max <= 0;
+            aw_owed      <= 0;
+            aw_owed_max  <= 0;
+            w_excess_tot <= 0;
         end else begin
             automatic int unsigned nxt = aw_owed;
-            if (req_out.aw_valid && resp_out.aw_ready)              nxt = nxt + 1;
-            if (req_out.w_valid  && resp_out.w_ready && req_out.w.last && nxt > 0)
-                                                                    nxt = nxt - 1;
+            automatic bit aw_hs = req_out.aw_valid && resp_out.aw_ready;
+            automatic bit w_hs  = req_out.w_valid  && resp_out.w_ready;
+            if (aw_hs)                                              nxt = nxt + 1;
+            if (w_hs && req_out.w.last && nxt > 0)                  nxt = nxt - 1;
             aw_owed <= nxt;
             if (nxt > aw_owed_max) aw_owed_max <= nxt;
+
+            // Un beat W accepte alors qu'aucun AW n'est en attente de donnees
+            // (et qu'aucun n'arrive dans le meme cycle) est un orphelin.
+            if (w_hs && aw_owed == 0 && !aw_hs)
+                w_excess_tot <= w_excess_tot + 1;
         end
     end
 
@@ -780,7 +804,9 @@ module tb_accel_armor;
         logic [4:0]  got, acc_bits;
         bit          ok;
         int unsigned k;
+        int unsigned w_excess_0;
         begin
+            w_excess_0 = w_excess_tot;
             // STICKY_CLR (CTRL bit 1) une seule fois, au debut du pas : sans
             // cela un verdict deborde sur le scenario suivant et on retrouve
             // les faux positifs en cascade des campagnes sur carte. A
@@ -837,6 +863,9 @@ module tb_accel_armor;
             if (aw_owed != 0)
                 $display("  %-12s  !! AW SANS W EN AVAL : %0d en attente (max %0d) -- condition du gel carte",
                          name, aw_owed, aw_owed_max);
+            if (w_excess_tot != w_excess_0)
+                $display("  %-12s  !! W ORPHELIN EN AVAL : %0d beat(s) avale(s) sans AW -- canal W decale",
+                         name, w_excess_tot - w_excess_0);
 
             $display("  %-12s mode=%0d %-8s -> %5s | %2d iter | %6d cy moy | err %0d/%0d | fail_cnt=%0d | verdict=%b",
                      name, mode, is_read ? "lecture" : "ecriture",

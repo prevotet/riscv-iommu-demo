@@ -230,6 +230,54 @@ assign bad_id = csr_enforce_q & (comparison_valid | verdict_known_q) & ~legit_hi
 logic verdict_known_eff;
 assign verdict_known_eff = ~csr_enforce_q | comparison_valid | verdict_known_q;
 
+// -----------------------------------------------------------------------------
+//  W DU EN AVAL — garde du correctif « W orphelin » (2026-09-09)
+//
+//  request_manager coupe aw_valid/ar_valid tant que le verdict n'est pas rendu,
+//  mais laissait passer w_valid. Un aval qui tient w_ready haut -- c'est le cas
+//  d'un crossbar qui bufferise, et de l'IOMMU en amont de lui -- avalait donc
+//  les donnees d'une ecriture dont il ne recevrait jamais l'adresse. Le canal W
+//  se retrouvait decale d'un beat DEFINITIVEMENT : le premier acces CPU
+//  empruntant ce chemin ne revenait plus. C'est le gel de SC01 sur carte, et la
+//  sonde du 2026-09-09 13:02 l'a isole -- une ecriture bloquee gele, une lecture
+//  bloquee non, parce qu'une lecture n'a pas de canal W.
+//
+//  On ne peut pas couper w_valid inconditionnellement : c'est le Bug #16 de
+//  l'implementation de reference, ou couper W tuait les transactions deja
+//  acceptees en aval et l'interconnexion mourait apres chaque attaque. La
+//  distinction est celle-ci :
+//
+//    - un AW deja admis en aval attend ses beats W : ils DOIVENT passer ;
+//    - aucun AW en attente de donnees : tout W presente est un orphelin en
+//      devenir, et c'est LUI qu'il faut couper.
+//
+//  w_owed_q compte les AW admis en aval dont le dernier beat W n'est pas encore
+//  passe. La coupure de W n'est autorisee que lorsqu'il vaut zero, ce qui
+//  preserve integralement le correctif du Bug #16.
+logic [3:0] w_owed_q;
+logic       dn_aw_hs, dn_w_last_hs;
+
+assign dn_aw_hs     = req_wrapper_iommu_o.aw_valid & resp_wrapper_iommu_i.aw_ready;
+assign dn_w_last_hs = req_wrapper_iommu_o.w_valid  & resp_wrapper_iommu_i.w_ready
+                                                   & req_wrapper_iommu_o.w.last;
+
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        w_owed_q <= '0;
+    end else begin
+        // Saturation a 15 : au-dela le compteur cesse de decrire l'aval, mais
+        // il vaut mieux ne plus couper que couper a tort.
+        case ({dn_aw_hs, dn_w_last_hs})
+            2'b10:   if (w_owed_q != 4'hF) w_owed_q <= w_owed_q + 4'd1;
+            2'b01:   if (w_owed_q != 4'h0) w_owed_q <= w_owed_q - 4'd1;
+            default: w_owed_q <= w_owed_q;   // 00 et 11 : inchange
+        endcase
+    end
+end
+
+logic w_cut_allowed;
+assign w_cut_allowed = (w_owed_q == 4'h0);
+
 
 
 ID_extractor#(
@@ -294,6 +342,7 @@ request_manager #(
     .block_req_i(block_req_i),      // signal combiné
     .bad_id_i(bad_id),
     .verdict_known_i(verdict_known_eff),
+    .w_cut_allowed_i(w_cut_allowed),
     .req_wrapper_iommu_o(req_wrapper_iommu_o)
 
 );
