@@ -231,9 +231,11 @@ do_bao() {
     RUN cp -R "$ROOT_DIR/plat-configs/"* "$BAO_SRCS/src/platform/"
 
     # Overlay : fichiers de bao-hypervisor modifies et conserves dans le depot
-    # principal. Meme mecanisme et meme raison que cva6-overlay -- le
-    # sous-module n'est pas suivi ici, une modification faite directement
-    # dedans disparait au prochain clone.
+    # principal. Meme mecanisme et meme raison que cva6-overlay : bao-hypervisor
+    # EST un sous-module suivi, mais init_submodules y fait `git reset --hard`
+    # + `git clean -fd`, ce qui effacerait toute edition faite directement
+    # dedans. La garder ici la met hors d'atteinte -- et evite d'avoir a
+    # committer puis pousser un second depot pour un seul bit.
     # (arborescence miroir : bao-overlay/<chemin relatif dans bao-hypervisor/>)
     if [[ -d "$ROOT_DIR/bao-overlay" ]]; then
         log_step "  → Overlay bao (hcounteren, …)"

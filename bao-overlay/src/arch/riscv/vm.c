@@ -56,7 +56,11 @@ void vcpu_arch_reset(struct vcpu *vcpu, vaddr_t entry)
      * lit des cycles coeur directement -- plus de conversion x2, plus de trap.
      *
      * mcounteren vaut deja -1 cote OpenSBI (sbi_hart.c), il n'y a rien d'autre
-     * a armer. */
+     * a armer.
+     *
+     * Ce fichier vit dans bao-overlay/ et non dans le sous-module : celui-ci est
+     * bien suivi, mais init_submodules y fait `git reset --hard` + `git clean
+     * -fd` et emporterait la modification. */
     CSRW(CSR_HCOUNTEREN, HCOUNTEREN_TM | HCOUNTEREN_CY);
     CSRW(CSR_HTIMEDELTA, 0);
     CSRW(CSR_VSSTATUS, SSTATUS_SD | SSTATUS_FS_DIRTY | SSTATUS_XS_DIRTY);
