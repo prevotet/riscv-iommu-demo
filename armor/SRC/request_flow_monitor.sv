@@ -105,40 +105,17 @@ module request_flow_monitor #(
     logic [$clog2(BLOCK_CYCLES):0] block_cnt;
     logic blocking;
 
-    // =========================================================================
-    //  BLOCAGE SANS HACHAGE (correctif du 2026-09-09).
-    //
-    //  La version precedente redemarrait le blocage sur `storm_flag && !blocking`
-    //  et le relachait des que block_cnt atteignait BLOCK_CYCLES-1. Or storm_flag
-    //  est un NIVEAU : req_cnt ne retombe qu'a la fin de la fenetre glissante
-    //  (window_cnt == WINDOW_CYCLES-1). Une fois le seuil franchi, le signal
-    //  restait donc haut pendant tout le reste de la fenetre et `blocking`
-    //  oscillait : BLOCK_CYCLES cycles hauts, un cycle bas, en boucle.
-    //
-    //  En profil DEMO ca ne se voyait pas -- BLOCK_CYCLES vaut 750_000_000, le
-    //  blocage couvre tout. En profil BENCH il vaut 4, et le banc a mesure
-    //  55 fronts sur un seul scenario SC02. Ce hachage est ce qui gelait la
-    //  carte : dans le creux d'un cycle, request_manager ne coupe plus rien,
-    //  l'accelerateur repousse son beat W, et l'aval l'avale -- alors que l'AW,
-    //  lui, doit traverser la traduction IOMMU et n'a pas le temps d'etre admis.
-    //  Le canal W repart decale d'un beat, definitivement.
-    //
-    //  Un signal de blocage n'a aucune raison de clignoter. On le tient donc haut
-    //  tant que la menace est presente, plus BLOCK_CYCLES de queue une fois
-    //  qu'elle a disparu. Le comportement DEMO est inchange (storm_flag y est
-    //  couvert par une temporisation bien plus longue de toute facon).
-    // =========================================================================
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if(!rst_ni) begin
             block_cnt <= 0;
             blocking  <= 1'b0;
         end else begin
-            if(storm_flag) begin
-                blocking  <= 1'b1;  // menace presente : on tient, sans relacher
+            if(storm_flag && !blocking) begin
+                blocking  <= 1'b1;  // démarrage du blocage
                 block_cnt <= 0;
             end else if(blocking) begin
                 if(block_cnt == BLOCK_CYCLES-1) begin
-                    blocking  <= 1'b0; // queue ecoulee, fin du blocage
+                    blocking  <= 1'b0; // fin du blocage
                     block_cnt <= 0;
                 end else begin
                     block_cnt <= block_cnt + 1;

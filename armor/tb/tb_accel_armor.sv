@@ -816,6 +816,31 @@ module tb_accel_armor;
     wire blk_now   = tb_accel_armor.i_sec_wrap.block_req_i;
     wire storm_now = tb_accel_armor.i_sec_wrap.storm_flag;
 
+    // --- Instrumentation SC03 : pourquoi le bit OUTS ne se leve-t-il pas ? ---
+    wire outs_ovf_now = tb_accel_armor.i_sec_wrap.overflow_flag_outs;
+    wire outs_blk_now = tb_accel_armor.i_sec_wrap.block_req_outs;
+    wire req_fire_now = tb_accel_armor.i_sec_wrap.req_fire_signal;
+    wire [31:0] outs_cnt_now = tb_accel_armor.i_sec_wrap.outs_monitor_inst.outstanding;
+
+    logic outs_ovf_q, outs_blk_q;
+    int unsigned outs_max, ovf_rise, oblk_rise, fire_cnt, respc_cnt;
+
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            outs_ovf_q <= 0; outs_blk_q <= 0;
+            outs_max <= 0; ovf_rise <= 0; oblk_rise <= 0;
+            fire_cnt <= 0; respc_cnt <= 0;
+        end else begin
+            outs_ovf_q <= outs_ovf_now;  outs_blk_q <= outs_blk_now;
+            if (outs_cnt_now > outs_max)            outs_max  <= outs_cnt_now;
+            if (outs_ovf_now && !outs_ovf_q)        ovf_rise  <= ovf_rise + 1;
+            if (outs_blk_now && !outs_blk_q)        oblk_rise <= oblk_rise + 1;
+            if (req_fire_now)                       fire_cnt  <= fire_cnt + 1;
+            if (tb_accel_armor.i_sec_wrap.outs_monitor_inst.resp_complete)
+                                                    respc_cnt <= respc_cnt + 1;
+        end
+    end
+
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
             blk_q <= 1'b0; blk_rise <= 0; blk_hi_cy <= 0; blk_lo_cy <= 0;
@@ -848,10 +873,13 @@ module tb_accel_armor;
         int unsigned k;
         int unsigned w_excess_0;
         int unsigned blk_rise_0, blk_hi_0, blk_lo_0, danger_0, aw_adm_0;
+        int unsigned outs_max_0, ovf_0, oblk_0, fire_0, respc_0;
         begin
             w_excess_0 = w_excess_tot;
             blk_rise_0 = blk_rise;  blk_hi_0 = blk_hi_cy;  blk_lo_0 = blk_lo_cy;
             danger_0   = danger_cy; aw_adm_0 = aw_adm_while_storm;
+            outs_max_0 = outs_max; ovf_0 = ovf_rise; oblk_0 = oblk_rise;
+            fire_0 = fire_cnt; respc_0 = respc_cnt;
             // STICKY_CLR (CTRL bit 1) une seule fois, au debut du pas : sans
             // cela un verdict deborde sur le scenario suivant et on retrouve
             // les faux positifs en cascade des campagnes sur carte. A
@@ -908,6 +936,9 @@ module tb_accel_armor;
             if (aw_owed != 0)
                 $display("  %-12s  !! AW SANS W EN AVAL : %0d en attente (max %0d) -- condition du gel carte",
                          name, aw_owed, aw_owed_max);
+            $display("  %-12s  OUTS : outstanding max=%0d (seuil 16) | overflow fronts=%0d | block_outs fronts=%0d | req_fire=%0d | resp_complete=%0d",
+                     name, outs_max, ovf_rise - ovf_0, oblk_rise - oblk_0,
+                     fire_cnt - fire_0, respc_cnt - respc_0);
             if (blk_rise != blk_rise_0)
                 $display("  %-12s  BLOCK_REQ : %0d fronts, %0d cy hauts, %0d creux sous storm | AW admis pendant storm : %0d | cycles block+AW_du : %0d | aw_owed=%0d (max %0d)",
                          name, blk_rise - blk_rise_0, blk_hi_cy - blk_hi_0,

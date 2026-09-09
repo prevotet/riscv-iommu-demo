@@ -79,8 +79,14 @@ module outs_req_monitor #(
             block_cnt <= 0;
             blocking  <= 1'b0;
         end else begin
-            if (overflow_flag && !blocking) begin
-                blocking  <= 1'b1;  // démarrage du blocage
+            // Meme correctif que request_flow_monitor (2026-09-09) : overflow_flag
+            // est un NIVEAU, et se rearmer sur `overflow_flag && !blocking`
+            // faisait clignoter le blocage -- BLOCK_CYCLES hauts, un bas, en
+            // boucle. En profil BENCH BLOCK_CYCLES vaut 10 : le creux d'un cycle
+            // suffit a laisser filer un beat W sans son AW. On tient donc le
+            // blocage tant que la saturation dure.
+            if (overflow_flag) begin
+                blocking  <= 1'b1;
                 block_cnt <= 0;
             end else if (blocking) begin
                 if (block_cnt == BLOCK_CYCLES-1) begin
