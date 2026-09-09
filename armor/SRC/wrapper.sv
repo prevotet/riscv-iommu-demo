@@ -275,8 +275,11 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
     end
 end
 
-logic w_cut_allowed;
-assign w_cut_allowed = (w_owed_q == 4'h0);
+//  w_pending : un AW est admis en aval et attend encore ses donnees. C'est la
+//  seule condition dans laquelle un beat W a le droit de partir. Voir
+//  request_manager pour le raisonnement complet.
+logic w_pending;
+assign w_pending = (w_owed_q != 4'h0);
 
 
 
@@ -342,7 +345,7 @@ request_manager #(
     .block_req_i(block_req_i),      // signal combiné
     .bad_id_i(bad_id),
     .verdict_known_i(verdict_known_eff),
-    .w_cut_allowed_i(w_cut_allowed),
+    .w_pending_i(w_pending),
     .req_wrapper_iommu_o(req_wrapper_iommu_o)
 
 );
@@ -357,6 +360,7 @@ response_manager #(
     .bad_id_i(bad_id),
     .verdict_known_i(verdict_known_eff),
     .legit_hit(legit_hit_eff),
+    .w_pending_i(w_pending),
     .resp_wrapper_iommu_i(resp_wrapper_iommu_i),
     .resp_IP_wrapper_o(resp_IP_wrapper_o)
 );

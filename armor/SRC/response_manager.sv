@@ -61,6 +61,7 @@ module response_manager #(
     input  logic       bad_id_i,        // verdict rendu, et mauvais
     input  logic       verdict_known_i, // le verdict de la requete presentee est rendu
     input  logic       legit_hit,
+    input  logic       w_pending_i,     // un AW admis en aval attend ses donnees
     input  resp_slv_t  resp_wrapper_iommu_i,
     output resp_slv_t  resp_IP_wrapper_o
 );
@@ -91,6 +92,14 @@ module response_manager #(
         end else begin
             // ---- IP legitime : passe-plat ----
             resp_IP_wrapper_o = resp_wrapper_iommu_i;
+
+            // request_manager retient w_valid tant qu'aucun AW n'est admis en
+            // aval. Or l'aval maintient son w_ready en permanence : le laisser
+            // traverser ferait croire au maitre que son beat est parti alors
+            // qu'on vient de le retenir, et la donnee serait perdue. On masque
+            // donc w_ready dans exactement la meme fenetre.
+            if (!w_pending_i)
+                resp_IP_wrapper_o.w_ready = 1'b0;
         end
     end
 

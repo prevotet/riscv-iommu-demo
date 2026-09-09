@@ -69,7 +69,7 @@ module request_manager #(
     input  logic        block_req_i,
     input  logic        bad_id_i,        // verdict rendu, et mauvais
     input  logic        verdict_known_i, // le verdict de la requete presentee est rendu
-    input  logic        w_cut_allowed_i, // aucun AW admis en aval n'attend ses W
+    input  logic        w_pending_i,     // un AW admis en aval attend ses donnees
     input  req_iommu_t  req_IP_wrapper_i,
     output req_iommu_t  req_wrapper_iommu_o
 );
@@ -85,11 +85,16 @@ module request_manager #(
         if (block_req_i || !legit_hit || !verdict_known_i) begin
             req_wrapper_iommu_o.aw_valid = 1'b0;
             req_wrapper_iommu_o.ar_valid = 1'b0;
-            // Les donnees qui accompagnent l'adresse qu'on vient de couper ne
-            // doivent pas partir seules. La garde preserve le Bug #16.
-            if (w_cut_allowed_i)
-                req_wrapper_iommu_o.w_valid = 1'b0;
         end
+
+        // Un beat W ne part JAMAIS avant que son AW n'ait ete admis en aval.
+        // Couper W seulement pendant la fenetre de blocage ne suffit pas : aux
+        // bords du blocage plus aucune condition de coupure n'est vraie, et
+        // l'aval avale un W bien plus vite qu'il n'accepte un AW (celui-ci
+        // traverse la traduction IOMMU). Des qu'un AW est du, les beats passent
+        // librement : le Bug #16 reste couvert.
+        if (!w_pending_i)
+            req_wrapper_iommu_o.w_valid = 1'b0;
 
         // Blocage effectif : on avale les reponses en vol (anti-wedge).
         if (block_req_i || bad_id_i) begin

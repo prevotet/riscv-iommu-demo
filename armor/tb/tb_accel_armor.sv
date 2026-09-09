@@ -789,6 +789,48 @@ module tb_accel_armor;
         end
     end
 
+    // -------------------------------------------------------------------------
+    //  INSTRUMENTATION SC02 — la forme reelle de block_req en profil BENCH.
+    //
+    //  FLOW_BLOCK_CYCLES_C vaut 4 en BENCH contre 750_000_000 en DEMO. Or
+    //  request_flow_monitor ne redemarre son blocage que sur `storm_flag &&
+    //  !blocking`, et storm_flag est un NIVEAU tenu jusqu'a la fin de la fenetre
+    //  (req_cnt ne retombe qu'a window_cnt == WINDOW_CYCLES-1, soit 100 cycles).
+    //  block_req ne dure donc pas 4 cycles : il OSCILLE, 4 cycles haut / 1 cycle
+    //  bas, pendant tout le reste de la fenetre.
+    //
+    //  Ce hachage est le regime que ni le RTL ni le banc n'ont examine. Pendant
+    //  un creux, aw_valid repasse en aval et l'aval peut admettre un AW ; au
+    //  cycle suivant block_req remonte, response_manager fabrique un SLVERR vers
+    //  le maitre, celui-ci considere son ecriture finie et n'enverra jamais ses
+    //  beats W -- il reste en aval un AW admis qui attend ses donnees pour
+    //  toujours. C'est le mecanisme aw_owed, jamais observe jusqu'ici parce
+    //  qu'on ne le mesurait qu'en FIN de scenario, une fois le mal fait et le
+    //  compteur eventuellement revenu a zero.
+    // -------------------------------------------------------------------------
+    logic blk_q;
+    int unsigned blk_rise, blk_hi_cy, blk_lo_cy;
+    int unsigned danger_cy;      // block_req haut ALORS QU'un AW est du en aval
+    int unsigned aw_adm_while_storm;  // AW admis pendant une fenetre de storm
+
+    wire blk_now   = tb_accel_armor.i_sec_wrap.block_req_i;
+    wire storm_now = tb_accel_armor.i_sec_wrap.storm_flag;
+
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            blk_q <= 1'b0; blk_rise <= 0; blk_hi_cy <= 0; blk_lo_cy <= 0;
+            danger_cy <= 0; aw_adm_while_storm <= 0;
+        end else begin
+            blk_q <= blk_now;
+            if (blk_now && !blk_q) blk_rise  <= blk_rise + 1;
+            if (blk_now)           blk_hi_cy <= blk_hi_cy + 1;
+            if (!blk_now && storm_now) blk_lo_cy <= blk_lo_cy + 1;  // creux
+            if (blk_now && aw_owed != 0) danger_cy <= danger_cy + 1;
+            if (storm_now && req_out.aw_valid && resp_out.aw_ready)
+                aw_adm_while_storm <= aw_adm_while_storm + 1;
+        end
+    end
+
     task automatic campaign_step(input string       name,
                                  input logic  [2:0] mode,
                                  input logic        is_read,
@@ -805,8 +847,11 @@ module tb_accel_armor;
         bit          ok;
         int unsigned k;
         int unsigned w_excess_0;
+        int unsigned blk_rise_0, blk_hi_0, blk_lo_0, danger_0, aw_adm_0;
         begin
             w_excess_0 = w_excess_tot;
+            blk_rise_0 = blk_rise;  blk_hi_0 = blk_hi_cy;  blk_lo_0 = blk_lo_cy;
+            danger_0   = danger_cy; aw_adm_0 = aw_adm_while_storm;
             // STICKY_CLR (CTRL bit 1) une seule fois, au debut du pas : sans
             // cela un verdict deborde sur le scenario suivant et on retrouve
             // les faux positifs en cascade des campagnes sur carte. A
@@ -863,6 +908,11 @@ module tb_accel_armor;
             if (aw_owed != 0)
                 $display("  %-12s  !! AW SANS W EN AVAL : %0d en attente (max %0d) -- condition du gel carte",
                          name, aw_owed, aw_owed_max);
+            if (blk_rise != blk_rise_0)
+                $display("  %-12s  BLOCK_REQ : %0d fronts, %0d cy hauts, %0d creux sous storm | AW admis pendant storm : %0d | cycles block+AW_du : %0d | aw_owed=%0d (max %0d)",
+                         name, blk_rise - blk_rise_0, blk_hi_cy - blk_hi_0,
+                         blk_lo_cy - blk_lo_0, aw_adm_while_storm - aw_adm_0,
+                         danger_cy - danger_0, aw_owed, aw_owed_max);
             if (w_excess_tot != w_excess_0)
                 $display("  %-12s  !! W ORPHELIN EN AVAL : %0d beat(s) avale(s) sans AW -- canal W decale",
                          name, w_excess_tot - w_excess_0);
@@ -1020,21 +1070,32 @@ module tb_accel_armor;
             campaign_sc08("SC08-mode0",  3'd0, 12, 7, 200, 1'b1);
             $display("");
 
+            // ORDRE ALIGNE SUR bench_runner.c (correctif 2026-09-09).
+            //
+            // Le banc jouait SC01-SPOOF EN PREMIER. C'etait un angle mort de la
+            // meme famille que DN_LAT=0 : SC01 bannit le MHA pour
+            // BLOCK_DURATION_C, et request_flow_monitor ne compte ses handshakes
+            // que si legit_hit_i est vrai (cf. sa garde de legitimite). Un MHA
+            // banni ne produit donc plus AUCUN comptage, storm_flag ne monte
+            // jamais, et SC02-STORM etait valide sans avoir jamais declenche le
+            // moindre blocage de flux -- exactement ce que l'instrumentation
+            // block_req a rendu visible (zero front sur SC02).
+            //
+            // Le firmware, lui, joue SC02 AVANT SC01 (commit f2f999a, « run SC01
+            // last »), donc sur un MHA vierge : storm_flag monte reellement et
+            // block_req se met a hacher, 4 cycles hauts / 1 creux, pendant tout
+            // le reste de la fenetre de 100 cycles. C'est ce regime-la qui gele
+            // la carte, et que le banc ne voyait pas.
+            campaign_step("SC02-STORM", 3'd4, 1'b0, BIT_STORM[4:0],  1'b0, 8, 1'b1);
+            campaign_step("SC04-MSI",   3'd6, 1'b0, BIT_MSI[4:0],    1'b0, 8, 1'b1);
+            campaign_step("SC03-OUTS",  3'd5, 1'b1, BIT_OUTS[4:0],   1'b0, 8, 1'b1);
+            // SC01 en dernier, comme le firmware : son bannissement contamine
+            // tout ce qui demarre dans les ~2 ms qui suivent.
             campaign_step("SC01-SPOOF", 3'd1, 1'b0, BIT_BANNED[4:0], 1'b0, 8, 1'b1);
             // Diagnostic : le meme trafic legitime que LEGIT-ecr, rejoue juste
             // apres le spoof. Il DOIT ressortir banni -- c'est la mesure de la
-            // contamination, pas un echec du detecteur. block_ip_o reste actif
-            // BLOCK_DURATION_C = 100 000 cycles (~2 ms a 50 MHz) et aucun CSR
-            // ne l'efface. Dans l'ordre de bench_runner.c (SC01, SC02, SC04,
-            // SC06, SC07, SC08, SC03), tout ce qui demarre dans cette fenetre
-            // herite du verdict.
+            // contamination, pas un echec du detecteur.
             campaign_step("LEGIT-apres01", 3'd0, 1'b0, BIT_BANNED[4:0], 1'b0, 8, 1'b1);
-
-            campaign_step("SC02-STORM", 3'd4, 1'b0, BIT_STORM[4:0],  1'b0, 8, 1'b1);
-            campaign_step("SC04-MSI",   3'd6, 1'b0, BIT_MSI[4:0],    1'b0, 8, 1'b1);
-            // SC03 en dernier : le mode 5 laisse des lectures sans reponse
-            // derriere lui, et il contaminait les scenarios suivants.
-            campaign_step("SC03-OUTS",  3'd5, 1'b1, BIT_OUTS[4:0],   1'b0, 8, 1'b1);
 
             $display("");
             $display("-------------------------------------------------------");
