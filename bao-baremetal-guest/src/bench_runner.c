@@ -694,6 +694,68 @@ static void dump(stats_t *s) {
     dump_acc("SUMMARY-TX",  s, &s->tx);    /* latence de transaction */
 }
 
+
+/* ============================================================
+ * SONDE DE WEDGE (-DBENCH_WEDGE_PROBE) — diagnostic, pas une campagne.
+ *
+ * Isole la cause du gel observé sur carte SANS resynthétiser, en exploitant le
+ * fait qu'ID_CFG (0x00) est RW : on programme un identifiant attendu FAUX, et
+ * ARMOR se met alors à bloquer du trafic parfaitement LÉGITIME (mode 0). Si le
+ * gel se produit là, il ne doit rien au spoofing, à la tempête ni au MSI : il
+ * suffit qu'ARMOR bloque.
+ *
+ * Le §6.3 du rapport de campagne de référence décrit un wedge de même famille,
+ * laissé non corrigé : « si l'AW a déjà été accepté par l'IOMMU avant le
+ * blocage, l'IOMMU complète l'écriture et émet un B réel que le response
+ * manager ignore [...] le canal B se remplit, et le mux/IOMMU partagé se fige »,
+ * et il le dit SPÉCIFIQUE AUX ÉCRITURES.
+ *
+ * D'où l'ordre : LECTURE d'abord, ÉCRITURE ensuite. Si la lecture passe et que
+ * l'écriture gèle, la spécificité est confirmée sur notre matériel et le suspect
+ * se réduit au canal B. Si la lecture gèle aussi, elle est infirmée.
+ *
+ * Chaque phase annonce ce qu'elle va faire AVANT de le faire : sur un gel, la
+ * dernière ligne imprimée nomme la phase fautive.
+ * ============================================================ */
+#ifdef BENCH_WEDGE_PROBE
+static void wedge_probe(void) {
+    volatile uint64_t *w2 = (volatile uint64_t *)WRAP2_BASE_ADDR;
+    uint64_t det, tx, st;
+
+    printf("\r\n# ===== SONDE DE WEDGE =====\r\n");
+    printf("# ID_CFG w2 <- 99 : le MHA (STREAM_ID=2) devient illegitime aux yeux d'ARMOR.\r\n");
+    printf("# Le trafic reste du mode 0, legitime. Seul ARMOR change d'avis.\r\n");
+    w2[WRAP_ID_CFG_OFF / 8] = 99ULL;
+    fence();
+
+    printf("# PHASE 1/2 : LECTURE bloquee (cfg=1) x3 — attendu : passe si le wedge est propre aux ecritures\r\n");
+    for (int i = 0; i < 3; i++) {
+        TRACE_ARM();
+        st = fire_one('M', 0, LEGIT_DST, 1 /* read */, &det, &tx);
+        printf("#   lecture %d : verdict=%c det=%lu tx=%lu status=0x%lx\r\n",
+               i, classify(st), (unsigned long)det, (unsigned long)tx,
+               (unsigned long)st);
+    }
+    printf("# PHASE 1/2 TERMINEE : une lecture bloquee ne gele pas.\r\n");
+
+    printf("# PHASE 2/2 : ECRITURE bloquee (cfg=0) x3 — c'est ici que le gel est attendu\r\n");
+    for (int i = 0; i < 3; i++) {
+        TRACE_ARM();
+        st = fire_one('M', 0, LEGIT_DST, 0 /* write */, &det, &tx);
+        printf("#   ecriture %d : verdict=%c det=%lu tx=%lu status=0x%lx\r\n",
+               i, classify(st), (unsigned long)det, (unsigned long)tx,
+               (unsigned long)st);
+    }
+    printf("# PHASE 2/2 TERMINEE : une ecriture bloquee ne gele pas non plus.\r\n");
+
+    w2[WRAP_ID_CFG_OFF / 8] = 2ULL;   /* remise en etat */
+    fence();
+    armor_wrap_clear();
+    printf("# ID_CFG w2 restaure a 2, compteurs remis a zero.\r\n");
+    printf("# ===== FIN DE SONDE =====\r\n\r\n");
+}
+#endif
+
 /* ============================================================
  * main
  * ============================================================ */
@@ -719,6 +781,14 @@ void main(void) {
 #define ARMOR_ENFORCE 1
 #endif
     armor_wrap_init(ARMOR_ENFORCE);
+
+#ifdef BENCH_WEDGE_PROBE
+    /* APRÈS armor_wrap_init ET la mise en route de l'IOMMU : la sonde doit voir
+     * exactement l'environnement de la campagne, sinon elle ne prouve rien.
+     * Placée avant, elle tournait ARMOR non armé et son ID_CFG était de toute
+     * façon écrasé par armor_wrap_init. */
+    wedge_probe();
+#endif
 
     /* Configurer DDT : LHA(id=1) et MHA(id=2) autorisés sur 0x91000000.
      * Le filtrage des accès illégitimes est le rôle d'ARMOR, pas de la DDT. */
