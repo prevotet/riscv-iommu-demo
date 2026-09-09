@@ -131,19 +131,46 @@ static volatile uint64_t *lha_config  = (volatile uint64_t *)(LHA_BASE_ADDR + LH
 /* ============================================================
  * Helpers
  * ============================================================ */
-/* NOTE : `rdcycle` trappe sous Bao (VS-mode) avec exception 22
- * (Virtual Instruction) car `hcounteren.CY` n'est pas armé. On lit
- * `time` (CSR 0xC01) qui, lui, est typiquement autorisé via hcounteren.TM
- * et reflète mtime (≈ cycle/n selon le platform timer). Si même `time`
- * trappe, voir BENCH_NO_TIMER ci-dessous (latences = 0). */
+/* CHOIX DU COMPTEUR — lire ceci avant d'interpréter la moindre latence.
+ *
+ * `cycle` (défaut). CVA6 l'implémente en matériel (`csr_regfile.sv`, cas
+ * `CSR_CYCLE`). La lecture coûte quelques cycles et la valeur EST en cycles
+ * cœur, à 50 MHz. Exige `hcounteren.CY` armé côté Bao, sinon exception 22
+ * (Virtual Instruction) : c'est ce que fait `bao-overlay/src/arch/riscv/vm.c`.
+ * `mcounteren` vaut déjà -1 côté OpenSBI, rien d'autre à armer.
+ *
+ * `time` (-DBENCH_USE_TIME), l'ancien défaut. À n'utiliser que sur un Bao SANS
+ * l'overlay. CVA6 n'implémente PAS `CSR_TIME` : `rdtime` lève une instruction
+ * illégale, hcounteren.TM la laisse filer jusqu'en M-mode, et OpenSBI l'émule
+ * en lisant le mtime du CLINT sur le bus. Coût mesuré le 2026-09-09 :
+ * **638 ticks, soit ~1276 cycles cœur, par lecture** — la moitié de chaque
+ * latence publiée. Et la valeur est en ticks de 25 MHz, donc 2 cycles cœur
+ * chacun : deux pièges d'un coup.
+ *
+ * La ligne `# UNITE` imprimée au démarrage dit lequel est compilé, et `# CALIB`
+ * donne le coût réel. Si CALIB reste à ~638, l'overlay Bao n'est pas actif. */
 #ifndef BENCH_NO_TIMER
-static inline uint64_t read_mcycle(void) {
+#  ifdef BENCH_USE_TIME
+#    define BENCH_COUNTER_NAME "time"
+#    define BENCH_COUNTER_UNIT "ticks 25 MHz (1 tick = 2 cycles coeur)"
+static inline uint64_t read_counter(void) {
     uint64_t t;
     asm volatile("csrr %0, time" : "=r"(t));
     return t;
 }
+#  else
+#    define BENCH_COUNTER_NAME "cycle"
+#    define BENCH_COUNTER_UNIT "cycles coeur 50 MHz"
+static inline uint64_t read_counter(void) {
+    uint64_t t;
+    asm volatile("csrr %0, cycle" : "=r"(t));
+    return t;
+}
+#  endif
 #else
-static inline uint64_t read_mcycle(void) { return 0; }
+#  define BENCH_COUNTER_NAME "aucun"
+#  define BENCH_COUNTER_UNIT "latences forcees a 0"
+static inline uint64_t read_counter(void) { return 0; }
 #endif
 
 /* Cout d'une lecture de `time`, mesure en la lisant deux fois de suite.
@@ -152,7 +179,7 @@ static inline uint64_t read_mcycle(void) { return 0; }
  * l'ecart `tx - det` valait 645 a 675 ticks sur les SEPT scenarios, constant, y
  * compris sur SC03 qui dure 33 000 ticks. Or `det` et `tx` sont pris a la meme
  * iteration de la boucle de sondage et ne sont separes QUE par un appel a
- * read_mcycle() : cet ecart est donc le cout de l'appel lui-meme. Sous Bao en
+ * read_counter() : cet ecart est donc le cout de l'appel lui-meme. Sous Bao en
  * VS-mode, `csrr time` trappe vers l'hyperviseur, d'ou ~650 ticks (~1300 cycles
  * coeur) par lecture.
  *
@@ -163,15 +190,17 @@ static inline uint64_t read_mcycle(void) { return 0; }
 static void calib_timer(void) {
     uint64_t best = (uint64_t)-1, sum = 0;
     for (int i = 0; i < 64; i++) {
-        uint64_t a = read_mcycle();
-        uint64_t b = read_mcycle();
+        uint64_t a = read_counter();
+        uint64_t b = read_counter();
         uint64_t d = b - a;
         sum += d;
         if (d < best) best = d;
     }
-    printf("# CALIB : une lecture de `time` coute %lu ticks (min) / %lu (moy sur 64)\r\n",
+    printf("# CALIB : une lecture de `%s` coute %lu (min) / %lu (moy sur 64)\r\n",
+           BENCH_COUNTER_NAME,
            (unsigned long)best, (unsigned long)(sum / 64));
     printf("# CALIB : `det` et `tx` sont separes par exactement une de ces lectures\r\n");
+    printf("# UNITE : compteur = %s, %s\r\n", BENCH_COUNTER_NAME, BENCH_COUNTER_UNIT);
 }
 
 static inline void fence(void) {
@@ -298,8 +327,8 @@ static void wait_done(volatile uint64_t *status) {
 }
 
 static void wait_cycles(uint64_t n) {
-    uint64_t t0 = read_mcycle();
-    while ((read_mcycle() - t0) < n) { /* spin */ }
+    uint64_t t0 = read_counter();
+    while ((read_counter() - t0) < n) { /* spin */ }
 }
 
 /* Arme le LHA en lecture/écriture PERMANENTE (mode continu hardware) : un seul
@@ -489,7 +518,7 @@ static uint64_t fire_one(char accel, uint64_t mode, uint64_t dst,
     uint64_t t_event = 0;
     int      got_event = 0;
     uint32_t to = 2000000;
-    uint64_t t0 = read_mcycle();
+    uint64_t t0 = read_counter();
     TRACE("-> ecriture CTRL=1 (lancement)");
     *ctrl = 1;
     TRACE("   CTRL OK ; -> 1re lecture STATUS");
@@ -498,11 +527,11 @@ static uint64_t fire_one(char accel, uint64_t mode, uint64_t dst,
         st = *status;
         if (first_read) { TRACE("   1re lecture STATUS OK, sondage en cours"); first_read = 0; }
         if (!got_event && (st & (ST_ANY_BLOCK | ST_DONE | ST_ERROR))) {
-            t_event   = read_mcycle();   /* instant du 1er verdict (détection) */
+            t_event   = read_counter();   /* instant du 1er verdict (détection) */
             got_event = 1;
         }
     } while ((st & ST_BUSY) && --to);
-    uint64_t t1 = read_mcycle();         /* fin de transaction (BUSY=0 / timeout) */
+    uint64_t t1 = read_counter();         /* fin de transaction (BUSY=0 / timeout) */
     if (!got_event) t_event = t1;        /* aucun verdict vu -> détection = tx */
     *out_det = t_event - t0;
     *out_tx  = t1 - t0;
@@ -642,7 +671,7 @@ static void dump_acc(const char *tag, const stats_t *s, lat_acc_t *a) {
      * defaut ne se declenchait pas, et il n'explique donc PAS le rapport
      * det ~= 0,52 x tx. La vraie cause est dans fire_one() : `tx - det` valait
      * 645 a 675 ticks sur les sept scenarios, y compris sur SC03 qui dure 33 000
-     * ticks -- c'est le cout FIXE d'un seul appel a read_mcycle(), pas une
+     * ticks -- c'est le cout FIXE d'un seul appel a read_counter(), pas une
      * propriete du materiel. Voir la note d'unites dans fire_one().
      *
      * On emet donc `n` (echantillons dans L_sum) ET `n_lat` (remplissage de
