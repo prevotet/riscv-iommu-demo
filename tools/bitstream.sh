@@ -61,10 +61,16 @@ rtl_hash() {
 #  qu'ils sont sales par construction après toute synthèse. Les compter ferait
 #  marquer -dirty toute provenance, y compris celle d'un arbre parfaitement
 #  propre, et un marqueur qui s'allume toujours n'apprend plus rien.
+#
+#  bitstreams/ est EXCLU pour la même raison, d'un cran plus haut : `save` écrit
+#  le .bit et le .provenance avant de stamper, donc il se voyait lui-même et
+#  toute provenance sortait -dirty. C'est ce qui est arrivé au stamp du
+#  2026-09-09 09:13.
 # -----------------------------------------------------------------------------
 tree_dirty() {
     if [[ -n "$(git -C "$ROOT" status --porcelain --untracked-files=no \
-                -- . ':(exclude)cva6' ':(exclude)bao-hypervisor')" ]]; then
+                -- . ':(exclude)cva6' ':(exclude)bao-hypervisor' \
+                     ':(exclude)bitstreams')" ]]; then
         echo "-dirty"
     fi
 }
