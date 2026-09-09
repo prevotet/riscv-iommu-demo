@@ -20,12 +20,28 @@
 //     avale par request_manager (b_ready force) — sans quoi le canal B se
 //     remplirait et figerait le mux partage (« wedge SC04 »).
 //
-//  2. ATTENTE (!legit_hit) — mode HOLD.
+//  2. ATTENTE (!legit_hit && !bad_id_i) — mode HOLD, BORNE.
 //     Pendant les deux cycles du pipeline ID_extractor + id_comparator, le
 //     verdict n'est pas encore connu. Laisser passer aw_ready fabriquerait un
 //     handshake fantome : le maitre croirait sa requete acceptee alors qu'elle
 //     est encore en cours d'examen. On sort donc '0 : tous les ready et valid
 //     a zero, l'accelerateur reste dans sa phase d'adresse.
+//
+//     BORNE PAR bad_id_i (correctif 2026-09-09). `legit_hit` est un niveau qui
+//     confondait « verdict pas encore connu » et « verdict connu et mauvais » :
+//     une requete a l'identifiant usurpe restait tenue jusqu'au timeout du
+//     maitre (65536 cycles cote accel_wrap, 1,31 ms a 50 MHz), et il en fallait
+//     TROIS pour que security_monitor bannisse -- ~3,9 ms avant la moindre
+//     reaction d'ARMOR. Pire, le seul evenement qui relance une comparaison est
+//     un FRONT de AxVALID (cf. ID_extractor), et une requete tenue n'en produit
+//     aucun : l'escalade dependait entierement du timeout du maitre.
+//
+//     bad_id_i dit « la comparaison a rendu son verdict et il est mauvais ». On
+//     termine alors la transaction comme un blocage, en SLVERR. Le maitre reprend
+//     la main immediatement, retire son AxVALID, et sa prochaine tentative fait
+//     un nouveau front -- donc une nouvelle comparaison. MAX_FAILURES = 3 est
+//     inchange et redevient atteignable en trois requetes au lieu de trois
+//     timeouts.
 //
 //  3. TRANSPARENT — l'IP est legitime, les reponses traversent telles quelles.
 // =============================================================================
@@ -36,13 +52,14 @@ module response_manager #(
     input  logic       rst_ni,
     input  logic       block_ip_i,
     input  logic       block_req_i,
+    input  logic       bad_id_i,      // verdict rendu, et mauvais
     input  logic       legit_hit,
     input  resp_slv_t  resp_wrapper_iommu_i,
     output resp_slv_t  resp_IP_wrapper_o
 );
 
     always_comb begin
-        if (block_ip_i || block_req_i) begin
+        if (block_ip_i || block_req_i || bad_id_i) begin
             // ---- Terminaison de bus gracieuse (SLVERR) ----
             resp_IP_wrapper_o = '0;
 
@@ -61,7 +78,7 @@ module response_manager #(
             resp_IP_wrapper_o.r.last   = 1'b1;
 
         end else if (!legit_hit) begin
-            // ---- Verdict d'ID en cours : on tient le maitre ----
+            // ---- Verdict d'ID en cours (2 cycles) : on tient le maitre ----
             resp_IP_wrapper_o = '0;
 
         end else begin

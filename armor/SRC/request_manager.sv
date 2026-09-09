@@ -34,9 +34,18 @@
 //  ici en forcant b_ready/r_ready a 1 vers l'IOMMU pendant le blocage : les
 //  reponses en vol sont avalees au lieu de s'accumuler.
 //
-//  Le forcage ne s'applique QU'AU blocage (block_req_i), pas au mode d'attente
-//  ~legit_hit : dans ce dernier, rien n'a encore ete accepte en aval et le
-//  maitre doit garder la main sur ses propres ready.
+//  Le forcage s'applique au blocage (block_req_i) ET a la terminaison pour
+//  identifiant fautif (bad_id_i), pas au mode d'attente ~legit_hit.
+//
+//  Pourquoi bad_id_i en fait partie : `legit_hit` est un niveau qui reste a 1
+//  tant que la comparaison suivante n'a pas rendu son verdict. Une requete
+//  usurpee qui suit un flot legitime traverse donc bel et bien pendant les deux
+//  cycles du pipeline, et l'aval a pu l'accepter. Quand le verdict tombe et
+//  qu'on termine en SLVERR vers le maitre, ce B reel doit etre avale -- c'est le
+//  meme raisonnement anti-wedge que pour block_req_i.
+//
+//  Dans le mode d'attente pur (~legit_hit sans verdict), rien n'a ete accepte en
+//  aval et le maitre doit garder la main sur ses propres ready.
 // =============================================================================
 module request_manager #(
     parameter type req_iommu_t = logic
@@ -45,6 +54,7 @@ module request_manager #(
     input  logic        rst_ni,
     input  logic        legit_hit,
     input  logic        block_req_i,
+    input  logic        bad_id_i,      // verdict rendu, et mauvais
     input  req_iommu_t  req_IP_wrapper_i,
     output req_iommu_t  req_wrapper_iommu_o
 );
@@ -59,7 +69,7 @@ module request_manager #(
         end
 
         // Blocage effectif : on avale les reponses en vol (anti-wedge).
-        if (block_req_i) begin
+        if (block_req_i || bad_id_i) begin
             req_wrapper_iommu_o.b_ready = 1'b1;
             req_wrapper_iommu_o.r_ready = 1'b1;
         end
