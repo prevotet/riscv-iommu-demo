@@ -105,6 +105,22 @@ module tb_accel_armor;
     logic  dn_accept  = 1'b1;   // l'aval accepte AW / W / AR
     logic  dn_respond = 1'b1;   // l'aval renvoie B / R
 
+    //  Latence d'ACCEPTATION de l'aval : nombre de cycles pendant lesquels
+    //  aw_valid / ar_valid doivent rester presentes avant que ready ne monte.
+    //
+    //  Ce knob n'est pas cosmetique, c'est ce qui separait le banc de la carte.
+    //  A 0 (aval instantanement pret), une requete usurpee passe le handshake
+    //  dans la fenetre de 2 cycles ou legit_hit est encore PERIME a 1, la faute
+    //  se compte, trois fautes bannissent, et SC01 se termine proprement : c'est
+    //  ce que le banc mesurait, et ce n'est pas ce que fait la carte. Le vrai
+    //  IOMMU met bien plus de 2 cycles a repondre (marche de la DDT), la fenetre
+    //  se referme avant le handshake, request_manager coupe aw_valid, et le mode
+    //  HOLD de response_manager ne rend jamais la main -- le gel du 2026-09-08.
+    //
+    //  Mettre dn_lat > 2 reproduit donc la carte. C'est la configuration de
+    //  reference pour tout ce qui touche au filtrage d'identifiant.
+    int unsigned dn_lat = 0;
+
     // -------------------------------------------------------------------------
     //  Bus
     // -------------------------------------------------------------------------
@@ -296,9 +312,24 @@ module tb_accel_armor;
     logic [ariane_soc::IdWidth-1:0]  r_id_q;
     logic [7:0]                      r_left_q;
 
-    assign resp_out.aw_ready = dn_accept & ~b_pending;
+    //  Compteurs de presentation : ils repartent de zero des que le wrapper
+    //  retire le valid, donc une requete coupee par ARMOR ne progresse jamais
+    //  vers l'acceptation -- exactement comme l'IOMMU qui ne voit rien.
+    logic [15:0] aw_wait_q, ar_wait_q;
+
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            aw_wait_q <= 16'd0;
+            ar_wait_q <= 16'd0;
+        end else begin
+            aw_wait_q <= req_out.aw_valid ? (aw_wait_q + 16'd1) : 16'd0;
+            ar_wait_q <= req_out.ar_valid ? (ar_wait_q + 16'd1) : 16'd0;
+        end
+    end
+
+    assign resp_out.aw_ready = dn_accept & ~b_pending & (aw_wait_q >= dn_lat);
     assign resp_out.w_ready  = dn_accept;
-    assign resp_out.ar_ready = dn_accept & ~r_pending;
+    assign resp_out.ar_ready = dn_accept & ~r_pending & (ar_wait_q >= dn_lat);
 
     assign resp_out.b_valid  = b_pending & dn_respond;
     assign resp_out.b.id     = b_id_q;
@@ -570,6 +601,10 @@ module tb_accel_armor;
 
     initial begin
         if (!$value$plusargs("SCENARIO=%d", scenario)) scenario = 1;
+        // +DN_LAT=<n> : latence d'acceptation de l'aval, en cycles. Defaut 0
+        // (aval instantane, comportement historique du banc). Mettre > 2 pour
+        // reproduire un IOMMU reel -- voir le commentaire de dn_lat.
+        if (!$value$plusargs("DN_LAT=%d", dn_lat)) dn_lat = 0;
 
         case (scenario)
             0: begin dn_accept = 1'b1; dn_respond = 1'b1; end
@@ -583,7 +618,8 @@ module tb_accel_armor;
         endcase
 
         $display("=======================================================");
-        $display(" tb_accel_armor -- SCENARIO %0d", scenario);
+        $display(" tb_accel_armor -- SCENARIO %0d  (dn_lat = %0d cycles)",
+                 scenario, dn_lat);
         $display("   aval : accepte AW/AR = %0b, renvoie B/R = %0b",
                  dn_accept, dn_respond);
         $display("   accel TIMEOUT_CYCLES = %0d, garde-fou MMIO = %0d cycles",

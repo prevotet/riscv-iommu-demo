@@ -159,6 +159,56 @@ assign block_req_i   = csr_enforce_q &
 assign legit_hit_eff = legit_hit | ~csr_enforce_q;
 assign block_ip_eff  = block_ip_o &  csr_enforce_q;
 
+// -----------------------------------------------------------------------------
+//  Verdict d'identifiant rendu, et mauvais  (correctif du 2026-09-09)
+//
+//  `legit_hit` seul ne distingue pas « pas encore compare » de « compare et
+//  refuse » : les deux valent 0. response_manager traitait donc les deux en mode
+//  HOLD et tenait le maitre jusqu'a SON timeout (65536 cycles cote accel_wrap,
+//  1,31 ms a 50 MHz). Comme ID_extractor ne relance une comparaison que sur un
+//  FRONT de AxVALID et qu'une requete tenue n'en produit aucun, les
+//  MAX_FAILURES = 3 fautes necessaires au bannissement ne pouvaient s'accumuler
+//  qu'au rythme des timeouts du maitre : ~3,9 ms avant qu'ARMOR ne reagisse.
+//
+//  verdict_known_q porte la distinction manquante. Il se leve quand
+//  comparison_valid rend le verdict de la requete presentee, et retombe des que
+//  plus rien n'est presente, pour que la requete suivante reparte proprement de
+//  son etat « pas encore compare ».
+//
+//  Note pour la mesure : ceci ne coute rien au trafic legitime. bad_id ne peut
+//  se lever que si legit_hit vaut 0, et sur un flot au meme identifiant
+//  legit_hit reste a 1 -- le chemin reste le passe-plat combinatoire.
+logic verdict_known_q;
+logic bad_id;
+
+//  La validite suit le PIPELINE, pas les canaux AXI. Premiere version de ce
+//  correctif : verdict_known_q etait efface des que ni aw_valid ni ar_valid
+//  n'etaient presentes. Le banc a montre l'erreur -- une fois l'AW absorbe, le
+//  maitre passe en phase W, plus rien n'est "presente", le verdict s'effaçait au
+//  milieu de la transaction et response_manager repassait en HOLD : w_ready
+//  disparaissait et l'accelerateur calait jusqu'a son timeout, exactement le
+//  comportement qu'on voulait supprimer.
+//
+//  On se cale donc sur les deux evenements du pipeline d'identifiant :
+//    - Device_ID_write_enable_o : une nouvelle comparaison DEMARRE -> inconnu ;
+//    - comparison_valid         : elle REND son verdict            -> connu.
+//  Le verdict reste alors valable pour toute la duree de la transaction, et
+//  jusqu'a la requete suivante.
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        verdict_known_q <= 1'b0;
+    end else if (Device_ID_write_enable_o) begin
+        verdict_known_q <= 1'b0;
+    end else if (comparison_valid) begin
+        verdict_known_q <= 1'b1;
+    end
+end
+
+// comparison_valid est inclus pour ne pas perdre un cycle : au cycle ou il
+// pulse, ids_match_reg porte deja le verdict frais (meme always_ff dans
+// id_comparator).
+assign bad_id = csr_enforce_q & (comparison_valid | verdict_known_q) & ~legit_hit;
+
 
 
 ID_extractor#(
@@ -221,6 +271,7 @@ request_manager #(
     .legit_hit(legit_hit_eff),
     .req_IP_wrapper_i(req_IP_wrapper_i),
     .block_req_i(block_req_i),      // signal combiné
+    .bad_id_i(bad_id),
     .req_wrapper_iommu_o(req_wrapper_iommu_o)
 
 );
@@ -232,6 +283,7 @@ response_manager #(
     .rst_ni(rst_ni),
     .block_req_i(block_req_i),
     .block_ip_i(block_ip_eff),
+    .bad_id_i(bad_id),
     .legit_hit(legit_hit_eff),
     .resp_wrapper_iommu_i(resp_wrapper_iommu_i),
     .resp_IP_wrapper_o(resp_IP_wrapper_o)

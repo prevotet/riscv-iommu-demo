@@ -6,6 +6,7 @@
 #            ./run_sim.sh all            joue les trois
 #            WAVES=1 ./run_sim.sh 1      genere en plus tb_accel_armor.vcd
 #            BUG=1   ./run_sim.sh 0      rejoue le defaut resp_t/resp_slv_t
+#            DN_LAT=4 ./run_sim.sh 3      aval lent : reproduit un IOMMU reel
 #            PROFILE=demo ./run_sim.sh 3   profil DEMO au lieu de BENCH
 #
 #  Scenarios :
@@ -122,6 +123,9 @@ run_one() {
     local sc="$1"
     local args=("-testplusarg" "SCENARIO=$sc")
     [[ "${WAVES:-0}" == "1" ]] && args+=("-testplusarg" "WAVES")
+    # DN_LAT : latence d'acceptation de l'aval, en cycles (defaut 0 = aval
+    # instantane). > 2 reproduit un IOMMU reel, et avec lui le gel SC01.
+    [[ -n "${DN_LAT:-}" ]] && args+=("-testplusarg" "DN_LAT=$DN_LAT")
     echo
     echo "############### SCENARIO $sc ###############"
     xsim tb_snap --nolog --runall "${args[@]}"
