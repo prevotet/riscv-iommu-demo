@@ -718,11 +718,41 @@ static void dump(stats_t *s) {
  * dernière ligne imprimée nomme la phase fautive.
  * ============================================================ */
 #ifdef BENCH_WEDGE_PROBE
+/* Transactions legitimes avant basculement : il en faut assez pour que le
+ * pipeline d'identifiant ait rendu un verdict positif et que legit_hit soit
+ * franchement etabli. Huit est large. */
+#ifndef WEDGE_WARMUP
+#  define WEDGE_WARMUP 8
+#endif
+/* Duree d'un bannissement en profil BENCH (~2 ms a 50 MHz), plus une marge. */
+#ifndef WEDGE_BAN_DRAIN_CY
+#  define WEDGE_BAN_DRAIN_CY 150000
+#endif
+
 static void wedge_probe(void) {
     volatile uint64_t *w2 = (volatile uint64_t *)WRAP2_BASE_ADDR;
     uint64_t det, tx, st;
 
     printf("\r\n# ===== SONDE DE WEDGE =====\r\n");
+
+    /* PRECHAUFFAGE — indispensable, et c'est ce qui manquait au premier essai.
+     *
+     * `legit_hit` est un NIVEAU. Au reset il vaut 0 : le HOLD s'applique
+     * d'emblee, rien n'est transmis en aval, aucune course n'est possible. La
+     * sonde du 2026-09-09 12:55 n'a donc RIEN gele -- six transactions bloquees
+     * abouties -- alors que la campagne, elle, gele.
+     *
+     * La difference est le trafic legitime qui precede : apres lui, legit_hit
+     * reste PERIME a 1 pendant les 2 cycles du pipeline, l'AW suivant traverse,
+     * et l'aval peut l'accepter avant que le verdict ne tombe. On reproduit donc
+     * cette condition : quelques transactions legitimes, PUIS le basculement. */
+    printf("# Prechauffage : %d transactions legitimes pour porter legit_hit a 1.\r\n",
+           WEDGE_WARMUP);
+    for (int i = 0; i < WEDGE_WARMUP; i++)
+        (void)fire_one('M', 0, LEGIT_DST, 0, &det, &tx);
+    printf("# Prechauffage OK (dernier verdict=%c).\r\n",
+           classify(fire_one('M', 0, LEGIT_DST, 0, &det, &tx)));
+
     printf("# ID_CFG w2 <- 99 : le MHA (STREAM_ID=2) devient illegitime aux yeux d'ARMOR.\r\n");
     printf("# Le trafic reste du mode 0, legitime. Seul ARMOR change d'avis.\r\n");
     w2[WRAP_ID_CFG_OFF / 8] = 99ULL;
@@ -738,6 +768,16 @@ static void wedge_probe(void) {
     }
     printf("# PHASE 1/2 TERMINEE : une lecture bloquee ne gele pas.\r\n");
 
+    /* La phase 1 laisse legit_hit a 0 : sans reprechauffer, la phase 2 partirait
+     * du cas deja teste (HOLD des le depart) et ne prouverait rien. */
+    w2[WRAP_ID_CFG_OFF / 8] = 2ULL;
+    fence();
+    printf("# Reprechauffage avant la phase 2.\r\n");
+    for (int i = 0; i < WEDGE_WARMUP; i++)
+        (void)fire_one('M', 0, LEGIT_DST, 0, &det, &tx);
+    w2[WRAP_ID_CFG_OFF / 8] = 99ULL;
+    fence();
+
     printf("# PHASE 2/2 : ECRITURE bloquee (cfg=0) x3 — c'est ici que le gel est attendu\r\n");
     for (int i = 0; i < 3; i++) {
         TRACE_ARM();
@@ -750,8 +790,17 @@ static void wedge_probe(void) {
 
     w2[WRAP_ID_CFG_OFF / 8] = 2ULL;   /* remise en etat */
     fence();
+
+    /* Purge du BANNISSEMENT avant de rendre la main. armor_wrap_clear() efface
+     * les bits collants et les compteurs, mais PAS le timer interne de
+     * security_monitor (BLOCK_DURATION, ~2 ms en profil BENCH). Sans cette
+     * attente, la premiere transaction de SC07 -- meme wrapper -- part alors que
+     * le MHA est encore banni : c'est exactement le ERR=1 vu sur SC07 au run du
+     * 2026-09-09 12:55, qui n'etait pas un faux positif d'ARMOR mais un residu
+     * de la sonde. */
+    wait_cycles(WEDGE_BAN_DRAIN_CY);
     armor_wrap_clear();
-    printf("# ID_CFG w2 restaure a 2, compteurs remis a zero.\r\n");
+    printf("# ID_CFG w2 restaure a 2, bannissement purge, compteurs remis a zero.\r\n");
     printf("# ===== FIN DE SONDE =====\r\n\r\n");
 }
 #endif
