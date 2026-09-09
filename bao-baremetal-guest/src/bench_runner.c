@@ -506,6 +506,21 @@ static uint64_t fire_one(char accel, uint64_t mode, uint64_t dst,
     if (!got_event) t_event = t1;        /* aucun verdict vu -> détection = tx */
     *out_det = t_event - t0;
     *out_tx  = t1 - t0;
+
+#ifdef BENCH_TRACE_MMIO
+    /* Les TRACE() ci-dessus sont des printf UART places A L'INTERIEUR de la
+     * fenetre chronometree -- il le faut, c'est la seule facon de nommer l'acces
+     * qui ne revient pas. Mais une ligne de ~40 caracteres a 115200 bauds coute
+     * ~3,5 ms, soit ~87 000 ticks, et il y en a trois : les iterations 0, 1 et 2
+     * de chaque scenario mesuraient l'UART, pas le materiel. C'est l'origine des
+     * outliers a ~318 000 ticks du run 2026-09-09, qui ecrasaient Lavg (SC06 :
+     * Lp50 = 1376 contre Lavg = 10894).
+     *
+     * On les sort donc des statistiques. lat_add() rejette les zeros et la
+     * colonne `n` du CSV rend l'exclusion visible : n = N - TRACE_N sur un build
+     * trace, n = N sinon. */
+    if (tr) { *out_det = 0; *out_tx = 0; }
+#endif
     TRACE("-> lecture STATUS finale");
     st = *status;
     TRACE("   lecture STATUS finale OK");
