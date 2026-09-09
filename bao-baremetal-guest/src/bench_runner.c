@@ -146,6 +146,34 @@ static inline uint64_t read_mcycle(void) {
 static inline uint64_t read_mcycle(void) { return 0; }
 #endif
 
+/* Cout d'une lecture de `time`, mesure en la lisant deux fois de suite.
+ *
+ * NON NEGLIGEABLE, et c'est le resultat le plus important du run 2026-09-09 :
+ * l'ecart `tx - det` valait 645 a 675 ticks sur les SEPT scenarios, constant, y
+ * compris sur SC03 qui dure 33 000 ticks. Or `det` et `tx` sont pris a la meme
+ * iteration de la boucle de sondage et ne sont separes QUE par un appel a
+ * read_mcycle() : cet ecart est donc le cout de l'appel lui-meme. Sous Bao en
+ * VS-mode, `csrr time` trappe vers l'hyperviseur, d'ou ~650 ticks (~1300 cycles
+ * coeur) par lecture.
+ *
+ * Consequence : ~48 % du chiffre publie pour SC06 (1351 ticks) est du temps de
+ * sonde, pas du temps de transaction. On imprime la calibration pour que la
+ * soustraction soit possible -- et pour qu'un lecteur voie l'ordre de grandeur
+ * avant de comparer nos latences a celles d'une autre implementation. */
+static void calib_timer(void) {
+    uint64_t best = (uint64_t)-1, sum = 0;
+    for (int i = 0; i < 64; i++) {
+        uint64_t a = read_mcycle();
+        uint64_t b = read_mcycle();
+        uint64_t d = b - a;
+        sum += d;
+        if (d < best) best = d;
+    }
+    printf("# CALIB : une lecture de `time` coute %lu ticks (min) / %lu (moy sur 64)\r\n",
+           (unsigned long)best, (unsigned long)(sum / 64));
+    printf("# CALIB : `det` et `tx` sont separes par exactement une de ces lectures\r\n");
+}
+
 static inline void fence(void) {
     asm volatile("fence rw, rw" ::: "memory");
 }
@@ -316,7 +344,8 @@ static int armor_blocked(uint64_t st) { return (st & ST_ANY_BLOCK) ? 1 : 0; }
 typedef struct {
     uint64_t L_min, L_max, L_sum;
     uint64_t lat[LAT_CAP];       /* pour percentiles — voir LAT_CAP */
-    int n;
+    int n;                       /* échantillons accumulés dans L_sum (non borné) */
+    int n_lat;                   /* remplissage de lat[] : min(n, LAT_CAP)        */
 } lat_acc_t;
 
 typedef struct {
@@ -332,6 +361,7 @@ static void lat_init(lat_acc_t *a) {
     a->L_max = 0;
     a->L_sum = 0;
     a->n = 0;
+    a->n_lat = 0;
 }
 
 static void lat_add(lat_acc_t *a, uint64_t v) {
@@ -339,7 +369,8 @@ static void lat_add(lat_acc_t *a, uint64_t v) {
     if (v < a->L_min) a->L_min = v;
     if (v > a->L_max) a->L_max = v;
     a->L_sum += v;
-    if (a->n < LAT_CAP) a->lat[a->n++] = v;
+    a->n++;                                   /* compte TOUT ce qui entre dans L_sum */
+    if (a->n_lat < LAT_CAP) a->lat[a->n_lat++] = v;   /* le buffer, lui, sature */
 }
 
 static void stat_init(stats_t *s, const char *name) {
@@ -360,10 +391,13 @@ static void sort_u64(uint64_t *a, int n) {
 }
 
 /* Percentile en arithmetique entiere : p_num/100 (evite soft-float) */
+/* Percentile sur les LAT_CAP premiers echantillons : au-dela, lat[] sature et le
+ * percentile ne porte que sur ce debut de scenario. C'est le cas de SC08 (700
+ * salves pour LAT_CAP=512) — ne pas confondre n_lat avec n. */
 static uint64_t pctl_int(lat_acc_t *a, unsigned p_num) {
-    if (a->n == 0) return 0;
-    sort_u64(a->lat, a->n);
-    unsigned idx = (p_num * (a->n - 1)) / 100u;
+    if (a->n_lat == 0) return 0;
+    sort_u64(a->lat, a->n_lat);
+    unsigned idx = (p_num * (a->n_lat - 1)) / 100u;
     return a->lat[idx];
 }
 
@@ -586,21 +620,26 @@ static void run_sc08(stats_t *st) {
 /* Émet une ligne SUMMARY pour un accumulateur de latence donné (DET ou TX). */
 static void dump_acc(const char *tag, const stats_t *s, lat_acc_t *a) {
     /* Moyenne sur le nombre d'echantillons REELLEMENT accumules (a->n), pas sur
-     * le nombre d'iterations du scenario (s->N). lat_add() rejette les valeurs
-     * nulles : diviser par s->N sous-estimait la moyenne d'un facteur n/N des
-     * que l'un des deux accumulateurs comptait un zero. C'est ce qui faisait
-     * lire SUMMARY-DET a ~0,52 x SUMMARY-TX sur la campagne du 2026-09-08, alors
-     * que le FSM de accel_wrap pose busy_q=0 et done_q=1 dans le meme cycle et
-     * que les deux latences devraient donc etre quasi egales.
+     * le nombre d'iterations du scenario (s->N) : lat_add() rejette les valeurs
+     * nulles, donc diviser par s->N sous-estimerait la moyenne d'un facteur n/N.
      *
-     * La colonne `n` est emise pour que l'ecart n < N reste visible dans le CSV
-     * au lieu d'etre absorbe par la moyenne. */
+     * Le run du 2026-09-09 a montre n == N partout : aucun echantillon nul, ce
+     * defaut ne se declenchait pas, et il n'explique donc PAS le rapport
+     * det ~= 0,52 x tx. La vraie cause est dans fire_one() : `tx - det` valait
+     * 645 a 675 ticks sur les sept scenarios, y compris sur SC03 qui dure 33 000
+     * ticks -- c'est le cout FIXE d'un seul appel a read_mcycle(), pas une
+     * propriete du materiel. Voir la note d'unites dans fire_one().
+     *
+     * On emet donc `n` (echantillons dans L_sum) ET `n_lat` (remplissage de
+     * lat[], sature a LAT_CAP) : sans les deux, on ne peut pas savoir si une
+     * moyenne et un percentile portent sur la meme population. Sur SC08,
+     * n = 700 et n_lat = 512. */
     uint64_t avg  = a->n ? (a->L_sum / (uint64_t)a->n) : 0;
     uint64_t lmin = a->n ? a->L_min : 0;
     uint64_t p50  = pctl_int(a, 50);
     uint64_t p99  = pctl_int(a, 99);
-    printf("%s,%s,%d,%d,%d,%d,%d,%d,%lu,%lu,%lu,%lu,%lu\r\n",
-           tag, s->name, s->N, a->n, s->TP, s->FP, s->FN, s->TN,
+    printf("%s,%s,%d,%d,%d,%d,%d,%d,%d,%lu,%lu,%lu,%lu,%lu\r\n",
+           tag, s->name, s->N, a->n, a->n_lat, s->TP, s->FP, s->FN, s->TN,
            (unsigned long)lmin, (unsigned long)avg,
            (unsigned long)p50, (unsigned long)p99,
            (unsigned long)a->L_max);
@@ -621,7 +660,8 @@ void main(void) {
     printf("# det_lat = DETECTION (lancement -> 1er verdict ARMOR/DONE)\r\n");
     printf("# tx_lat  = TRANSACTION (lancement -> BUSY=0, round-trip complet)\r\n");
     printf("# verdict : M=MSI O=OUTS S=STORM B=BANNED b=BLOCKED D=DONE E=ERROR\r\n");
-    printf("# SUMMARY-DET / SUMMARY-TX,name,N,n,TP,FP,FN,TN,Lmin,Lavg,Lp50,Lp99,Lmax\r\n");
+    printf("# SUMMARY-DET / SUMMARY-TX,name,N,n,n_lat,TP,FP,FN,TN,Lmin,Lavg,Lp50,Lp99,Lmax\r\n");
+    calib_timer();
 
     /* IOMMU activé (mode 1LVL) pour tous les tests */
     setup_iommu_ddt();      /* DOIT précéder set_iommu_mode(2) */
