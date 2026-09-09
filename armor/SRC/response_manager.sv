@@ -20,7 +20,13 @@
 //     avale par request_manager (b_ready force) — sans quoi le canal B se
 //     remplirait et figerait le mux partage (« wedge SC04 »).
 //
-//  2. ATTENTE (!legit_hit && !bad_id_i) — mode HOLD, BORNE.
+//  2. ATTENTE (!legit_hit ou verdict pas encore rendu) — mode HOLD, BORNE.
+//
+//     La condition `!verdict_known_i` est indispensable et va de pair avec la
+//     coupure d'AW/AR faite par request_manager pendant la meme fenetre : sans
+//     elle, le maitre verrait passer le aw_ready de l'aval alors que sa requete
+//     n'y a jamais ete presentee -- un handshake fantome, exactement ce que ce
+//     mode existe pour empecher.
 //     Pendant les deux cycles du pipeline ID_extractor + id_comparator, le
 //     verdict n'est pas encore connu. Laisser passer aw_ready fabriquerait un
 //     handshake fantome : le maitre croirait sa requete acceptee alors qu'elle
@@ -52,7 +58,8 @@ module response_manager #(
     input  logic       rst_ni,
     input  logic       block_ip_i,
     input  logic       block_req_i,
-    input  logic       bad_id_i,      // verdict rendu, et mauvais
+    input  logic       bad_id_i,        // verdict rendu, et mauvais
+    input  logic       verdict_known_i, // le verdict de la requete presentee est rendu
     input  logic       legit_hit,
     input  resp_slv_t  resp_wrapper_iommu_i,
     output resp_slv_t  resp_IP_wrapper_o
@@ -77,7 +84,7 @@ module response_manager #(
             resp_IP_wrapper_o.r.resp   = 2'b10;
             resp_IP_wrapper_o.r.last   = 1'b1;
 
-        end else if (!legit_hit) begin
+        end else if (!legit_hit || !verdict_known_i) begin
             // ---- Verdict d'ID en cours (2 cycles) : on tient le maitre ----
             resp_IP_wrapper_o = '0;
 

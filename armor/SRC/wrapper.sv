@@ -209,6 +209,27 @@ end
 // id_comparator).
 assign bad_id = csr_enforce_q & (comparison_valid | verdict_known_q) & ~legit_hit;
 
+// -----------------------------------------------------------------------------
+//  Verdict CONNU — condition d'admission en aval (correctif du gel, 2026-09-09)
+//
+//  `legit_hit` est un NIVEAU : il reste à la valeur de la comparaison précédente
+//  pendant les 2 cycles où la comparaison en cours n'a pas encore rendu. Une
+//  requête d'attaque qui suit un flot légitime traversait donc, et l'IOMMU
+//  l'acceptait. Quand le verdict tombait, response_manager terminait la
+//  transaction côté maître par un SLVERR et l'accélérateur n'envoyait JAMAIS ses
+//  beats W : il restait en aval une écriture acceptée attendant ses données pour
+//  toujours. L'IOMMU rentrant dans le XBAR pour atteindre la DRAM, le canal W du
+//  crossbar se coinçait et le premier accès CPU empruntant ce chemin ne revenait
+//  pas -- le gel observé sur SC01 puis, une fois SC01 déplacé, sur SC02.
+//
+//  On n'admet donc plus rien en aval tant que le verdict de la requête PRÉSENTÉE
+//  n'est pas rendu. Cela ferme aussi la fenêtre de contournement : jusqu'ici, une
+//  requête usurpée arrivant juste après un flot légitime passait.
+//
+//  ENFORCE = 0 -> toujours « connu », le wrapper reste un passe-plat intégral.
+logic verdict_known_eff;
+assign verdict_known_eff = ~csr_enforce_q | comparison_valid | verdict_known_q;
+
 
 
 ID_extractor#(
@@ -272,6 +293,7 @@ request_manager #(
     .req_IP_wrapper_i(req_IP_wrapper_i),
     .block_req_i(block_req_i),      // signal combiné
     .bad_id_i(bad_id),
+    .verdict_known_i(verdict_known_eff),
     .req_wrapper_iommu_o(req_wrapper_iommu_o)
 
 );
@@ -284,6 +306,7 @@ response_manager #(
     .block_req_i(block_req_i),
     .block_ip_i(block_ip_eff),
     .bad_id_i(bad_id),
+    .verdict_known_i(verdict_known_eff),
     .legit_hit(legit_hit_eff),
     .resp_wrapper_iommu_i(resp_wrapper_iommu_i),
     .resp_IP_wrapper_o(resp_IP_wrapper_o)
