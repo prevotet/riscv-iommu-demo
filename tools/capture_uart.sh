@@ -28,15 +28,9 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BAUD=115200
-#  Délai d'inactivité GÉNÉREUX, et ce n'est pas de la prudence mal placée : la
-#  ROM de boot copie TOUTE la partition de 32 Mio depuis la SD par SPI
-#  (`sd_copy`, bootrom/src/gpt.c) en n'émettant que des POINTS, sans retour à la
-#  ligne — le ` done!` n'arrive qu'à la fin. Comme on lit des LIGNES, ces points
-#  ne réarment pas le compteur : à 90 s la capture se coupait en pleine copie,
-#  en annonçant un gel, alors que le transfert progressait à l'écran (logs
-#  bench_2026-09-09_0933 et _0947, tous deux tronqués à cet endroit).
-#  300 s couvrent la copie ; SC03, le plus lent des scénarios, reste loin dessous.
-IDLE=300
+#  Silence toléré, en SECONDES SANS LE MOINDRE OCTET. Ce n'est pas un délai de
+#  ligne : voir la boucle de lecture, qui surveille la taille du journal.
+IDLE=120
 DEV=""
 LOG=""
 
@@ -176,31 +170,60 @@ echo ">>> RESET LA CARTE MAINTENANT <<<   (la capture est ouverte, l'en-tête se
 echo
 
 # -----------------------------------------------------------------------------
-#  Boucle de lecture ligne à ligne. `read -t` est ce qui distingue une campagne
-#  finie d'une campagne gelée : sans lui, un gel ressemble à une attente.
+#  Boucle de lecture, mesurée en OCTETS et non en lignes.
+#
+#  Une première version lisait ligne par ligne avec `read -t`. Elle coupait tous
+#  les boots : la ROM copie 32 Mio depuis la SD et n'imprime qu'UN POINT tous
+#  les 1000 secteurs (`sd_copy`, bootrom/src/sd.c), sans retour à la ligne — 65
+#  points, ~5 s chacun, soit près de six minutes pendant lesquelles `read` ne
+#  rend jamais la main. Des octets arrivaient en permanence et la capture
+#  annonçait quand même un gel.
+#
+#  Ici `cat` écrit dans le journal en continu et on surveille sa TAILLE. Tout
+#  octet reçu — point compris — réarme le compteur, et le délai redevient ce
+#  qu'il prétend être : du silence réel.
 # -----------------------------------------------------------------------------
-#  `rc` est relevé DANS la boucle : l'état de sortie d'un `while` est celui de
-#  son corps, pas celui du `read` qui a expiré. Le lire après coup faisait
-#  passer un gel pour une interruption -- et c'est justement le cas qu'on veut
-#  nommer correctement ici.
-status="interrompu"
-rc=0
-while true; do
-    IFS= read -r -t "$IDLE" line || { rc=$?; break; }
-    line="${line%$'\r'}"
-    printf '%s\n' "$line"
-    printf '%s\n' "$line" >> "$LOG"
-    case "$line" in
-        *'###### END ######'*|*'# Benchmark complete'*)
-            status="campagne terminée"; break ;;
-    esac
-done < "$DEV"
+#  `dd bs=1` et pas `cat` : mesuré, `cat` vers un FICHIER tamponne et ne livre
+#  rien avant d'avoir de quoi remplir son bloc — les points de la copie SD
+#  restaient invisibles pendant des minutes et la surveillance de taille ne
+#  voyait rien bouger. `stdbuf -o0 cat` n'y change rien (cat n'utilise pas
+#  stdio). À 115200 bauds, un octet par appel système reste sans effet mesurable.
+dd if="$DEV" bs=1 status=none >> "$LOG" &
+CATPID=$!
+trap 'kill "$CATPID" 2>/dev/null' EXIT INT TERM
 
-if (( rc > 128 )); then
-    status="SILENCE pendant ${IDLE}s — carte gelée ou campagne interrompue"
-elif (( rc > 0 )); then
-    status="port fermé (fin de flux)"
-fi
+off=0
+idle=0
+status="interrompu"
+
+while :; do
+    sleep 1
+    size=$(stat -c %s "$LOG" 2>/dev/null || echo "$off")
+
+    if (( size > off )); then
+        # Affiché tel quel, retours chariot compris : c'est ce que fait picocom.
+        tail -c "+$(( off + 1 ))" "$LOG"
+        off=$size
+        idle=0
+        # Marqueur cherché dans TOUT le journal, pas dans le seul fragment : il
+        # peut tomber à cheval sur deux relevés.
+        if grep -qa -e '###### END ######' -e '# Benchmark complete' "$LOG"; then
+            status="campagne terminée"
+            break
+        fi
+    else
+        idle=$(( idle + 1 ))
+        if (( idle >= IDLE )); then
+            status="SILENCE pendant ${IDLE}s — carte gelée ou campagne interrompue"
+            break
+        fi
+    fi
+
+    kill -0 "$CATPID" 2>/dev/null || { status="port fermé (fin de flux)"; break; }
+done
+
+kill "$CATPID" 2>/dev/null
+wait "$CATPID" 2>/dev/null
 
 lines=$(wc -l < "$LOG")
 
