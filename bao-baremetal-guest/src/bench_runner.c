@@ -585,12 +585,22 @@ static void run_sc08(stats_t *st) {
  * ============================================================ */
 /* Émet une ligne SUMMARY pour un accumulateur de latence donné (DET ou TX). */
 static void dump_acc(const char *tag, const stats_t *s, lat_acc_t *a) {
-    uint64_t avg  = s->N ? (a->L_sum / s->N) : 0;
+    /* Moyenne sur le nombre d'echantillons REELLEMENT accumules (a->n), pas sur
+     * le nombre d'iterations du scenario (s->N). lat_add() rejette les valeurs
+     * nulles : diviser par s->N sous-estimait la moyenne d'un facteur n/N des
+     * que l'un des deux accumulateurs comptait un zero. C'est ce qui faisait
+     * lire SUMMARY-DET a ~0,52 x SUMMARY-TX sur la campagne du 2026-09-08, alors
+     * que le FSM de accel_wrap pose busy_q=0 et done_q=1 dans le meme cycle et
+     * que les deux latences devraient donc etre quasi egales.
+     *
+     * La colonne `n` est emise pour que l'ecart n < N reste visible dans le CSV
+     * au lieu d'etre absorbe par la moyenne. */
+    uint64_t avg  = a->n ? (a->L_sum / (uint64_t)a->n) : 0;
     uint64_t lmin = a->n ? a->L_min : 0;
     uint64_t p50  = pctl_int(a, 50);
     uint64_t p99  = pctl_int(a, 99);
-    printf("%s,%s,%d,%d,%d,%d,%d,%lu,%lu,%lu,%lu,%lu\r\n",
-           tag, s->name, s->N, s->TP, s->FP, s->FN, s->TN,
+    printf("%s,%s,%d,%d,%d,%d,%d,%d,%lu,%lu,%lu,%lu,%lu\r\n",
+           tag, s->name, s->N, a->n, s->TP, s->FP, s->FN, s->TN,
            (unsigned long)lmin, (unsigned long)avg,
            (unsigned long)p50, (unsigned long)p99,
            (unsigned long)a->L_max);
@@ -611,7 +621,7 @@ void main(void) {
     printf("# det_lat = DETECTION (lancement -> 1er verdict ARMOR/DONE)\r\n");
     printf("# tx_lat  = TRANSACTION (lancement -> BUSY=0, round-trip complet)\r\n");
     printf("# verdict : M=MSI O=OUTS S=STORM B=BANNED b=BLOCKED D=DONE E=ERROR\r\n");
-    printf("# SUMMARY-DET / SUMMARY-TX,name,N,TP,FP,FN,TN,Lmin,Lavg,Lp50,Lp99,Lmax\r\n");
+    printf("# SUMMARY-DET / SUMMARY-TX,name,N,n,TP,FP,FN,TN,Lmin,Lavg,Lp50,Lp99,Lmax\r\n");
 
     /* IOMMU activé (mode 1LVL) pour tous les tests */
     setup_iommu_ddt();      /* DOIT précéder set_iommu_mode(2) */
