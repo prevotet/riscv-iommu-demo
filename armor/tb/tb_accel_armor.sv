@@ -737,6 +737,34 @@ module tb_accel_armor;
     int unsigned last_cycles;
     int unsigned cy_off_r, cy_on_r, cy_off_w, cy_on_w;
 
+    // -------------------------------------------------------------------------
+    //  Moniteur du DÉSÉQUILIBRE AW / W en aval — la condition du gel sur carte.
+    //
+    //  Un AW accepté par l'aval engage le maître à fournir ses beats W. Si ARMOR
+    //  termine la transaction côté maître par un SLVERR après coup, ces W ne
+    //  viennent jamais : il reste en aval une écriture acceptée qui attend ses
+    //  données pour toujours, et le canal d'écriture du crossbar se coince.
+    //  C'est le mécanisme proposé pour le gel de SC01 puis SC02 sur carte.
+    //
+    //  aw_owed compte les AW acceptés en aval dont le dernier W n'est pas encore
+    //  passé. Il doit revenir à zéro à la fin de chaque scénario.
+    // -------------------------------------------------------------------------
+    int unsigned aw_owed, aw_owed_max;
+
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            aw_owed     <= 0;
+            aw_owed_max <= 0;
+        end else begin
+            automatic int unsigned nxt = aw_owed;
+            if (req_out.aw_valid && resp_out.aw_ready)              nxt = nxt + 1;
+            if (req_out.w_valid  && resp_out.w_ready && req_out.w.last && nxt > 0)
+                                                                    nxt = nxt - 1;
+            aw_owed <= nxt;
+            if (nxt > aw_owed_max) aw_owed_max <= nxt;
+        end
+    end
+
     task automatic campaign_step(input string       name,
                                  input logic  [2:0] mode,
                                  input logic        is_read,
@@ -806,6 +834,10 @@ module tb_accel_armor;
 
             // "err" et non "timeout" : error_q se leve aussi sur le SLVERR
             // fabrique par ARMOR, qui revient en quelques cycles.
+            if (aw_owed != 0)
+                $display("  %-12s  !! AW SANS W EN AVAL : %0d en attente (max %0d) -- condition du gel carte",
+                         name, aw_owed, aw_owed_max);
+
             $display("  %-12s mode=%0d %-8s -> %5s | %2d iter | %6d cy moy | err %0d/%0d | fail_cnt=%0d | verdict=%b",
                      name, mode, is_read ? "lecture" : "ecriture",
                      ok ? "OK" : "ECHEC", iters, cycles_tot / iters,

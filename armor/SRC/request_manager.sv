@@ -54,7 +54,8 @@ module request_manager #(
     input  logic        rst_ni,
     input  logic        legit_hit,
     input  logic        block_req_i,
-    input  logic        bad_id_i,      // verdict rendu, et mauvais
+    input  logic        bad_id_i,        // verdict rendu, et mauvais
+    input  logic        verdict_known_i, // le verdict de la requete presentee est rendu
     input  req_iommu_t  req_IP_wrapper_i,
     output req_iommu_t  req_wrapper_iommu_o
 );
@@ -62,8 +63,12 @@ module request_manager #(
     always_comb begin
         req_wrapper_iommu_o = req_IP_wrapper_i;
 
-        // Blocage ou ID non encore valide : seuls AW et AR sont coupes.
-        if (block_req_i || !legit_hit) begin
+        // Blocage, ID refuse, ou VERDICT PAS ENCORE RENDU : seuls AW et AR sont
+        // coupes. La troisieme condition est le correctif du gel -- sans elle,
+        // `legit_hit` etant un niveau perime, une requete d'attaque traversait
+        // pendant 2 cycles, l'aval l'acceptait, et l'absence de W qui suivait le
+        // SLVERR coincait le canal d'ecriture du crossbar.
+        if (block_req_i || !legit_hit || !verdict_known_i) begin
             req_wrapper_iommu_o.aw_valid = 1'b0;
             req_wrapper_iommu_o.ar_valid = 1'b0;
         end
