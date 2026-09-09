@@ -760,6 +760,11 @@ void main(void) {
      * scénario démarrant dans cette fenêtre après SC01 hérite du verdict
      * BANNED, quel que soit son trafic.
      *
+     * MISE À JOUR 2026-09-09 : SC01 est passé en TOUT DERNIER parce qu'il gèle
+     * la carte et emportait SC02, SC04 et SC03 avec lui. Voir le commentaire à
+     * sa nouvelle place. L'ordre ci-dessous décrit le raisonnement d'origine,
+     * qui reste valable pour tous les autres.
+     *
      * Dans l'ordre numérique précédent (SC01, SC02, SC04, SC06, SC07, SC08,
      * SC03), SC02 et SC04 démarraient forcément dans cette fenêtre et les
      * premières itérations de SC06 pouvaient y être encore : une source de
@@ -816,11 +821,6 @@ void main(void) {
      * device banni et tout y paraît bloqué. Fond LHA actif pour la contention. */
     run_sc08(&s[n++]);
 
-    /* SC-01 : ID spoofing — attendu BANNED par ARMOR
-     *   Le détecteur de spoof regarde le TID AXI : indépendant de la dest.
-     *   À partir d'ici et pour ~2 ms, le device reste banni. */
-    run_scenario("SC01-SPOOF", 'M', /*mode*/1, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
-
     /* SC-02 : Request storm — attendu STORM. */
     run_scenario("SC02-STORM", 'M', /*mode*/4, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
 
@@ -838,6 +838,26 @@ void main(void) {
      * se re-latche après chaque clear-au-start). En le plaçant tout à la fin,
      * plus aucun scénario ne s'exécute après -> aucune contamination. */
     run_scenario("SC03-OUTS",  'M', /*mode*/5, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
+
+    /* SC-01 : ID spoofing — attendu BANNED par ARMOR. EXÉCUTÉ EN TOUT DERNIER,
+     * et c'est un contournement assumé, pas un choix de méthode.
+     *
+     * SC01 GÈLE LE CPU sur carte, à la première itération, avant la moindre
+     * ligne CSV — le 2026-09-08 puis le 2026-09-09, au même endroit, avec et
+     * sans le correctif `bad_id` du wrapper. Tant qu'il était placé avant
+     * SC02/SC04/SC03, il emportait avec lui les TROIS seuls scénarios de
+     * protection sous ENFORCE=1 que la campagne pouvait produire. En dernier,
+     * tout le reste est mesuré et le gel ne coûte plus que SC01.
+     *
+     * CE QUE ÇA COÛTE, à savoir avant de lire ses chiffres : SC03 laisse le
+     * compteur d'outstanding du wrapper saturé pour le reste de la campagne
+     * (voir juste au-dessus), donc SC01 hérite d'un OUTS parasite. Ses verdicts
+     * ne valent rien dans cet ordre. C'est acceptable uniquement parce qu'il
+     * n'en produit aucun.
+     *
+     * À RÉTABLIR dès que le gel est corrigé : replacer ce bloc avant SC02, à sa
+     * position d'origine, pour retrouver un SC01 propre. */
+    run_scenario("SC01-SPOOF", 'M', /*mode*/1, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
 #ifndef BENCH_NO_LHA_BG
     lha_bg_stop();   /* arrêt du trafic de fond */
 #endif
