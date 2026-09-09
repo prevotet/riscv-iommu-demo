@@ -45,21 +45,62 @@ done
 # -----------------------------------------------------------------------------
 #  Trouver l'UART.
 #
-#  Pas de /dev/ttyUSB1 en dur : le numéro dépend de l'ordre d'énumération et un
-#  FT232R separé occupe déjà ttyUSB0 sur cette machine. On vise l'INTERFACE 1
-#  du pont FT2232 (0403:6010) de la carte : l'interface 0 est le JTAG,
-#  l'interface 1 est l'UART. C'est stable quel que soit le numéro attribué.
+#  L'UART de la carte arrive par un ADAPTATEUR FT232R SÉPARÉ (0403:6001), pas
+#  par un canal du pont FT2232 de la Genesys2. C'est le port que l'utilisateur
+#  a confirmé le 2026-09-09 : /dev/ttyUSB0.
+#
+#  Ne pas refaire l'erreur : le pont FT2232 (0403:6010) de la carte expose bien
+#  deux ttyUSB, mais aucun des deux ne porte la console. Écouter l'un d'eux ne
+#  produit aucun octet et ressemble trait pour trait à une carte gelée -- 90 s
+#  de silence perdues là-dessus.
+#
+#  On cherche donc le FT232R d'abord, le pont FT2232 seulement en secours, et
+#  -d passe outre dans tous les cas.
 # -----------------------------------------------------------------------------
+UART_IFACE="${UART_IFACE:-0}"
+
+#  Premier tty d'une interface USB donnée. $1 = répertoire du device, $2 = numéro
+#  d'interface.
+iface_tty() {
+    local tty
+    for tty in "$1:1.$2"/tty*; do
+        [[ -e "$tty" ]] && { echo "/dev/$(basename "$tty")"; return 0; }
+    done
+    return 1
+}
+
+#  Tous les devices USB d'un couple vendeur/produit donné.
+usb_devices() {
+    local d
+    for d in /sys/bus/usb/devices/*; do
+        [[ -f "$d/idVendor" && -f "$d/idProduct" ]] || continue
+        [[ "$(cat "$d/idVendor")"  == "$1" ]] || continue
+        [[ "$(cat "$d/idProduct")" == "$2" ]] || continue
+        echo "$d"
+    done
+}
+
 find_uart() {
-    local devdir iface tty
-    for devdir in /sys/bus/usb/devices/*; do
-        [[ -f "$devdir/idVendor" && -f "$devdir/idProduct" ]] || continue
-        [[ "$(cat "$devdir/idVendor")"  == "0403" ]] || continue
-        [[ "$(cat "$devdir/idProduct")" == "6010" ]] || continue
-        iface="$devdir:1.1"
-        [[ -d "$iface" ]] || continue
-        for tty in "$iface"/tty*; do
-            [[ -e "$tty" ]] && { echo "/dev/$(basename "$tty")"; return 0; }
+    local d
+    # 1. l'adaptateur FT232R : c'est lui la console.
+    for d in $(usb_devices 0403 6001); do
+        iface_tty "$d" 0 && return 0
+    done
+    # 2. secours : un canal du pont de la carte.
+    for d in $(usb_devices 0403 6010); do
+        iface_tty "$d" "$UART_IFACE" && return 0
+    done
+    return 1
+}
+
+#  L'autre candidat plausible, à conseiller si le port choisi reste muet.
+other_uart() {
+    local d cur
+    cur="$(find_uart || true)"
+    for d in $(usb_devices 0403 6001) $(usb_devices 0403 6010); do
+        for i in 0 1; do
+            t="$(iface_tty "$d" $i || true)"
+            [[ -n "$t" && "$t" != "$cur" ]] && { echo "$t"; return 0; }
         done
     done
     return 1
@@ -79,7 +120,7 @@ if [[ -z "$DEV" ]]; then
     DEV="$(find_uart || true)"
 
     if [[ -z "$DEV" ]] && ft2232_present; then
-        echo "Le pont FT2232 est là mais aucun ttyUSB n'y est attaché."
+        echo "Aucun adaptateur FT232R, et aucun ttyUSB sur le pont de la carte."
         echo "Signature de Vivado : hw_server a détaché ftdi_sio. Rebind…"
         sudo modprobe -r ftdi_sio 2>/dev/null
         if sudo modprobe ftdi_sio; then
@@ -99,7 +140,7 @@ if [[ -z "$DEV" ]]; then
         elif ft2232_present; then
             echo "Rebind sans effet — débrancher/rebrancher le câble USB de la carte." >&2
         else
-            echo "Carte absente : aucun pont FT2232 (0403:6010) sur le bus USB." >&2
+            echo "Aucun port série : ni FT232R (0403:6001), ni pont FT2232 (0403:6010)." >&2
         fi
         exit 1
     fi
@@ -113,6 +154,9 @@ if [[ -z "$LOG" ]]; then
     LOG="$ROOT/results/bench_$(date +%F_%H%M%S).log"
 fi
 [[ -e "$LOG" ]] && { echo "$LOG existe déjà — refus d'écraser." >&2; exit 1; }
+#  Créé tout de suite : sans cela une capture qui ne reçoit RIEN ne laisse aucun
+#  fichier, et le récapitulatif final échoue sur son propre journal.
+: > "$LOG" || { echo "Impossible d'écrire $LOG." >&2; exit 1; }
 
 stty -F "$DEV" "$BAUD" raw -echo -echoe -echok -crtscts
 
@@ -150,9 +194,21 @@ elif (( rc > 0 )); then
     status="port fermé (fin de flux)"
 fi
 
+lines=$(wc -l < "$LOG")
+
 echo
 echo "--- $status"
-echo "--- $(wc -l < "$LOG") lignes dans $LOG"
+echo "--- $lines lignes dans $LOG"
+
+if (( lines == 0 )); then
+    alt="$(other_uart || true)"
+    echo
+    echo "Aucun octet reçu. Dans l'ordre de vraisemblance :"
+    echo "  1. la carte n'a pas été resetée après l'ouverture de la capture ;"
+    [[ -n "$alt" ]] && \
+    echo "  2. mauvais canal — essayer l'autre : $0 -d $alt"
+    echo "  3. le FPGA n'est pas programmé, ou le firmware n'a pas démarré."
+fi
 
 # Les trois lignes à vérifier avant d'exploiter le moindre chiffre.
 echo
