@@ -4,7 +4,7 @@
 #
 #    tools/capture_uart.sh                 # détecte le port, écrit dans results/
 #    tools/capture_uart.sh -o mon.log      # nom de fichier imposé
-#    tools/capture_uart.sh -t 120          # silence toléré, en secondes
+#    tools/capture_uart.sh -t 120          # silence toléré, en secondes (défaut 300)
 #    tools/capture_uart.sh -d /dev/ttyUSB1 # port imposé
 #
 #  Pourquoi ce script plutôt qu'un picocom à la main :
@@ -28,7 +28,15 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BAUD=115200
-IDLE=90
+#  Délai d'inactivité GÉNÉREUX, et ce n'est pas de la prudence mal placée : la
+#  ROM de boot copie TOUTE la partition de 32 Mio depuis la SD par SPI
+#  (`sd_copy`, bootrom/src/gpt.c) en n'émettant que des POINTS, sans retour à la
+#  ligne — le ` done!` n'arrive qu'à la fin. Comme on lit des LIGNES, ces points
+#  ne réarment pas le compteur : à 90 s la capture se coupait en pleine copie,
+#  en annonçant un gel, alors que le transfert progressait à l'écran (logs
+#  bench_2026-09-09_0933 et _0947, tous deux tronqués à cet endroit).
+#  300 s couvrent la copie ; SC03, le plus lent des scénarios, reste loin dessous.
+IDLE=300
 DEV=""
 LOG=""
 
