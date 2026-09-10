@@ -18,7 +18,14 @@ module outs_req_monitor #(
 
     // Outputs
     output logic        overflow_flag,
-    output logic        block_req
+    output logic        block_req,
+
+    // Observabilite pure (aucun effet fonctionnel) : profondeur courante du
+    // compteur d'outstanding, remontee aux CSR du wrapper. Sans elle, le seul
+    // temoin de la saturation etait `overflow_flag`, un booleen -- impossible de
+    // savoir si l'on frole le seuil ou si l'on en est loin, ce qui est
+    // exactement la question posee par SC03.
+    output logic [7:0]  outstanding_o
 );
 
     // Détection des handshakes de réponses
@@ -73,6 +80,10 @@ module outs_req_monitor #(
 
     // Détection de l'overflow
     assign overflow_flag = (outstanding >= MAX_OUTSTANDING);
+
+    // Extension zero implicite vers 8 bits : `outstanding` est un vecteur non
+    // signe de $clog2(MAX+1)+1 bits, soit 6 pour MAX_OUTSTANDING = 16.
+    assign outstanding_o = outstanding;
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin

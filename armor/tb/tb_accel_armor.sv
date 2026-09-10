@@ -72,7 +72,25 @@ module tb_accel_armor;
     localparam logic [63:0] CSR_FAILCNT = 64'h28;
     localparam logic [63:0] CSR_MAGIC  = 64'h58;
 
-    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000001;
+    // Bloc d'observabilite (MAGIC v2) — voir armor/SRC/wrapper.sv
+    localparam logic [63:0] CSR_DBG_UP    = 64'h60;
+    localparam logic [63:0] CSR_DBG_DN    = 64'h68;
+    localparam logic [63:0] CSR_DBG_STATE = 64'h70;
+    localparam logic [63:0] CSR_STALL_UP  = 64'h78;
+    localparam logic [63:0] CSR_STALL_DN  = 64'h80;
+    localparam logic [63:0] CSR_CNT_CYC   = 64'h88;
+    localparam logic [63:0] CSR_CNT_REQ   = 64'h90;
+    localparam logic [63:0] CSR_LAT_LAST  = 64'h98;
+    localparam logic [63:0] CSR_LAT_DSUM  = 64'hA0;
+    localparam logic [63:0] CSR_LAT_TSUM  = 64'hA8;
+    localparam logic [63:0] CSR_LAT_N     = 64'hB0;
+    localparam logic [63:0] CSR_LAT_MM    = 64'hB8;
+    localparam logic [63:0] CSR_LAT_CUR   = 64'hC0;
+    localparam logic [63:0] CSR_CYC_TOTAL = 64'hC8;
+
+    int unsigned obs_fail = 0;   // defauts trouves dans le bloc d'observabilite
+
+    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000002;   // version 2 : registres d'observabilite
 
     localparam logic [63:0] LEGIT_DST = 64'h0000_0000_9100_0000;
 
@@ -721,6 +739,8 @@ module tb_accel_armor;
         csr_read(CSR_STATUS, rd);
         if (!cfg_timeout) $display("[%0t] ARMOR STATUS = 0x%016h", $time, rd);
 
+        check_observability();
+
         report_and_finish();
     end
 
@@ -888,7 +908,11 @@ module tb_accel_armor;
             // fautives, donc au moins trois transactions. Une seule ne peut pas
             // le declencher -- c'est pourquoi bench_runner.c lance N_ATK
             // iterations par scenario.
-            csr_write(CSR_CTRL, {62'h0, 1'b1, enforce});   // STICKY_CLR=1
+            //  CNT_CLR en plus de STICKY_CLR, comme armor_wrap_clear() cote
+            //  firmware : sans lui les compteurs materiels s'additionnent d'un
+            //  pas sur l'autre et la ligne HW ci-dessous ne serait pas
+            //  attribuable au scenario.
+            csr_write(CSR_CTRL, {61'h0, 1'b1, 1'b1, enforce});  // CNT_CLR|STICKY_CLR
             if (cfg_timeout) return;
 
             acc_write(ACC_BASE,   LEGIT_DST);
@@ -952,6 +976,7 @@ module tb_accel_armor;
                      name, mode, is_read ? "lecture" : "ecriture",
                      ok ? "OK" : "ECHEC", iters, cycles_tot / iters,
                      n_err, iters, fails[7:0], got);
+            obs_line(name);
             last_cycles = cycles_tot / iters;
         end
     endtask
@@ -1128,13 +1153,233 @@ module tb_accel_armor;
             // contamination, pas un echec du detecteur.
             campaign_step("LEGIT-apres01", 3'd0, 1'b0, BIT_BANNED[4:0], 1'b0, 8, 1'b1);
 
+            //  Les invariantes generales du bloc d'observabilite valent aussi
+            //  sous ENFORCE = 1 : c'est le seul endroit ou elles sont
+            //  confrontees a du trafic reellement bloque.
+            check_observability();
+
             $display("");
             $display("-------------------------------------------------------");
             $display(" CAMPAGNE : %0d OK, %0d ECHEC", n_pass, n_fail);
+            $display(" OBSERVABILITE : %0d defaut(s)", obs_fail);
             if (cfg_timeout)
                 $display(" un acces MMIO n'a pas abouti : resultats incomplets");
             $display("-------------------------------------------------------");
             $finish;
+        end
+    endtask
+
+    // -------------------------------------------------------------------------
+    //  VERIFICATION DU BLOC D'OBSERVABILITE  (2026-09-10)
+    //
+    //  Un compteur de debogage faux est pire que pas de compteur : il fait
+    //  accuser le mauvais coupable. Chaque grandeur est donc confrontee a une
+    //  verite que le banc connait PAR AILLEURS -- les compteurs de l'aval
+    //  comportemental, qui comptent les memes handshakes sans passer par le RTL
+    //  teste -- ou a une invariante que la logique ne peut pas violer.
+    //
+    //  Les trois scenarios du banc couvrent chacun une des trois nouveautes :
+    //    scenario 0 (aval sain)        -> le chronometre boucle et se desarme ;
+    //    scenario 1 (accepte, ne repond pas) -> LAT_CUR doit montrer une
+    //                                    transaction EN VOL qui ne finit pas,
+    //                                    c'est la signature de gel annoncee ;
+    //    scenario 2 (n'accepte rien)   -> DBG_STALL_DN doit nommer le canal
+    //                                    d'adresse qui n'obtient pas son ready.
+    // -------------------------------------------------------------------------
+    //  Une ligne compacte par pas de campagne : ce que le MATERIEL a mesure,
+    //  a cote de ce que le banc a mesure par $time. L'ecart entre les deux
+    //  colonnes de cycles est la meme grandeur que l'ecart Lp50/Lhw qu'on
+    //  cherche a chiffrer sur carte -- a ceci pres qu'ici il n'y a pas de sonde
+    //  logicielle, seulement la granularite de la boucle d'attente.
+    //
+    //  Rappel de ce que compte le materiel : UNE TRANSACTION AXI, du front de
+    //  presentation a la reponse rendue au maitre. Le banc, lui, compte UNE
+    //  ITERATION de l'accelerateur, qui en contient plusieurs sur les modes de
+    //  rafale. n depasse donc `iters` sur les tempetes -- et ce n'est pas une
+    //  anomalie.
+    task automatic obs_line(input string name);
+        logic [63:0] cyc, req, ln, ll, mm, sd, cur;
+        begin
+            if (cfg_timeout) return;
+            csr_read(CSR_CNT_CYC,  cyc);
+            csr_read(CSR_CNT_REQ,  req);
+            csr_read(CSR_LAT_N,    ln);
+            csr_read(CSR_LAT_LAST, ll);
+            csr_read(CSR_LAT_MM,   mm);
+            csr_read(CSR_STALL_DN, sd);
+            csr_read(CSR_LAT_CUR,  cur);
+            $display("  %-12s  HW : n=%0d/%0d verdict | det[min,max]=[%0d,%0d] tx[min,max]=[%0d,%0d] | req up=%0d dn=%0d coupees=%0d | block=%0d cy hold=%0d cy | attente dn aw=%0d ar=%0d | en vol=%0b(%0d cy)",
+                     name, ln[31:0], ln[63:32],
+                     mm[15:0], mm[31:16], mm[47:32], mm[63:48],
+                     req[31:0], req[63:32], req[31:0] - req[63:32],
+                     cyc[31:0], cyc[63:32],
+                     sd[11:0], sd[47:36],
+                     cur[32], cur[31:0]);
+
+            //  Incoherence INTERNE a l'instrumentation : le materiel a compte
+            //  des cycles de blocage, donc un verdict a bien ete haut, mais
+            //  aucune transaction mesuree ne l'a horodate. C'etait le cas avant
+            //  que lat_evt_q ne soit echantillonne des le cycle de depart :
+            //  n_verdict restait a zero sur SC02-STORM et SC01-SPOOF. Ce
+            //  controle existe pour que ce defaut ne revienne pas sans bruit.
+            //
+            //  A ne pas confondre avec « ARMOR n'a rien detecte » : si
+            //  cyc_block vaut zero, il n'y avait rien a horodater (c'est le cas
+            //  de SC03-OUTS, dont l'echec est ailleurs).
+            if (cyc[31:0] != 0)
+                obs_check(ln[63:32] != 0,
+                          $sformatf("%s : %0d cycles de blocage comptes mais n_verdict=0",
+                                    name, cyc[31:0]));
+        end
+    endtask
+
+    task automatic obs_check(input bit cond, input string what);
+        begin
+            if (!cond) begin
+                obs_fail++;
+                $display("   OBS ECHEC : %s", what);
+            end
+        end
+    endtask
+
+    task automatic check_observability();
+        logic [63:0] up, dn, dst, su, sd, cyc, req, ll, mm, cur, tot, tot2;
+        logic [63:0] ln, dsum, tsum;
+        int unsigned req_up, req_dn, cyc_blk, cyc_hold, n, n_blk;
+        begin
+            if (cfg_timeout) begin
+                $display("   observabilite : port CSR verrouille, non lisible");
+                return;
+            end
+
+            csr_read(CSR_DBG_UP,    up);
+            csr_read(CSR_DBG_DN,    dn);
+            csr_read(CSR_DBG_STATE, dst);
+            csr_read(CSR_STALL_UP,  su);
+            csr_read(CSR_STALL_DN,  sd);
+            csr_read(CSR_CNT_CYC,   cyc);
+            csr_read(CSR_CNT_REQ,   req);
+            csr_read(CSR_LAT_LAST,  ll);
+            csr_read(CSR_LAT_DSUM,  dsum);
+            csr_read(CSR_LAT_TSUM,  tsum);
+            csr_read(CSR_LAT_N,     ln);
+            csr_read(CSR_LAT_MM,    mm);
+            csr_read(CSR_LAT_CUR,   cur);
+            csr_read(CSR_CYC_TOTAL, tot);
+
+            req_up   = req[31:0];
+            req_dn   = req[63:32];
+            cyc_blk  = cyc[31:0];
+            cyc_hold = cyc[63:32];
+            n        = ln[31:0];
+            n_blk    = ln[63:32];
+
+            $display("-------------------------------------------------------");
+            $display(" OBSERVABILITE (MAGIC v2)");
+            $display("   DBG_UP=0x%03h  DBG_DN=0x%03h", up[11:0], dn[11:0]);
+            $display("   etat : w_owed=%0d w_pending=%0b vk=%0b cvalid=%0b bad_id=%0b legit=%0b",
+                     dst[3:0], dst[4], dst[5], dst[6], dst[7], dst[8]);
+            $display("   etat : fail=%0d outs=%0d req_cnt=%0d fenetre=%0d fsm_w=%0d fsm_r=%0d",
+                     dst[23:16], dst[31:24], dst[39:32], dst[63:40], dst[12:11], dst[13]);
+            $display("   attentes up : aw=%0d w=%0d b=%0d ar=%0d r=%0d",
+                     su[11:0], su[23:12], su[35:24], su[47:36], su[59:48]);
+            $display("   attentes dn : aw=%0d w=%0d b=%0d ar=%0d r=%0d",
+                     sd[11:0], sd[23:12], sd[35:24], sd[47:36], sd[59:48]);
+            $display("   trafic : req_up=%0d req_dn=%0d (coupees=%0d)",
+                     req_up, req_dn, req_up - req_dn);
+            $display("   temps  : cyc_block=%0d cyc_hold=%0d cyc_total=%0d",
+                     cyc_blk, cyc_hold, tot[31:0]);
+            $display("   latence: n=%0d n_verdict=%0d det_last=%0d tx_last=%0d",
+                     n, n_blk, ll[31:0], ll[63:32]);
+            $display("   latence: det_sum=%0d tx_sum=%0d det[min,max]=[%0d,%0d] tx[min,max]=[%0d,%0d]",
+                     dsum, tsum, mm[15:0], mm[31:16], mm[47:32], mm[63:48]);
+            $display("   en vol : busy=%0b cycles=%0d verdict_vu=%0b",
+                     cur[32], cur[31:0], cur[33]);
+
+            // --- invariantes vraies dans TOUS les scenarios -------------------
+            //  Le compteur aval doit reproduire EXACTEMENT ce que l'aval
+            //  comportemental a accepte. C'est le controle croise le plus fort
+            //  du bloc : deux comptages independants du meme handshake.
+            //  Reserve aux scenarios a une seule transaction : dans la
+            //  campagne, les compteurs de l'aval sont cumules sur tous les pas
+            //  alors que req_dn a ete remis a zero au dernier CNT_CLR. La
+            //  comparaison n'y aurait aucun sens.
+            if (scenario != 3)
+                obs_check(req_dn == (aw_seen + ar_seen),
+                          $sformatf("req_dn=%0d mais l'aval a accepte %0d adresses (aw=%0d ar=%0d)",
+                                    req_dn, aw_seen + ar_seen, aw_seen, ar_seen));
+
+            //  On ne peut pas admettre en aval plus que le maitre n'a presente.
+            obs_check(req_up >= req_dn,
+                      $sformatf("req_up=%0d < req_dn=%0d : impossible", req_up, req_dn));
+
+            //  n compte les transactions bouclees, n_blk celles ou un verdict a
+            //  ete vu : la seconde est un sous-ensemble de la premiere.
+            obs_check(n_blk <= n,
+                      $sformatf("n_verdict=%0d > n=%0d", n_blk, n));
+
+            //  Les sommes doivent etre coherentes avec le nombre d'echantillons.
+            obs_check(!(n == 0 && (dsum != 0 || tsum != 0)),
+                      "n=0 mais les sommes de latence ne sont pas nulles");
+            obs_check(dsum <= tsum,
+                      $sformatf("det_sum=%0d > tx_sum=%0d : la detection ne peut pas suivre la fin", dsum, tsum));
+
+            //  Le compteur de cycles doit avancer. Une lecture plus tard doit
+            //  donner strictement plus : sinon il est gele (mauvais reset, ou
+            //  CNT_CLR interprete comme un reset asynchrone permanent).
+            repeat (20) @(posedge clk_i);
+            csr_read(CSR_CYC_TOTAL, tot2);
+            obs_check(tot2 > tot,
+                      $sformatf("cyc_total ne progresse pas (%0d puis %0d)", tot, tot2));
+
+            // --- invariantes propres a chaque scenario ------------------------
+            if (scenario == 0) begin
+                obs_check(n >= 1, "aval sain : aucune transaction chronometree");
+                obs_check(cur[32] == 1'b0,
+                          "aval sain : une transaction est restee en vol");
+                obs_check(cyc_blk == 0,
+                          $sformatf("aval sain et trafic legitime : %0d cycles de blocage", cyc_blk));
+                obs_check(ll[63:32] > 0, "aval sain : tx_last nul");
+            end
+
+            if (scenario == 1) begin
+                //  L'aval accepte l'adresse et ne repond jamais : la mesure
+                //  reste ouverte. C'est precisement l'etat que LAT_CUR existe
+                //  pour rendre lisible sur carte.
+                obs_check(cur[32] == 1'b1,
+                          "aval muet : aucune transaction signalee en vol");
+                obs_check(cur[31:0] > 100,
+                          $sformatf("aval muet : le compteur en vol n'a que %0d cycles", cur[31:0]));
+            end
+
+            if (scenario == 2) begin
+                //  L'aval n'accepte rien : le canal d'adresse presente son valid
+                //  sans jamais recevoir son ready.
+                obs_check((sd[11:0] > 100) || (sd[47:36] > 100),
+                          $sformatf("aval bouche : attente dn aw=%0d ar=%0d, trop faible",
+                                    sd[11:0], sd[47:36]));
+                obs_check(req_dn == 0,
+                          $sformatf("aval bouche : req_dn=%0d alors que rien n'est accepte", req_dn));
+            end
+
+            // --- CNT_CLR doit vraiment effacer, et seulement quand on le dit --
+            //  Test en dernier : il detruit les compteurs. Il verifie surtout que
+            //  la remise a zero est bien SYNCHRONE -- si CNT_CLR etait pris pour
+            //  un reset asynchrone, le compteur libre resterait a zero apres.
+            csr_write(CSR_CTRL, 64'b100);          // CNT_CLR seul, ENFORCE = 0
+            csr_read(CSR_CNT_REQ,   req);
+            csr_read(CSR_LAT_N,     ln);
+            csr_read(CSR_STALL_DN,  sd);
+            obs_check(req == 0, $sformatf("CNT_CLR n'a pas efface CNT_REQ (0x%016h)", req));
+            obs_check(ln  == 0, $sformatf("CNT_CLR n'a pas efface LAT_N (0x%016h)", ln));
+            obs_check(sd  == 0, $sformatf("CNT_CLR n'a pas efface DBG_STALL_DN (0x%016h)", sd));
+
+            repeat (20) @(posedge clk_i);
+            csr_read(CSR_CYC_TOTAL, tot2);
+            obs_check(tot2 > 0, "cyc_total reste a zero apres CNT_CLR : remise a zero non synchrone");
+
+            $display("   -> observabilite : %0d defaut(s)", obs_fail);
+            $display("-------------------------------------------------------");
         end
     endtask
 
@@ -1151,7 +1396,10 @@ module tb_accel_armor;
                      aw_seen, w_seen, ar_seen, b_sent, r_sent);
             $display("   accel   : %s", accel_state_str());
             $display("   wrapper : %s", wrapper_state_str());
+            $display("   observabilite     : %0d defaut(s)", obs_fail);
             $display("-------------------------------------------------------");
+            if (obs_fail != 0)
+                $display(" ATTENTION : le bloc d'observabilite ment sur %0d point(s) -- ne pas synthetiser.", obs_fail);
             if (scenario == 0) begin
                 // done ET error ensemble = timeout de l'accelerateur, pas une
                 // transaction aboutie : c'est exactement ce que les campagnes

@@ -25,7 +25,14 @@ module request_flow_monitor #(
     // Outputs
     output logic        storm_flag,
     output logic        block_req,
-    output logic        req_fire        // signal injected in proceeding modules 
+    output logic        req_fire,       // signal injected in proceeding modules
+
+    // Observabilite pure : nombre de requetes comptees dans la fenetre courante
+    // et position dans la fenetre. Le seuil se lit alors comme une marge et non
+    // comme un booleen -- necessaire pour savoir de combien SC08 passe sous le
+    // seuil, et pour objecter que MAX_REQ_PER_WINDOW est mal calibre en DEMO.
+    output logic [7:0]  req_cnt_o,
+    output logic [31:0] window_cnt_o
 );
     // =========================================================================
     //  Comptage : UN front montant de handshake = UNE requete.
@@ -98,6 +105,11 @@ module request_flow_monitor #(
     end
 
     assign storm_flag = (req_cnt >= MAX_REQ_PER_WINDOW);
+
+    // Extension zero implicite : req_cnt fait 4 bits (seuil 8), window_cnt en
+    // fait 8 en profil BENCH et 17 en DEMO -- 32 bits couvrent les deux.
+    assign req_cnt_o    = req_cnt;
+    assign window_cnt_o = window_cnt;
     
     
     // Blocage temporaire

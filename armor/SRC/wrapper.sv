@@ -144,6 +144,11 @@ logic [31:0]            cnt_banned_q, cnt_storm_q, cnt_outs_q, cnt_msi_q;
 logic [DevIDWidth-1:0]  dev_id_last_q;
 logic                   csr_sticky_clr, csr_cnt_clr;
 
+// Remontees d'observabilite des moniteurs (aucun effet fonctionnel).
+logic [7:0]             outs_depth;      // profondeur outstanding courante
+logic [7:0]             flow_req_cnt;    // requetes comptees dans la fenetre
+logic [31:0]            flow_window_cnt; // position dans la fenetre
+
 // Signaux effectifs, apres la gate ENFORCE (CTRL[0], cf. bloc CSR en fin de
 // module). ENFORCE = 0 -> le wrapper laisse tout passer et se contente
 // d'observer ; ENFORCE = 1 -> comportement ARMOR complet.
@@ -392,7 +397,9 @@ request_flow_monitor #(
     .legit_hit_i(legit_hit_eff),
     .storm_flag(storm_flag),
     .block_req(block_req_flow),
-    .req_fire(req_fire_signal) 
+    .req_fire(req_fire_signal),
+    .req_cnt_o(flow_req_cnt),
+    .window_cnt_o(flow_window_cnt)
 
 );
 
@@ -408,7 +415,8 @@ outs_req_monitor #(
     .resp_wrapper_iommu_i(resp_wrapper_iommu_i),
     .req_IP_wrapper_i(req_IP_wrapper_i),
     .overflow_flag(overflow_flag_outs),
-    .block_req(block_req_outs)
+    .block_req(block_req_outs),
+    .outstanding_o(outs_depth)
 );
 interrupt_monitor #(
     .WINDOW_CYCLES(1024),
@@ -468,7 +476,47 @@ response_delayer #(
 //   0x40  CNT_OUTS     RO  nombre d'episodes de saturation outstanding
 //   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
 //   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
-//   0x58  MAGIC        RO  0x41524D4F52000001 ("ARMOR" + version)
+//   0x58  MAGIC        RO  0x41524D4F52000002 ("ARMOR" + version)
+//
+// Bloc d'observabilite, ajoute le 2026-09-10 (d'ou MAGIC ...0002 : le logiciel
+// distingue ainsi un bitstream qui porte ces registres d'un qui n'en a pas).
+// Tout est en lecture seule et sans effet fonctionnel ; les accumulateurs sont
+// remis a zero par CNT_CLR, comme les compteurs d'evenements.
+//
+//   0x60  DBG_UP       RO  poignees de main VIVANTES cote maitre surveille
+//   0x68  DBG_DN       RO  poignees de main VIVANTES cote aval
+//                          [0] aw_valid [1] aw_ready [2] w_valid [3] w_ready
+//                          [4] w_last   [5] b_valid  [6] b_ready [7] ar_valid
+//                          [8] ar_ready [9] r_valid [10] r_ready [11] r_last
+//   0x70  DBG_STATE    RO  [3:0] w_owed [4] w_pending [5] verdict_known
+//                          [6] comparison_valid [7] bad_id [8] legit_hit
+//                          [9] legit_hit_eff [10] verdict_known_eff
+//                          [12:11] FSM ecriture CSR [13] FSM lecture CSR
+//                          [23:16] failure_count [31:24] outstanding
+//                          [39:32] req_cnt fenetre [63:40] position fenetre
+//   0x78  DBG_STALL_UP RO  plus longue attente d'un ready, cote maitre, par
+//   0x80  DBG_STALL_DN RO  canal AW/W/B/AR/R : 5 champs de 12 bits, satures a
+//                          4095. Saturé = coince ; moyen = contention.
+//   0x88  CNT_CYC      RO  [31:0] cycles de blocage effectif
+//                          [63:32] cycles passes en attente de verdict (HOLD)
+//   0x90  CNT_REQ      RO  [31:0] transferts AW+AR presentes par le maitre
+//                          [63:32] transferts AW+AR admis en aval
+//                          leur difference = requetes reellement coupees
+//   0x98  LAT_LAST     RO  [31:0] latence de detection de la derniere
+//                          transaction, [63:32] latence de transaction
+//   0xA0  LAT_DET_SUM  RO  somme des latences de detection
+//   0xA8  LAT_TX_SUM   RO  somme des latences de transaction
+//   0xB0  LAT_N        RO  [31:0] transactions mesurees
+//                          [63:32] dont un verdict a ete observe
+//   0xB8  LAT_MINMAX   RO  [15:0] det_min [31:16] det_max
+//                          [47:32] tx_min [63:48] tx_max (satures a 65535)
+//   0xC0  LAT_CUR      RO  [31:0] compteur de la transaction EN VOL,
+//                          [32] mesure en cours, [33] verdict deja vu
+//   0xC8  CYC_TOTAL    RO  cycles ecoules depuis le dernier CNT_CLR
+//
+// Ces compteurs chronometrent au cycle, dans le wrapper : ils remplacent la
+// mesure logicielle prise autour de `*ctrl = 1`, dont jusqu'a 48 % du chiffre
+// etait le cout de la sonde elle-meme.
 //
 // STATUS et STICKY reprennent volontairement les positions de bits deja
 // utilisees cote logiciel (bench_runner.c / main.c), pour que classify() et
@@ -668,6 +716,413 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
     end
 end
 
+// =============================================================================
+//  OBSERVABILITE MATERIELLE  (2026-09-10)
+//
+//  Deux besoins, un seul bloc.
+//
+//  1. MESURER. Toutes les latences publiees jusqu'ici sont prises par le
+//     logiciel, autour de `*ctrl = 1`, avec une lecture de compteur de part et
+//     d'autre. Le cout de la sonde elle-meme (~650 ticks par lecture de `time`
+//     sous Bao, ~1300 cycles coeur) representait jusqu'a 48 % du chiffre
+//     publie : la mesure etait bornee par l'instrument, pas par le materiel.
+//     Les compteurs ci-dessous chronometrent DANS le wrapper, au cycle, sans
+//     instrument dans la boucle. C'est la mesure qu'on peut opposer a une autre
+//     implementation.
+//
+//  2. DEBOGUER LE GEL. Le gel de SC02-STORM se produit sur un store CPU qui
+//     n'emprunte meme pas ARMOR : pour qu'il reste en l'air, il faut que le
+//     canal d'ecriture du crossbar partage soit coince par le chemin DMA. Le
+//     banc de simulation ne modelise pas ce crossbar et a valide du vide quatre
+//     fois de suite. Il faut donc lire l'etat sur la carte. Les registres
+//     DBG_UP / DBG_DN donnent les poignees de main VIVANTES des deux cotes de
+//     la coupure, DBG_STALL_* dit quel canal ne recoit pas son ready et depuis
+//     combien de cycles, LAT_CUR dit depuis combien de temps une transaction
+//     est en vol. Un blocage se lit alors, au lieu de se deviner.
+//
+//  Tout ce bloc est en LECTURE SEULE et ne pilote aucun signal fonctionnel :
+//  aucun risque de changer un verdict en instrumentant. Les accumulateurs
+//  suivent CNT_CLR, comme les compteurs d'evenements existants.
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+//  Poignees de main vivantes, de part et d'autre de la coupure
+//
+//  Meme disposition de bits des deux cotes, pour un seul decodeur logiciel :
+//    [0] aw_valid [1] aw_ready [2] w_valid [3] w_ready [4] w_last
+//    [5] b_valid  [6] b_ready  [7] ar_valid [8] ar_ready
+//    [9] r_valid [10] r_ready [11] r_last
+//
+//  « up » = cote maitre surveille (l'accelerateur), « dn » = cote aval (IOMMU
+//  puis crossbar). Comparer les deux revele exactement ce que la detection
+//  actuelle confond : `request_flow_monitor` apparie le valid du maitre avec le
+//  ready de l'aval, si bien qu'un handshake « brut » reste vrai alors qu'ARMOR
+//  coupe et que rien ne circule.
+// -----------------------------------------------------------------------------
+logic [11:0] dbg_up, dbg_dn;
+
+always_comb begin
+    dbg_up      = 12'h0;
+    dbg_up[0]   = req_IP_wrapper_i.aw_valid;
+    dbg_up[1]   = resp_IP_wrapper_o.aw_ready;
+    dbg_up[2]   = req_IP_wrapper_i.w_valid;
+    dbg_up[3]   = resp_IP_wrapper_o.w_ready;
+    dbg_up[4]   = req_IP_wrapper_i.w.last;
+    dbg_up[5]   = resp_IP_wrapper_o.b_valid;
+    dbg_up[6]   = req_IP_wrapper_i.b_ready;
+    dbg_up[7]   = req_IP_wrapper_i.ar_valid;
+    dbg_up[8]   = resp_IP_wrapper_o.ar_ready;
+    dbg_up[9]   = resp_IP_wrapper_o.r_valid;
+    dbg_up[10]  = req_IP_wrapper_i.r_ready;
+    dbg_up[11]  = resp_IP_wrapper_o.r.last;
+
+    dbg_dn      = 12'h0;
+    dbg_dn[0]   = req_wrapper_iommu_o.aw_valid;
+    dbg_dn[1]   = resp_wrapper_iommu_i.aw_ready;
+    dbg_dn[2]   = req_wrapper_iommu_o.w_valid;
+    dbg_dn[3]   = resp_wrapper_iommu_i.w_ready;
+    dbg_dn[4]   = req_wrapper_iommu_o.w.last;
+    dbg_dn[5]   = resp_wrapper_iommu_i.b_valid;
+    dbg_dn[6]   = req_wrapper_iommu_o.b_ready;
+    dbg_dn[7]   = req_wrapper_iommu_o.ar_valid;
+    dbg_dn[8]   = resp_wrapper_iommu_i.ar_ready;
+    dbg_dn[9]   = resp_wrapper_iommu_i.r_valid;
+    dbg_dn[10]  = req_wrapper_iommu_o.r_ready;
+    dbg_dn[11]  = resp_wrapper_iommu_i.r.last;
+end
+
+// -----------------------------------------------------------------------------
+//  Transferts reels, et non fronts de handshake
+//
+//  A distinguer de `req_fire` du request_flow_monitor, qui compte des FRONTS :
+//  en AXI, valid et ready tenus hauts, c'est un transfert PAR CYCLE, et les 24
+//  lectures du mode outstanding ne comptaient que pour une. Ces deux compteurs
+//  comptent les transferts, chacun de SON cote de la coupure. Leur difference
+//  est le nombre de requetes qu'ARMOR a effectivement coupees -- la seule
+//  mesure directe de son action, jusqu'ici deduite des verdicts.
+// -----------------------------------------------------------------------------
+logic up_aw_hs, up_ar_hs, up_b_hs, up_r_last_hs, dn_ar_hs;
+
+assign up_aw_hs     = req_IP_wrapper_i.aw_valid & resp_IP_wrapper_o.aw_ready;
+assign up_ar_hs     = req_IP_wrapper_i.ar_valid & resp_IP_wrapper_o.ar_ready;
+assign up_b_hs      = resp_IP_wrapper_o.b_valid & req_IP_wrapper_i.b_ready;
+assign up_r_last_hs = resp_IP_wrapper_o.r_valid & req_IP_wrapper_i.r_ready
+                                                & resp_IP_wrapper_o.r.last;
+assign dn_ar_hs     = req_wrapper_iommu_o.ar_valid & resp_wrapper_iommu_i.ar_ready;
+
+// -----------------------------------------------------------------------------
+//  Chronometre materiel d'une transaction
+//
+//  Definitions calquees sur celles de bench_runner.c, pour que les deux mesures
+//  soient comparables -- et pour que l'ecart entre elles chiffre le cout de la
+//  sonde logicielle :
+//
+//    depart   : front de presentation d'une requete par le maitre
+//               (aw_valid | ar_valid), si aucune mesure n'est en cours ;
+//    detection: premier cycle ou un verdict quelconque apparait ;
+//    fin      : terminaison de la transaction VERS LE MAITRE (B, ou R avec
+//               last) -- ce qui couvre aussi bien une transaction qui aboutit
+//               qu'une que response_manager termine en SLVERR.
+//
+//  Trois approximations assumees, a garder en tete avant de publier :
+//    - `tx` est lu au cycle de la fin, donc peut etre court d'un cycle ;
+//    - un verdict qui apparait dans le meme cycle que le depart n'est pas vu
+//      comme detection (la mesure n'est pas encore armee) : `det` vaut alors
+//      `tx`, exactement comme le fait le logiciel quand il ne voit aucun bit ;
+//    - une fin et un depart dans le meme cycle perdent le depart. Le bench
+//      espace ses transactions, ca ne se produit pas sur ces scenarios.
+//
+//  LAT_CUR expose le compteur EN VOL : une transaction coincee s'y lit comme un
+//  chiffre qui monte, la ou tout le reste reste muet.
+// -----------------------------------------------------------------------------
+logic        lat_verdict, lat_end, lat_start;
+logic        req_presented, req_presented_q;
+
+assign lat_verdict   = block_req_i | bad_id | block_ip_o
+                     | block_req_flow | block_req_outs | block_msi;
+assign lat_end       = up_b_hs | up_r_last_hs;
+assign req_presented = req_IP_wrapper_i.aw_valid | req_IP_wrapper_i.ar_valid;
+
+logic [31:0] lat_cnt_q;
+logic        lat_busy_q, lat_evt_q;
+logic [31:0] lat_det_q;
+logic [31:0] lat_det_last_q, lat_tx_last_q;
+logic [63:0] lat_det_sum_q,  lat_tx_sum_q;
+logic [31:0] lat_n_q,        lat_n_blk_q;
+logic [15:0] lat_det_min_q,  lat_det_max_q, lat_tx_min_q, lat_tx_max_q;
+
+logic [31:0] lat_det_val;
+logic [15:0] lat_det_sat, lat_tx_sat;
+
+//  Le depart doit se rearmer sur une rafale. `req_presented` seul ne suffit
+//  pas : pendant une tempete, le maitre tient aw_valid haut en permanence, il
+//  n'y a donc plus AUCUN front et on n'aurait mesure que la premiere
+//  transaction du scenario -- exactement les scenarios ou la mesure importe.
+//  On part donc au premier des deux evenements : la presentation d'une requete
+//  (front, qui inclut l'attente de verdict, pendant laquelle aucun handshake
+//  n'a lieu) ou un transfert d'adresse reellement accepte cote maitre.
+assign lat_start   = ~lat_busy_q & ( (req_presented & ~req_presented_q)
+                                   | up_aw_hs | up_ar_hs );
+assign lat_det_val = lat_evt_q ? lat_det_q : lat_cnt_q;
+assign lat_det_sat = (lat_det_val > 32'd65535) ? 16'hFFFF : lat_det_val[15:0];
+assign lat_tx_sat  = (lat_cnt_q   > 32'd65535) ? 16'hFFFF : lat_cnt_q[15:0];
+
+// -----------------------------------------------------------------------------
+//  Compteurs de temps et de trafic
+// -----------------------------------------------------------------------------
+logic [31:0] cnt_cyc_block_q, cnt_cyc_hold_q;
+logic [31:0] cnt_req_up_q,    cnt_req_dn_q;
+logic [63:0] cyc_total_q;
+
+//  HOLD : la fenetre pendant laquelle response_manager tient le maitre sans
+//  encore rien decider. On ne compte que si une requete est effectivement
+//  presentee, sinon on compterait le repos (verdict_known_q vaut 0 apres reset).
+logic hold_mode;
+assign hold_mode = req_presented & ~block_req_i & ~block_ip_eff & ~bad_id
+                 & (~legit_hit_eff | ~verdict_known_eff);
+
+logic [1:0] req_up_inc, req_dn_inc;
+assign req_up_inc = {1'b0, up_aw_hs} + {1'b0, up_ar_hs};
+assign req_dn_inc = {1'b0, dn_aw_hs} + {1'b0, dn_ar_hs};
+
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        req_presented_q <= 1'b0;
+        lat_cnt_q       <= 32'h0;
+        lat_busy_q      <= 1'b0;
+        lat_evt_q       <= 1'b0;
+        lat_det_q       <= 32'h0;
+        lat_det_last_q  <= 32'h0;
+        lat_tx_last_q   <= 32'h0;
+        lat_det_sum_q   <= 64'h0;
+        lat_tx_sum_q    <= 64'h0;
+        lat_n_q         <= 32'h0;
+        lat_n_blk_q     <= 32'h0;
+        lat_det_min_q   <= 16'hFFFF;
+        lat_tx_min_q    <= 16'hFFFF;
+        lat_det_max_q   <= 16'h0;
+        lat_tx_max_q    <= 16'h0;
+        cnt_cyc_block_q <= 32'h0;
+        cnt_cyc_hold_q  <= 32'h0;
+        cnt_req_up_q    <= 32'h0;
+        cnt_req_dn_q    <= 32'h0;
+        cyc_total_q     <= 64'h0;
+    end else begin
+        req_presented_q <= req_presented;
+
+        if (csr_cnt_clr) begin
+            // Remise a zero solidaire des compteurs d'evenements : un scenario
+            // de bench appelle CNT_CLR au demarrage, ses chiffres sont donc a
+            // lui seul.
+            lat_cnt_q       <= 32'h0;
+            lat_busy_q      <= 1'b0;
+            lat_evt_q       <= 1'b0;
+            lat_det_q       <= 32'h0;
+            lat_det_last_q  <= 32'h0;
+            lat_tx_last_q   <= 32'h0;
+            lat_det_sum_q   <= 64'h0;
+            lat_tx_sum_q    <= 64'h0;
+            lat_n_q         <= 32'h0;
+            lat_n_blk_q     <= 32'h0;
+            lat_det_min_q   <= 16'hFFFF;
+            lat_tx_min_q    <= 16'hFFFF;
+            lat_det_max_q   <= 16'h0;
+            lat_tx_max_q    <= 16'h0;
+            cnt_cyc_block_q <= 32'h0;
+            cnt_cyc_hold_q  <= 32'h0;
+            cnt_req_up_q    <= 32'h0;
+            cnt_req_dn_q    <= 32'h0;
+            cyc_total_q     <= 64'h0;
+        end else begin
+            cyc_total_q <= cyc_total_q + 64'd1;
+
+            if (block_req_i && cnt_cyc_block_q != 32'hFFFF_FFFF)
+                cnt_cyc_block_q <= cnt_cyc_block_q + 32'd1;
+            if (hold_mode   && cnt_cyc_hold_q  != 32'hFFFF_FFFF)
+                cnt_cyc_hold_q  <= cnt_cyc_hold_q + 32'd1;
+
+            cnt_req_up_q <= cnt_req_up_q + {30'h0, req_up_inc};
+            cnt_req_dn_q <= cnt_req_dn_q + {30'h0, req_dn_inc};
+
+            if (lat_busy_q) begin
+                if (lat_cnt_q != 32'hFFFF_FFFF) lat_cnt_q <= lat_cnt_q + 32'd1;
+
+                if (!lat_evt_q && lat_verdict) begin
+                    lat_evt_q <= 1'b1;
+                    lat_det_q <= lat_cnt_q;
+                end
+
+                if (lat_end) begin
+                    lat_busy_q     <= 1'b0;
+                    lat_det_last_q <= lat_det_val;
+                    lat_tx_last_q  <= lat_cnt_q;
+                    lat_det_sum_q  <= lat_det_sum_q + {32'h0, lat_det_val};
+                    lat_tx_sum_q   <= lat_tx_sum_q  + {32'h0, lat_cnt_q};
+                    lat_n_q        <= lat_n_q + 32'd1;
+                    if (lat_evt_q) lat_n_blk_q <= lat_n_blk_q + 32'd1;
+                    if (lat_det_sat < lat_det_min_q) lat_det_min_q <= lat_det_sat;
+                    if (lat_det_sat > lat_det_max_q) lat_det_max_q <= lat_det_sat;
+                    if (lat_tx_sat  < lat_tx_min_q)  lat_tx_min_q  <= lat_tx_sat;
+                    if (lat_tx_sat  > lat_tx_max_q)  lat_tx_max_q  <= lat_tx_sat;
+                end
+            end else if (lat_start) begin
+                lat_busy_q <= 1'b1;
+                lat_cnt_q  <= 32'h0;
+                lat_det_q  <= 32'h0;
+                //  Le verdict est echantillonne DES le cycle de depart.
+                //  Sans cela il ne l'etait qu'a partir du cycle suivant, et le
+                //  cas le plus interessant y echappait entierement : quand la
+                //  fenetre de blocage est deja ouverte, response_manager
+                //  termine la requete en SLVERR dans le cycle meme, si bien que
+                //  la transaction etait finie avant d'avoir ete regardee. La
+                //  simulation le montrait sans ambiguite -- n_verdict = 0 sur
+                //  SC02-STORM et SC01-SPOOF, alors que 67 et 8 requetes
+                //  respectivement avaient ete coupees.
+                //
+                //  Une detection a 0 cycle n'est pas une absence de mesure :
+                //  c'est le cas ou ARMOR n'a rien eu a decider, son verdict
+                //  etait deja rendu. C'est cette valeur-la qui soutient
+                //  l'argument « une transaction bloquee coute moins cher
+                //  qu'une qui aboutit ».
+                lat_evt_q  <= lat_verdict;
+            end
+        end
+    end
+end
+
+// -----------------------------------------------------------------------------
+//  Canal qui n'obtient pas son ready, et depuis combien de cycles
+//
+//  Cinq canaux par cote, dans l'ordre AW, W, B, AR, R. On garde la plus longue
+//  attente observee, saturee a 4095 cycles : une valeur saturee dit « coince »,
+//  une valeur moyenne dit « contention ». C'est ce qui manquait pour nommer le
+//  canal responsable d'un gel sans sonde externe, et ce qui chiffre le cout
+//  d'attente que subit l'accelerateur legitime pendant qu'ARMOR delibere.
+// -----------------------------------------------------------------------------
+localparam int unsigned N_STALL = 5;
+
+logic [N_STALL-1:0] stall_up, stall_dn;
+
+assign stall_up = { resp_IP_wrapper_o.r_valid    & ~req_IP_wrapper_i.r_ready,
+                    req_IP_wrapper_i.ar_valid    & ~resp_IP_wrapper_o.ar_ready,
+                    resp_IP_wrapper_o.b_valid    & ~req_IP_wrapper_i.b_ready,
+                    req_IP_wrapper_i.w_valid     & ~resp_IP_wrapper_o.w_ready,
+                    req_IP_wrapper_i.aw_valid    & ~resp_IP_wrapper_o.aw_ready };
+
+assign stall_dn = { resp_wrapper_iommu_i.r_valid & ~req_wrapper_iommu_o.r_ready,
+                    req_wrapper_iommu_o.ar_valid & ~resp_wrapper_iommu_i.ar_ready,
+                    resp_wrapper_iommu_i.b_valid & ~req_wrapper_iommu_o.b_ready,
+                    req_wrapper_iommu_o.w_valid  & ~resp_wrapper_iommu_i.w_ready,
+                    req_wrapper_iommu_o.aw_valid & ~resp_wrapper_iommu_i.aw_ready };
+
+logic [11:0] stall_up_cur_q [N_STALL];
+logic [11:0] stall_up_max_q [N_STALL];
+logic [11:0] stall_dn_cur_q [N_STALL];
+logic [11:0] stall_dn_max_q [N_STALL];
+
+//  On compare la valeur INCREMENTEE au maximum, pas la valeur courante. Avec la
+//  valeur courante, une attente d'un seul cycle laissait le maximum a zero --
+//  c'est-a-dire invisible, alors que c'est le cas le plus frequent. La longueur
+//  d'une attente est le nombre de cycles pendant lesquels `valid & ~ready` est
+//  vrai, donc le compteur doit refleter le cycle en cours.
+logic [11:0] stall_up_nxt [N_STALL];
+logic [11:0] stall_dn_nxt [N_STALL];
+
+always_comb begin
+    for (int unsigned i = 0; i < N_STALL; i++) begin
+        stall_up_nxt[i] = (stall_up_cur_q[i] == 12'hFFF) ? 12'hFFF
+                                                         : stall_up_cur_q[i] + 12'd1;
+        stall_dn_nxt[i] = (stall_dn_cur_q[i] == 12'hFFF) ? 12'hFFF
+                                                         : stall_dn_cur_q[i] + 12'd1;
+    end
+end
+
+//  La remise a zero par CNT_CLR est SYNCHRONE et doit donc etre une branche
+//  distincte du reset asynchrone : `if (!rst_ni || csr_cnt_clr)` melange les
+//  deux dans la meme condition, ce qui n'est pas une forme reconnue d'inference
+//  de bascule et laisse la synthese libre de traiter CNT_CLR comme un signal de
+//  reset asynchrone.
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        for (int unsigned i = 0; i < N_STALL; i++) begin
+            stall_up_cur_q[i] <= 12'h0;
+            stall_up_max_q[i] <= 12'h0;
+            stall_dn_cur_q[i] <= 12'h0;
+            stall_dn_max_q[i] <= 12'h0;
+        end
+    end else if (csr_cnt_clr) begin
+        for (int unsigned i = 0; i < N_STALL; i++) begin
+            stall_up_cur_q[i] <= 12'h0;
+            stall_up_max_q[i] <= 12'h0;
+            stall_dn_cur_q[i] <= 12'h0;
+            stall_dn_max_q[i] <= 12'h0;
+        end
+    end else begin
+        for (int unsigned i = 0; i < N_STALL; i++) begin
+            if (stall_up[i]) begin
+                stall_up_cur_q[i] <= stall_up_nxt[i];
+                if (stall_up_nxt[i] > stall_up_max_q[i])
+                    stall_up_max_q[i] <= stall_up_nxt[i];
+            end else begin
+                stall_up_cur_q[i] <= 12'h0;
+            end
+
+            if (stall_dn[i]) begin
+                stall_dn_cur_q[i] <= stall_dn_nxt[i];
+                if (stall_dn_nxt[i] > stall_dn_max_q[i])
+                    stall_dn_max_q[i] <= stall_dn_nxt[i];
+            end else begin
+                stall_dn_cur_q[i] <= 12'h0;
+            end
+        end
+    end
+end
+
+// -----------------------------------------------------------------------------
+//  Mots de lecture assembles
+// -----------------------------------------------------------------------------
+logic [63:0] armor_dbg_state, armor_dbg_stall_up, armor_dbg_stall_dn;
+
+//  Les etats de FSM passent par une variable de bits explicite : une assignation
+//  directe d'un enum vers une tranche est legale mais son elargissement depend
+//  de l'outil, et cette carte de registres est un contrat avec le logiciel.
+logic [1:0]  w_state_bits;
+logic        r_state_bits;
+assign w_state_bits = w_state_q;   // extension implicite depuis l'enum
+assign r_state_bits = r_state_q;
+
+always_comb begin
+    armor_dbg_state        = 64'h0;
+    armor_dbg_state[3:0]   = w_owed_q;
+    armor_dbg_state[4]     = w_pending;
+    armor_dbg_state[5]     = verdict_known_q;
+    armor_dbg_state[6]     = comparison_valid;
+    armor_dbg_state[7]     = bad_id;
+    armor_dbg_state[8]     = legit_hit;
+    armor_dbg_state[9]     = legit_hit_eff;
+    armor_dbg_state[10]    = verdict_known_eff;
+    armor_dbg_state[12:11] = w_state_bits;   // FSM du port de config CPU
+    armor_dbg_state[13]    = r_state_bits;
+    armor_dbg_state[23:16] = failure_count;
+    armor_dbg_state[31:24] = outs_depth;
+    armor_dbg_state[39:32] = flow_req_cnt;
+    armor_dbg_state[63:40] = flow_window_cnt[23:0];
+
+    armor_dbg_stall_up        = 64'h0;
+    armor_dbg_stall_up[11:0]  = stall_up_max_q[0];   // AW
+    armor_dbg_stall_up[23:12] = stall_up_max_q[1];   // W
+    armor_dbg_stall_up[35:24] = stall_up_max_q[2];   // B
+    armor_dbg_stall_up[47:36] = stall_up_max_q[3];   // AR
+    armor_dbg_stall_up[59:48] = stall_up_max_q[4];   // R
+
+    armor_dbg_stall_dn        = 64'h0;
+    armor_dbg_stall_dn[11:0]  = stall_dn_max_q[0];
+    armor_dbg_stall_dn[23:12] = stall_dn_max_q[1];
+    armor_dbg_stall_dn[35:24] = stall_dn_max_q[2];
+    armor_dbg_stall_dn[47:36] = stall_dn_max_q[3];
+    armor_dbg_stall_dn[59:48] = stall_dn_max_q[4];
+end
+
 // Multiplexeur de lecture
 always_comb begin
     case (r_idx_q)
@@ -682,7 +1137,23 @@ always_comb begin
         5'd8:    csr_rdata = {32'h0, cnt_outs_q};
         5'd9:    csr_rdata = {32'h0, cnt_msi_q};
         5'd10:   csr_rdata = {{(64-DevIDWidth){1'b0}}, dev_id_last_q};
-        5'd11:   csr_rdata = 64'h41524D4F52000001;
+        5'd11:   csr_rdata = 64'h41524D4F52000002;
+        // Observabilite (version 2 du MAGIC). Voir la carte des registres.
+        5'd12:   csr_rdata = {52'h0, dbg_up};
+        5'd13:   csr_rdata = {52'h0, dbg_dn};
+        5'd14:   csr_rdata = armor_dbg_state;
+        5'd15:   csr_rdata = armor_dbg_stall_up;
+        5'd16:   csr_rdata = armor_dbg_stall_dn;
+        5'd17:   csr_rdata = {cnt_cyc_hold_q, cnt_cyc_block_q};
+        5'd18:   csr_rdata = {cnt_req_dn_q,   cnt_req_up_q};
+        5'd19:   csr_rdata = {lat_tx_last_q,  lat_det_last_q};
+        5'd20:   csr_rdata = lat_det_sum_q;
+        5'd21:   csr_rdata = lat_tx_sum_q;
+        5'd22:   csr_rdata = {lat_n_blk_q,    lat_n_q};
+        5'd23:   csr_rdata = {lat_tx_max_q, lat_tx_min_q,
+                              lat_det_max_q, lat_det_min_q};
+        5'd24:   csr_rdata = {30'h0, lat_evt_q, lat_busy_q, lat_cnt_q};
+        5'd25:   csr_rdata = cyc_total_q;
         default: csr_rdata = 64'h0;
     endcase
 end
