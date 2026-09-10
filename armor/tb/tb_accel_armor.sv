@@ -103,7 +103,7 @@ module tb_accel_armor;
     int unsigned obs_ref_badid, obs_ref_badcy;
     int unsigned obs_ref_ghost, obs_ref_orph, obs_ref_awdn;
 
-    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000005;   // version 5 : + correctif AXI4 sur CTRL[3]
+    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000006;   // version 6 : + etage W sur CTRL[4]
 
     localparam logic [63:0] LEGIT_DST = 64'h0000_0000_9100_0000;
 
@@ -1008,7 +1008,11 @@ module tb_accel_armor;
             //  attribuable au scenario.
             //  AWFIX (CTRL[3]) : active le correctif AXI4, pour que le meme
             //  banc mesure la violation puis verifie sa disparition.
-`ifdef AWFIX
+`ifdef WSKID
+            //  CTRL[4] : etage W actif. Le meme banc mesure donc la violation
+            //  (defaut) puis verifie sa disparition (WSKID=1).
+            csr_write(CSR_CTRL, {59'h0, 1'b1, 1'b0, 1'b1, 1'b1, enforce});
+`elsif AWFIX
             csr_write(CSR_CTRL, {60'h0, 1'b1, 1'b1, 1'b1, enforce});
 `else
             csr_write(CSR_CTRL, {61'h0, 1'b1, 1'b1, enforce});  // CNT_CLR|STICKY_CLR

@@ -142,6 +142,7 @@ logic [63:0]            csr_id_cfg_q;
 logic [63:0]            csr_msi_addr_q;
 logic                   csr_enforce_q;
 logic                   csr_awfix_q;      // CTRL[3] : ne pas retirer un VALID
+logic                   csr_wskid_q;      // CTRL[4] : etage W (skid buffer)
 logic [63:0]            csr_sticky_q;
 logic [31:0]            cnt_banned_q, cnt_storm_q, cnt_outs_q, cnt_msi_q;
 logic [DevIDWidth-1:0]  dev_id_last_q;
@@ -376,6 +377,12 @@ id_comparator #(
 
 
 
+//  Nets de l'etage W. `req_rm` est la sortie brute de request_manager ; le port
+//  aval `req_wrapper_iommu_o` en est l'assemblage avec le canal W de l'etage.
+req_iommu_t req_rm;
+w_chan_t    wskid_w;
+logic       wskid_valid, wskid_ready;
+
 request_manager #(
     .req_iommu_t(req_iommu_t)
 )request_manager_module(
@@ -389,9 +396,44 @@ request_manager #(
     .w_pending_i(w_pending),
     .no_cut_aw_i(no_cut_aw),
     .no_cut_ar_i(no_cut_ar),
-    .req_wrapper_iommu_o(req_wrapper_iommu_o)
+    .req_wrapper_iommu_o(req_rm)
 
 );
+
+// -----------------------------------------------------------------------------
+//  ETAGE W  (skid buffer, derriere CTRL[4])
+//
+//  Insere entre la sortie de request_manager et le port aval. La decision de
+//  couper un beat W est desormais prise A LA CAPTURE : un beat qu'on n'a pas le
+//  droit d'emettre n'entre pas dans l'etage et reste chez le maitre -- ce qui
+//  est licite, un maitre peut attendre -- et un beat entre est presente en aval
+//  puis TENU jusqu'a son w_ready, quoi que devienne `w_pending`. Le retrait de
+//  VALID mesure le 2026-09-10 devient impossible par construction.
+//
+//  A CTRL[4] = 0 (reset) l'etage est transparent au fil pres : le meme bitstream
+//  sert a mesurer la violation et a verifier sa disparition.
+// -----------------------------------------------------------------------------
+w_skid_buffer #(
+    .w_chan_t(w_chan_t)
+) i_w_skid (
+    .clk_i     (clk_i),
+    .rst_ni    (rst_ni),
+    .en_i      (csr_wskid_q),
+    .w_i       (req_rm.w),
+    .w_valid_i (req_rm.w_valid),
+    .w_ready_o (wskid_ready),
+    .w_o       (wskid_w),
+    .w_valid_o (wskid_valid),
+    .w_ready_i (resp_wrapper_iommu_i.w_ready)
+);
+
+always_comb begin
+    req_wrapper_iommu_o = req_rm;
+    if (csr_wskid_q) begin
+        req_wrapper_iommu_o.w       = wskid_w;
+        req_wrapper_iommu_o.w_valid = wskid_valid;
+    end
+end
 
 response_manager #(
     .resp_slv_t(resp_slv_t)
@@ -404,6 +446,8 @@ response_manager #(
     .verdict_known_i(verdict_known_eff),
     .legit_hit(legit_hit_eff),
     .w_pending_i(w_pending),
+    .wskid_en_i(csr_wskid_q),
+    .wskid_ready_i(wskid_ready),
     .resp_wrapper_iommu_i(resp_wrapper_iommu_i),
     .resp_IP_wrapper_o(resp_IP_wrapper_o)
 );
@@ -505,6 +549,13 @@ response_delayer #(
 //                          (1 pour sec_wrapper #1, 2 pour #2, cf. accel_wrap.sv)
 //   0x08  MSI_ADDR     RW  adresse MSI surveillee par msi_detector
 //   0x10  CTRL         RW  b0 ENFORCE, b1 STICKY_CLR, b2 CNT_CLR,
+//                          b4 W_SKID -- etage d'un emplacement sur le canal W.
+//                          Correctif du retrait de VALID mesure le 2026-09-10 :
+//                          la coupure est decidee A LA CAPTURE, un beat entre
+//                          est tenu jusqu'a son ready, et le ready rendu au
+//                          maitre est celui de l'etage. A 0 (reset) l'etage est
+//                          transparent. Echo dans STATUS[16].
+//
 //                          b3 AW_HOLD_FIX -- TENTATIVE REFUTEE, gardee pour
 //                          etre mesurable sur carte. A 0 (reset), donc sans
 //                          effet par defaut. Echo dans STATUS[15].
@@ -539,7 +590,7 @@ response_delayer #(
 //   0x40  CNT_OUTS     RO  nombre d'episodes de saturation outstanding
 //   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
 //   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
-//   0x58  MAGIC        RO  0x41524D4F52000005 ("ARMOR" + version)
+//   0x58  MAGIC        RO  0x41524D4F52000006 ("ARMOR" + version)
 //
 // Bloc d'observabilite, ajoute le 2026-09-10 (d'ou MAGIC ...0002 : le logiciel
 // distingue ainsi un bitstream qui porte ces registres d'un qui n'en a pas).
@@ -678,6 +729,7 @@ always_comb begin
     // instantanement et de facon collante.
     armor_status[14]  = bad_id;
     armor_status[15]  = csr_awfix_q;   // echo du correctif AXI4
+    armor_status[16]  = csr_wskid_q;   // echo de l'etage W
 end
 
 // -----------------------------------------------------------------------------
@@ -760,6 +812,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         csr_msi_addr_q <= 64'h0;
         csr_enforce_q  <= 1'b0;   // reset : wrapper transparent
         csr_awfix_q    <= 1'b0;   // reset : comportement historique conserve
+        csr_wskid_q    <= 1'b0;   // reset : etage W en derivation
         csr_sticky_clr <= 1'b0;
         csr_cnt_clr    <= 1'b0;
     end else begin
@@ -785,6 +838,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
                             csr_sticky_clr <= req_CPU_Wrapper__i.w.data[1];
                             csr_cnt_clr    <= req_CPU_Wrapper__i.w.data[2];
                             csr_awfix_q    <= req_CPU_Wrapper__i.w.data[3];
+                            csr_wskid_q    <= req_CPU_Wrapper__i.w.data[4];
                         end
                         default: ; // registres en lecture seule
                     endcase
@@ -1470,7 +1524,7 @@ always_comb begin
     case (r_idx_q)
         5'd0:    csr_rdata = csr_id_cfg_q;
         5'd1:    csr_rdata = csr_msi_addr_q;
-        5'd2:    csr_rdata = {60'h0, csr_awfix_q, 2'b00, csr_enforce_q};
+        5'd2:    csr_rdata = {59'h0, csr_wskid_q, csr_awfix_q, 2'b00, csr_enforce_q};
         5'd3:    csr_rdata = armor_status;
         5'd4:    csr_rdata = csr_sticky_q;
         5'd5:    csr_rdata = {56'h0, failure_count};
@@ -1479,7 +1533,7 @@ always_comb begin
         5'd8:    csr_rdata = {32'h0, cnt_outs_q};
         5'd9:    csr_rdata = {32'h0, cnt_msi_q};
         5'd10:   csr_rdata = {{(64-DevIDWidth){1'b0}}, dev_id_last_q};
-        5'd11:   csr_rdata = 64'h41524D4F52000005;
+        5'd11:   csr_rdata = 64'h41524D4F52000006;
         // Observabilite (version 2 du MAGIC). Voir la carte des registres.
         5'd12:   csr_rdata = {52'h0, dbg_up};
         5'd13:   csr_rdata = {52'h0, dbg_dn};

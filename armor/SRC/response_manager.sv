@@ -62,6 +62,19 @@ module response_manager #(
     input  logic       verdict_known_i, // le verdict de la requete presentee est rendu
     input  logic       legit_hit,
     input  logic       w_pending_i,     // un AW admis en aval attend ses donnees
+
+    //  ETAGE W (skid buffer, derriere CTRL[4]). Quand il est actif, le ready
+    //  rendu au maitre sur le canal W est « il y a de la place dans l'etage »,
+    //  JAMAIS le ready de l'aval ni un 1 fabrique.
+    //
+    //  C'est la moitie du correctif qui manquait a la tentative sur AW : tenir
+    //  le VALID sans corriger le ready avait fait passer les retraits de 1 a 33,
+    //  parce que le maitre, croyant son beat absorbe, passait au suivant. ARMOR
+    //  ne doit ni retirer un VALID presente, ni acquitter ce qui est encore
+    //  presente en aval.
+    input  logic       wskid_en_i,
+    input  logic       wskid_ready_i,
+
     input  resp_slv_t  resp_wrapper_iommu_i,
     output resp_slv_t  resp_IP_wrapper_o
 );
@@ -73,8 +86,17 @@ module response_manager #(
 
             // Absorption des requetes encore presentees par l'accelerateur.
             resp_IP_wrapper_o.aw_ready = 1'b1;
-            resp_IP_wrapper_o.w_ready  = 1'b1;
             resp_IP_wrapper_o.ar_ready = 1'b1;
+
+            //  W : on n'absorbe de force que s'il n'y a RIEN a acheminer. Des
+            //  qu'un AW est du en aval, ses beats doivent partir pour de vrai --
+            //  on rend donc le ready de l'etage, pas un 1 fabrique. Sans cette
+            //  distinction, le maitre avancerait pendant qu'un beat est encore
+            //  presente en aval : c'est exactement le defaut mesure.
+            if (wskid_en_i && w_pending_i)
+                resp_IP_wrapper_o.w_ready = wskid_ready_i;
+            else
+                resp_IP_wrapper_o.w_ready = 1'b1;
 
             // Reponse d'ecriture : SLVERR.
             resp_IP_wrapper_o.b_valid  = 1'b1;
@@ -98,7 +120,12 @@ module response_manager #(
             // traverser ferait croire au maitre que son beat est parti alors
             // qu'on vient de le retenir, et la donnee serait perdue. On masque
             // donc w_ready dans exactement la meme fenetre.
-            if (!w_pending_i)
+            if (wskid_en_i)
+                //  Le handshake du maitre se fait contre l'etage : de la place
+                //  et un AW du, sinon le maitre attend. Il ne voit plus jamais
+                //  le ready de l'aval sur ce canal.
+                resp_IP_wrapper_o.w_ready = wskid_ready_i & w_pending_i;
+            else if (!w_pending_i)
                 resp_IP_wrapper_o.w_ready = 1'b0;
         end
     end

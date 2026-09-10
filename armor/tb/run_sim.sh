@@ -72,6 +72,7 @@ ARMOR_SRC=(
     "$ARMOR/SRC/interrupt_monitor.sv"
     "$ARMOR/SRC/outs_req_flow_monitor.sv"
     "$ARMOR/SRC/request_flow_monitor.sv"
+    "$ARMOR/SRC/w_skid_buffer.sv"
     "$ARMOR/SRC/request_manager.sv"
     "$ARMOR/SRC/response_manager.sv"
     "$ARMOR/SRC/security_monitor.sv"
@@ -126,6 +127,12 @@ fi
 # deja presente en aval. Le meme bitstream et le meme banc servent donc a
 # mesurer la violation (defaut) puis a verifier qu'elle disparait (AWFIX=1).
 [[ "${AWFIX:-0}" == "1" ]] && DEFINES+=("-d" "AWFIX")
+
+# WSKID=1 : active CTRL[4], l'etage d'un emplacement sur le canal W. C'est le
+# correctif du retrait de VALID mesure sur carte le 2026-09-10. Le comparer au
+# mode par defaut est LE controle : les retraits doivent tomber a zero sans que
+# la campagne change de verdict.
+[[ "${WSKID:-0}" == "1" ]] && DEFINES+=("-d" "WSKID")
 
 echo "=== xvlog ==="
 xvlog -sv --nolog \
