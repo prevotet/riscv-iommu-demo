@@ -786,13 +786,38 @@ module tb_accel_armor;
     //  w_excess_tot les compte. L'ecart sur un pas de campagne doit rester nul :
     //  toute valeur non nulle est la signature du gel observe sur carte.
     // -------------------------------------------------------------------------
+    //  Sondes hierarchiques sur les signaux internes du wrapper, pour que la
+    //  detection de beat fantome dise DANS QUEL MODE response_manager se
+    //  trouvait -- c'est ce qui distingue le HOLD du blocage.
+    wire i_wrapper_block_ip   = i_sec_wrap.block_ip_eff;
+    wire i_wrapper_block_req  = i_sec_wrap.block_req_i;
+    wire i_wrapper_bad_id     = i_sec_wrap.bad_id;
+    wire i_wrapper_legit      = i_sec_wrap.legit_hit_eff;
+    wire i_wrapper_vk         = i_sec_wrap.verdict_known_eff;
+    wire i_wrapper_w_pending  = i_sec_wrap.w_pending;
+
     int unsigned w_excess_tot;
+    int unsigned w_ghost_tot;    // beats W pris en aval sans que le maitre le sache
+    time         w_ghost_first;
+
+    //  bad_id n'apparait NI dans armor_status, NI dans STICKY, NI dans
+    //  cyc_block (qui compte block_req_i, lequel l'exclut), NI dans cyc_hold
+    //  (qui l'exclut explicitement). C'est le seul mecanisme gate par ENFORCE
+    //  qui ne laisse aucune trace lisible par le logiciel. On le compte ici.
+    int unsigned bad_id_cy;      // cycles ou bad_id est haut
+    int unsigned bad_id_rise;    // fronts montants
+    logic        bad_id_d;
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
-            aw_owed      <= 0;
-            aw_owed_max  <= 0;
-            w_excess_tot <= 0;
+            aw_owed       <= 0;
+            aw_owed_max   <= 0;
+            w_excess_tot  <= 0;
+            w_ghost_tot   <= 0;
+            w_ghost_first <= 0;
+            bad_id_cy     <= 0;
+            bad_id_rise   <= 0;
+            bad_id_d      <= 1'b0;
         end else begin
             automatic int unsigned nxt = aw_owed;
             automatic bit aw_hs = req_out.aw_valid && resp_out.aw_ready;
@@ -806,6 +831,50 @@ module tb_accel_armor;
             // (et qu'aucun n'arrive dans le meme cycle) est un orphelin.
             if (w_hs && aw_owed == 0 && !aw_hs)
                 w_excess_tot <= w_excess_tot + 1;
+
+            // -----------------------------------------------------------------
+            //  BEAT W FANTOME  (hypothese du gel, 2026-09-10)
+            //
+            //  L'aval PREND le beat (w_valid & w_ready cote aval) alors que le
+            //  maitre n'en est PAS informe (w_ready retire cote maitre). Le
+            //  maitre croit son beat refuse et le represente : l'aval en recoit
+            //  deux. Le canal W est decale d'un beat, definitivement.
+            //
+            //  D'ou ca vient. En mode HOLD, response_manager sort '0 sur TOUT,
+            //  donc w_ready = 0 vers le maitre. Mais request_manager ne coupe
+            //  w_valid que si `!w_pending` : avec un AW deja admis en aval,
+            //  w_valid TRAVERSE pendant que w_ready est retire. La branche
+            //  passe-plat de response_manager traite ce piege explicitement
+            //  (« le laisser traverser ferait croire au maitre que son beat est
+            //  parti alors qu'on vient de le retenir ») -- la branche HOLD a le
+            //  trou symetrique.
+            //
+            //  Pourquoi ce compteur et pas w_excess_tot : un beat DUPLIQUE n'est
+            //  pas un orphelin. Il a bien son AW ; il est juste compte deux fois
+            //  en aval. aw_owed etant garde a zero, il l'absorbe en silence --
+            //  c'est ce qui rend le defaut invisible aux compteurs materiels.
+            //
+            //  Ce compteur DOIT rester a zero. Toute valeur non nulle prouve le
+            //  mecanisme.
+            // -----------------------------------------------------------------
+            bad_id_d <= i_wrapper_bad_id;
+            if (i_wrapper_bad_id) begin
+                bad_id_cy <= bad_id_cy + 1;
+                if (!bad_id_d) bad_id_rise <= bad_id_rise + 1;
+            end
+
+            if (w_hs && !resp_in.w_ready) begin
+                w_ghost_tot <= w_ghost_tot + 1;
+                if (w_ghost_tot == 0) begin
+                    w_ghost_first <= $time;
+                    $display("[%0t] *** BEAT W FANTOME : l'aval prend le beat, le maitre ne le sait pas",
+                             $time);
+                    $display("           block_ip=%0b block_req=%0b bad_id=%0b legit=%0b vk=%0b w_pending=%0b",
+                             i_wrapper_block_ip, i_wrapper_block_req,
+                             i_wrapper_bad_id, i_wrapper_legit, i_wrapper_vk,
+                             i_wrapper_w_pending);
+                end
+            end
         end
     end
 
@@ -892,10 +961,15 @@ module tb_accel_armor;
         bit          ok;
         int unsigned k;
         int unsigned w_excess_0;
+        int unsigned w_ghost_0;
+        int unsigned bad_id_rise_0, bad_id_cy_0;
         int unsigned blk_rise_0, blk_hi_0, blk_lo_0, danger_0, aw_adm_0;
         int unsigned outs_max_0, ovf_0, oblk_0, fire_0, respc_0;
         begin
             w_excess_0 = w_excess_tot;
+            w_ghost_0  = w_ghost_tot;
+            bad_id_rise_0 = bad_id_rise;
+            bad_id_cy_0   = bad_id_cy;
             blk_rise_0 = blk_rise;  blk_hi_0 = blk_hi_cy;  blk_lo_0 = blk_lo_cy;
             danger_0   = danger_cy; aw_adm_0 = aw_adm_while_storm;
             outs_max_0 = outs_max; ovf_0 = ovf_rise; oblk_0 = oblk_rise;
@@ -971,6 +1045,12 @@ module tb_accel_armor;
             if (w_excess_tot != w_excess_0)
                 $display("  %-12s  !! W ORPHELIN EN AVAL : %0d beat(s) avale(s) sans AW -- canal W decale",
                          name, w_excess_tot - w_excess_0);
+            if (w_ghost_tot != w_ghost_0)
+                $display("  %-12s  !! BEAT W FANTOME : %0d beat(s) pris en aval sans que le maitre le sache -- canal W decale",
+                         name, w_ghost_tot - w_ghost_0);
+            if (bad_id_rise != bad_id_rise_0)
+                $display("  %-12s  bad_id : %0d front(s), %0d cycle(s) hauts -- INVISIBLE au logiciel",
+                         name, bad_id_rise - bad_id_rise_0, bad_id_cy - bad_id_cy_0);
 
             $display("  %-12s mode=%0d %-8s -> %5s | %2d iter | %6d cy moy | err %0d/%0d | fail_cnt=%0d | verdict=%b",
                      name, mode, is_read ? "lecture" : "ecriture",
@@ -1162,6 +1242,12 @@ module tb_accel_armor;
             $display("-------------------------------------------------------");
             $display(" CAMPAGNE : %0d OK, %0d ECHEC", n_pass, n_fail);
             $display(" OBSERVABILITE : %0d defaut(s)", obs_fail);
+            $display(" W orphelin / W fantome : %0d / %0d", w_excess_tot, w_ghost_tot);
+            $display(" bad_id : %0d fronts, %0d cycles hauts (invisible au logiciel)",
+                     bad_id_rise, bad_id_cy);
+            if (w_ghost_tot != 0)
+                $display(" *** MECANISME DU GEL REPRODUIT : %0d beat(s) W duplique(s), premier a %0t",
+                         w_ghost_tot, w_ghost_first);
             if (cfg_timeout)
                 $display(" un acces MMIO n'a pas abouti : resultats incomplets");
             $display("-------------------------------------------------------");
@@ -1397,6 +1483,10 @@ module tb_accel_armor;
             $display("   accel   : %s", accel_state_str());
             $display("   wrapper : %s", wrapper_state_str());
             $display("   observabilite     : %0d defaut(s)", obs_fail);
+            $display("   W orphelin / W fantome : %0d / %0d", w_excess_tot, w_ghost_tot);
+            if (w_ghost_tot != 0)
+                $display(" *** MECANISME DU GEL PROUVE : %0d beat(s) W duplique(s), premier a %0t",
+                         w_ghost_tot, w_ghost_first);
             $display("-------------------------------------------------------");
             if (obs_fail != 0)
                 $display(" ATTENTION : le bloc d'observabilite ment sur %0d point(s) -- ne pas synthetiser.", obs_fail);
