@@ -80,10 +80,30 @@
 #ifndef ARMOR_WSKID
 #define ARMOR_WSKID 0
 #endif
-#define WRAP_MAGIC_EXPECTED     (0x41524D4F52000005ULL)
-#define WRAP_MAGIC_V3           (0x41524D4F52000003ULL)  /* sans compteurs de retrait */
-#define WRAP_MAGIC_V2           (0x41524D4F52000002ULL)  /* sans bad_id ni canal W */
-#define WRAP_MAGIC_V1           (0x41524D4F52000001ULL)  /* sans observabilite */
+/* CONTROLE DE VERSION PAR SEUIL, ET NON PAR EGALITE.
+ *
+ * La version precedente comparait le magic a une constante exacte. Elle m'a
+ * pris deux fois dans la journee : une fois pour une vraie erreur (firmware
+ * perime flashe sur bitstream neuf, cf. le log de 14:16 -- le garde a bien
+ * fonctionne), et une fois pour RIEN (le RTL passe a v6 alors que cette
+ * constante etait restee a v5 : le log de 17:19 porte un « bitstream sans
+ * interface CSR ? » alors que tout etait correctement apparie).
+ *
+ * Un garde qui crie au loup est pire que pas de garde : on apprend a l'ignorer,
+ * et la vraie erreur passe. Le firmware verifie donc ce dont IL A BESOIN -- une
+ * version AU MOINS egale a la sienne -- et non une egalite qui oblige a toucher
+ * deux fichiers a chaque incrementation.
+ *
+ * En clair : une version PLUS RECENTE que prevu n'est pas un probleme, les
+ * registres deja documentes ne bougent pas. Seule une version PLUS ANCIENNE
+ * l'est, et le message dit alors precisement ce qui manquera. */
+#define WRAP_MAGIC_PREFIX       (0x41524D4F52000000ULL)  /* "ARMOR" + version */
+#define WRAP_MAGIC_MASK         (0xFFFFFFFFFFFFFF00ULL)
+#define WRAP_MAGIC_VERSION(m)   ((unsigned)((m) & 0xFFULL))
+
+/* Version minimale requise par CE firmware : il lit 0xF0/0xF8 (retraits de
+ * VALID) et pilote CTRL[4] (etage W), donc v6. */
+#define WRAP_MAGIC_MIN          6
 
 /* Bloc d'observabilite du wrapper (MAGIC version 2). Lecture seule, remis a
  * zero par CNT_CLR comme les compteurs d'evenements. Carte complete dans
@@ -306,26 +326,31 @@ static void armor_wrap_init(int enforce) {
     printf("# ARMOR CSR magic : wrap1=0x%08x%08x wrap2=0x%08x%08x\r\n",
            (unsigned)(m1 >> 32), (unsigned)m1,
            (unsigned)(m2 >> 32), (unsigned)m2);
-    if (m1 == WRAP_MAGIC_V3 || m2 == WRAP_MAGIC_V3) {
-        /* Tout sauf les compteurs de retrait : 0xF0 et 0xF8 liront zero, ce qui
-         * n'est PAS « aucune violation ». */
-        printf("# ATTENTION : magic ARMOR v3 — pas de compteurs de retrait de "
-               "VALID ; 0xF0/0xF8 liront zero, ce n'est pas une absence de "
-               "violation\r\n");
-    } else if (m1 == WRAP_MAGIC_V2 || m2 == WRAP_MAGIC_V2) {
-        /* Observabilite presente, mais sans bad_id, sans les compteurs du canal
-         * W et avec le cyc_hold aveugle a la phase W : les registres
-         * 0xD0..0xE8 liront zero et cyc_hold sous-comptera. */
-        printf("# ATTENTION : magic ARMOR v2 — pas de bad_id ni de compteurs "
-               "du canal W ; 0xD0..0xE8 liront zero\r\n");
-    } else if (m1 == WRAP_MAGIC_V1 || m2 == WRAP_MAGIC_V1) {
-        /* Le bitstream porte l'interface CSR mais pas le bloc d'observabilite
-         * du 2026-09-10 : les registres 0x60..0xC8 lisent zero. Les lignes
-         * ARMORHW/ARMORLAT seront donc a zero, ce n'est pas une panne. */
-        printf("# ATTENTION : magic ARMOR v1 — bitstream SANS observabilite "
-               "materielle, les compteurs 0x60..0xC8 liront zero\r\n");
-    } else if (m1 != WRAP_MAGIC_EXPECTED || m2 != WRAP_MAGIC_EXPECTED) {
-        printf("# ATTENTION : magic ARMOR inattendu — bitstream sans interface CSR ?\r\n");
+    if ((m1 & WRAP_MAGIC_MASK) != WRAP_MAGIC_PREFIX ||
+        (m2 & WRAP_MAGIC_MASK) != WRAP_MAGIC_PREFIX) {
+        /* Ce n'est meme pas un magic ARMOR : bitstream sans interface CSR, ou
+         * adresse de wrapper fausse. Rien de ce qui suit n'a de sens. */
+        printf("# ATTENTION : magic ARMOR absent — bitstream sans interface CSR "
+               "ou adresse de wrapper erronee ; RIEN de ce log n'est exploitable\r\n");
+    } else {
+        unsigned v1 = WRAP_MAGIC_VERSION(m1), v2 = WRAP_MAGIC_VERSION(m2);
+        unsigned v  = (v1 < v2) ? v1 : v2;   /* le plus faible des deux decide */
+
+        if (v1 != v2)
+            printf("# ATTENTION : les deux wrappers n'ont pas la meme version "
+                   "(w1=v%u, w2=v%u)\r\n", v1, v2);
+
+        if (v < WRAP_MAGIC_MIN) {
+            /* On nomme ce qui manquera, plutot que de laisser croire a une
+             * panne. Un registre absent lit ZERO, et zero n'est pas « aucune
+             * anomalie » : c'est « aucune mesure ». */
+            printf("# ATTENTION : bitstream ARMOR v%u, ce firmware demande v%u "
+                   "au minimum\r\n", v, WRAP_MAGIC_MIN);
+            if (v < 2) printf("#   -> 0x60..0xC8 liront zero : aucune mesure materielle\r\n");
+            if (v < 3) printf("#   -> 0xD0..0xE8 liront zero : ni bad_id ni canal W, et cyc_hold sous-compte\r\n");
+            if (v < 5) printf("#   -> 0xF0/0xF8 liront zero : AUCUNE mesure de retrait de VALID (pas « aucun retrait »)\r\n");
+            if (v < 6) printf("#   -> CTRL[4] sans effet : l'etage W ne peut pas etre active\r\n");
+        }
     }
 
     w1[WRAP_ID_CFG_OFF   / 8] = 1ULL;         /* LHA : STREAM_ID = 1 */
