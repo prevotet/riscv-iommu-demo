@@ -535,6 +535,30 @@ static void armor_wrap_snapshot(const char *when, volatile uint64_t *accel_statu
                (unsigned long)((cur >> 32) & 1),
                (unsigned long)(uint32_t)cur,
                (unsigned long)((cur >> 33) & 1));
+
+        /* Trafic et temps ACCUMULES DEPUIS LE DEBUT DU SCENARIO (CNT_CLR est
+         * fait par armor_wrap_clear() dans run_scenario).
+         *
+         * Pourquoi cette ligne existe : le 2026-09-10, SC02-STORM a gele a
+         * l'iteration 1 et le `armor_wrap_perf()` de fin de scenario n'a jamais
+         * ete atteint -- on a donc perdu le seul chiffre qui dit combien de
+         * requetes ARMOR avait deja coupees quand tout s'est arrete. Ici il est
+         * imprime AVANT chaque lancement : le dernier bloc du log le portera.
+         *
+         * `cut` est la difference entre les transferts d'adresse presentes par
+         * le maitre et ceux admis en aval. Sur du trafic legitime il doit valoir
+         * zero (mesure du faux positif) ; sur une tempete il chiffre l'action
+         * d'ARMOR sans passer par les verdicts vus par l'accelerateur. */
+        uint64_t req = w[WRAP_CNT_REQ_OFF / 8];
+        uint64_t cyc = w[WRAP_CNT_CYC_OFF / 8];
+        uint32_t r_up = (uint32_t)req, r_dn = (uint32_t)(req >> 32);
+        printf("# ARMORCUT,%s,%s,req_up=%lu req_dn=%lu cut=%ld | "
+               "cyc_block=%lu cyc_hold=%lu\r\n",
+               when, nm,
+               (unsigned long)r_up, (unsigned long)r_dn,
+               (long)((int64_t)r_up - (int64_t)r_dn),
+               (unsigned long)(uint32_t)cyc,
+               (unsigned long)(uint32_t)(cyc >> 32));
     }
 }
 
