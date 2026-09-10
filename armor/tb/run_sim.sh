@@ -110,6 +110,18 @@ fi
 # (cf. le grand commentaire dans tb_accel_armor.sv). Sert de non-regression.
 [[ "${BUG:-0}" == "1" ]] && DEFINES+=("-d" "BUG_RESP_T")
 
+# OBS_CHECK=1 : controle croise des compteurs materiels contre ceux du banc, a
+# chaque pas de campagne. DESACTIVE PAR DEFAUT, et ce n'est pas de la prudence
+# excessive : ce controle fait quatre lectures CSR de plus par pas, et ces
+# quatre lectures suffisent a changer l'issue de SC03 et SC04. Mesure : sans
+# elles SC03 donne `req up=8 dn=8, block=0` ; avec elles, `req up=140 dn=3,
+# block=478`. Le RTL est inerte -- verifie signal par signal -- c'est bien la
+# mesure qui perturbe le mesure.
+#
+# Consequence a retenir : une campagne de VERIFICATION et une campagne de
+# MESURE ne peuvent pas etre le meme run.
+[[ "${OBS_CHECK:-0}" == "1" ]] && DEFINES+=("-d" "OBS_CHECK")
+
 echo "=== xvlog ==="
 xvlog -sv --nolog \
       "${DEFINES[@]+"${DEFINES[@]}"}" \

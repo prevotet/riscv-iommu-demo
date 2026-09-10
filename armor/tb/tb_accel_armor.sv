@@ -87,10 +87,20 @@ module tb_accel_armor;
     localparam logic [63:0] CSR_LAT_MM    = 64'hB8;
     localparam logic [63:0] CSR_LAT_CUR   = 64'hC0;
     localparam logic [63:0] CSR_CYC_TOTAL = 64'hC8;
+    // Version 3 : les trois angles morts fermes
+    localparam logic [63:0] CSR_CNT_BADID = 64'hD0;
+    localparam logic [63:0] CSR_CNT_WCH   = 64'hD8;
+    localparam logic [63:0] CSR_CNT_WANOM = 64'hE0;
+    localparam logic [63:0] CSR_DBG_WOWED = 64'hE8;
 
     int unsigned obs_fail = 0;   // defauts trouves dans le bloc d'observabilite
 
-    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000002;   // version 2 : registres d'observabilite
+    //  Valeurs des compteurs du banc au moment du CNT_CLR d'un pas de campagne,
+    //  pour confronter les compteurs materiels aux deltas du banc.
+    int unsigned obs_ref_badid, obs_ref_badcy;
+    int unsigned obs_ref_ghost, obs_ref_orph, obs_ref_awdn;
+
+    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000003;   // version 3 : bad_id, canal W, filigranes
 
     localparam logic [63:0] LEGIT_DST = 64'h0000_0000_9100_0000;
 
@@ -963,6 +973,7 @@ module tb_accel_armor;
         int unsigned w_excess_0;
         int unsigned w_ghost_0;
         int unsigned bad_id_rise_0, bad_id_cy_0;
+        int unsigned aw_seen_0;
         int unsigned blk_rise_0, blk_hi_0, blk_lo_0, danger_0, aw_adm_0;
         int unsigned outs_max_0, ovf_0, oblk_0, fire_0, respc_0;
         begin
@@ -970,6 +981,12 @@ module tb_accel_armor;
             w_ghost_0  = w_ghost_tot;
             bad_id_rise_0 = bad_id_rise;
             bad_id_cy_0   = bad_id_cy;
+            aw_seen_0     = aw_seen;
+            obs_ref_badid = bad_id_rise;
+            obs_ref_badcy = bad_id_cy;
+            obs_ref_ghost = w_ghost_tot;
+            obs_ref_orph  = w_excess_tot;
+            obs_ref_awdn  = aw_seen;
             blk_rise_0 = blk_rise;  blk_hi_0 = blk_hi_cy;  blk_lo_0 = blk_lo_cy;
             danger_0   = danger_cy; aw_adm_0 = aw_adm_while_storm;
             outs_max_0 = outs_max; ovf_0 = ovf_rise; oblk_0 = oblk_rise;
@@ -1057,6 +1074,19 @@ module tb_accel_armor;
                      ok ? "OK" : "ECHEC", iters, cycles_tot / iters,
                      n_err, iters, fails[7:0], got);
             obs_line(name);
+
+            //  Controle croise PAR PAS. CNT_CLR est fait au debut du pas, donc
+            //  les compteurs materiels sont deja relatifs a ce pas ; on les
+            //  confronte aux deltas des compteurs du banc, qui observent les
+            //  memes evenements sans passer par le RTL teste.
+            //
+            //  C'est ici que ces controles ont un sens et pas dans les
+            //  scenarios 0 a 2 : ceux-la sont des lectures, sans aucun trafic
+            //  sur le canal W, et toutes les egalites y sont vraies a zero.
+`ifdef OBS_CHECK
+            obs_step_check(name);
+`endif
+
             last_cycles = cycles_tot / iters;
         end
     endtask
@@ -1283,8 +1313,54 @@ module tb_accel_armor;
     //  ITERATION de l'accelerateur, qui en contient plusieurs sur les modes de
     //  rafale. n depasse donc `iters` sur les tempetes -- et ce n'est pas une
     //  anomalie.
+    //  Confronte les compteurs materiels du pas aux deltas du banc. Toute
+    //  inegalite est un defaut d'instrumentation, pas un defaut d'ARMOR : elle
+    //  doit etre reglee avant qu'on accorde le moindre credit a ces chiffres sur
+    //  carte.
+    task automatic obs_step_check(input string name);
+        logic [63:0] bad, wch, wan, wow;
+        begin
+            if (cfg_timeout) return;
+            csr_read(CSR_CNT_BADID, bad);
+            csr_read(CSR_CNT_WCH,   wch);
+            csr_read(CSR_CNT_WANOM, wan);
+            csr_read(CSR_DBG_WOWED, wow);
+
+            obs_check(bad[31:0]  == (bad_id_rise  - obs_ref_badid),
+                      $sformatf("%s : fronts bad_id, materiel %0d, banc %0d",
+                                name, bad[31:0], bad_id_rise - obs_ref_badid));
+            //  Les CYCLES ne peuvent pas etre compares a l'egalite : quand
+            //  bad_id est encore haut -- le bannissement de SC01 dure
+            //  BLOCK_DURATION -- le compteur tourne toujours, et le materiel
+            //  est lu par CSR AVANT que le banc ne soit echantillonne. Le
+            //  premier controle ecrit ici comparait donc deux instants
+            //  differents d'une valeur mouvante, et signalait un ecart de 13
+            //  cycles comme un defaut de compteur.
+            //
+            //  La relation vraie est monotone et bornee : le materiel, lu plus
+            //  tot, doit etre INFERIEUR OU EGAL au banc, et l'ecart ne peut pas
+            //  depasser le cout des lectures CSR intercalees.
+            obs_check(bad[63:32] <= (bad_id_cy - obs_ref_badcy),
+                      $sformatf("%s : cycles bad_id, materiel %0d > banc %0d -- impossible",
+                                name, bad[63:32], bad_id_cy - obs_ref_badcy));
+            obs_check((bad_id_cy - obs_ref_badcy) - bad[63:32] <= 128,
+                      $sformatf("%s : cycles bad_id, ecart %0d cycles entre materiel (%0d) et banc (%0d) -- trop grand pour un decalage de lecture",
+                                name, (bad_id_cy - obs_ref_badcy) - bad[63:32],
+                                bad[63:32], bad_id_cy - obs_ref_badcy));
+            obs_check(wch[31:0]  == (aw_seen      - obs_ref_awdn),
+                      $sformatf("%s : AW aval, materiel %0d, aval comportemental %0d",
+                                name, wch[31:0], aw_seen - obs_ref_awdn));
+            obs_check(wan[31:0]  == (w_ghost_tot  - obs_ref_ghost),
+                      $sformatf("%s : beats fantomes, materiel %0d, banc %0d",
+                                name, wan[31:0], w_ghost_tot - obs_ref_ghost));
+            obs_check(wan[63:32] == (w_excess_tot - obs_ref_orph),
+                      $sformatf("%s : W orphelins, materiel %0d, banc %0d",
+                                name, wan[63:32], w_excess_tot - obs_ref_orph));
+        end
+    endtask
+
     task automatic obs_line(input string name);
-        logic [63:0] cyc, req, ln, ll, mm, sd, cur;
+        logic [63:0] cyc, req, ln, ll, mm, sd, cur, bad, wan;
         begin
             if (cfg_timeout) return;
             csr_read(CSR_CNT_CYC,  cyc);
@@ -1294,6 +1370,8 @@ module tb_accel_armor;
             csr_read(CSR_LAT_MM,   mm);
             csr_read(CSR_STALL_DN, sd);
             csr_read(CSR_LAT_CUR,  cur);
+            csr_read(CSR_CNT_BADID, bad);
+            csr_read(CSR_CNT_WANOM, wan);
             $display("  %-12s  HW : n=%0d/%0d verdict | det[min,max]=[%0d,%0d] tx[min,max]=[%0d,%0d] | req up=%0d dn=%0d coupees=%0d | block=%0d cy hold=%0d cy | attente dn aw=%0d ar=%0d | en vol=%0b(%0d cy)",
                      name, ln[31:0], ln[63:32],
                      mm[15:0], mm[31:16], mm[47:32], mm[63:48],
@@ -1301,6 +1379,13 @@ module tb_accel_armor;
                      cyc[31:0], cyc[63:32],
                      sd[11:0], sd[47:36],
                      cur[32], cur[31:0]);
+
+            //  bad_id et les anomalies du canal W, par pas. Silencieux quand
+            //  tout est a zero : on ne veut voir ces lignes que si quelque
+            //  chose bouge.
+            if (bad[31:0] != 0 || wan != 0)
+                $display("  %-12s  W/ID : bad_id %0d fronts %0d cy | fantomes=%0d orphelins=%0d",
+                         name, bad[31:0], bad[63:32], wan[31:0], wan[63:32]);
 
             //  Incoherence INTERNE a l'instrumentation : le materiel a compte
             //  des cycles de blocage, donc un verdict a bien ete haut, mais
@@ -1417,6 +1502,56 @@ module tb_accel_armor;
             csr_read(CSR_CYC_TOTAL, tot2);
             obs_check(tot2 > tot,
                       $sformatf("cyc_total ne progresse pas (%0d puis %0d)", tot, tot2));
+
+            // --- version 3 : les nouveaux compteurs, confrontes au banc -------
+            //
+            //  Le banc compte EXACTEMENT les memes evenements, de son cote et
+            //  sans passer par le RTL teste. Ces cinq egalites sont donc le
+            //  controle le plus fort qu'on puisse leur appliquer -- et elles
+            //  disqualifient d'avance l'excuse « le compteur devait etre faux »
+            //  si l'un d'eux bouge sur carte.
+            //
+            //  Reserve aux scenarios a transaction unique : dans la campagne,
+            //  CNT_CLR est fait a chaque pas alors que les compteurs du banc
+            //  courent depuis le reset -- et surtout, les lectures CSR
+            //  supplementaires y perturberaient SC03 et SC04 (cf. OBS_CHECK
+            //  dans run_sim.sh).
+            if (scenario != 3) begin
+                logic [63:0] bad, wch, wan, wow;
+                csr_read(CSR_CNT_BADID, bad);
+                csr_read(CSR_CNT_WCH,   wch);
+                csr_read(CSR_CNT_WANOM, wan);
+                csr_read(CSR_DBG_WOWED, wow);
+
+                $display("   bad_id : %0d fronts, %0d cycles   (banc : %0d / %0d)",
+                         bad[31:0], bad[63:32], bad_id_rise, bad_id_cy);
+                $display("   canal W aval : AW=%0d W-last=%0d ecart=%0d",
+                         wch[31:0], wch[63:32],
+                         $signed(wch[31:0] - wch[63:32]));
+                $display("   anomalies W : fantomes=%0d orphelins=%0d   (banc : %0d / %0d)",
+                         wan[31:0], wan[63:32], w_ghost_tot, w_excess_tot);
+                $display("   w_owed : courant=%0d max=%0d   (banc max : %0d)",
+                         wow[7:0], wow[15:8], aw_owed_max);
+
+                obs_check(bad[31:0]  == bad_id_rise,
+                          $sformatf("fronts bad_id : materiel %0d, banc %0d",
+                                    bad[31:0], bad_id_rise));
+                obs_check(bad[63:32] == bad_id_cy,
+                          $sformatf("cycles bad_id : materiel %0d, banc %0d",
+                                    bad[63:32], bad_id_cy));
+                obs_check(wch[31:0]  == aw_seen,
+                          $sformatf("AW aval : materiel %0d, aval comportemental %0d",
+                                    wch[31:0], aw_seen));
+                obs_check(wan[31:0]  == w_ghost_tot,
+                          $sformatf("beats fantomes : materiel %0d, banc %0d",
+                                    wan[31:0], w_ghost_tot));
+                obs_check(wan[63:32] == w_excess_tot,
+                          $sformatf("W orphelins : materiel %0d, banc %0d",
+                                    wan[63:32], w_excess_tot));
+                obs_check(wow[15:8]  == aw_owed_max,
+                          $sformatf("filigrane w_owed : materiel %0d, banc %0d",
+                                    wow[15:8], aw_owed_max));
+            end
 
             // --- invariantes propres a chaque scenario ------------------------
             if (scenario == 0) begin

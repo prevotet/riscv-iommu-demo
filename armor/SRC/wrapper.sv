@@ -134,7 +134,9 @@ logic                  block_msi;
 // Registres de configuration/statut ARMOR — declares ici car referencés
 // des la gate ci-dessous ; leur logique est en fin de module.
 localparam int unsigned CSR_IDX_W = 5;   // 32 registres de 8 octets
-localparam logic [63:0] ARMOR_STICKY_MASK = 64'h0000_0000_0000_0FF8; // bits [11:3]
+// bits [11:3] + [14] bad_id. Les bits [12] legit_hit et [13] ENFORCE restent
+// exclus : ce sont des echos d'etat, les rendre collants n'apprendrait rien.
+localparam logic [63:0] ARMOR_STICKY_MASK = 64'h0000_0000_0000_4FF8;
 
 logic [63:0]            csr_id_cfg_q;
 logic [63:0]            csr_msi_addr_q;
@@ -476,7 +478,7 @@ response_delayer #(
 //   0x40  CNT_OUTS     RO  nombre d'episodes de saturation outstanding
 //   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
 //   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
-//   0x58  MAGIC        RO  0x41524D4F52000002 ("ARMOR" + version)
+//   0x58  MAGIC        RO  0x41524D4F52000003 ("ARMOR" + version)
 //
 // Bloc d'observabilite, ajoute le 2026-09-10 (d'ou MAGIC ...0002 : le logiciel
 // distingue ainsi un bitstream qui porte ces registres d'un qui n'en a pas).
@@ -513,6 +515,32 @@ response_delayer #(
 //   0xC0  LAT_CUR      RO  [31:0] compteur de la transaction EN VOL,
 //                          [32] mesure en cours, [33] verdict deja vu
 //   0xC8  CYC_TOTAL    RO  cycles ecoules depuis le dernier CNT_CLR
+//
+// Version 3 (2026-09-10) : trois angles morts fermes, apres une campagne qui a
+// gele avec sticky = 0, cyc_block = 0, cyc_hold = 0 et w_owed = 0 -- c'est-a-dire
+// sans qu'aucun compteur existant ne voie quoi que ce soit.
+//
+//   0xD0  CNT_BADID    RO  [31:0] fronts de bad_id, [63:32] cycles a 1
+//                          bad_id est le SEUL mecanisme gate par ENFORCE ; il
+//                          n'avait ni bit de statut, ni bit collant, ni
+//                          compteur. Il est aussi remonte dans STATUS[14] et
+//                          rendu collant.
+//   0xD8  CNT_WCH      RO  [31:0] AW admis en aval, [63:32] W-last admis
+//                          comptes SEPAREMENT : `w_owed` est un solde dont le
+//                          decrement garde absorbe un W-last excedentaire en
+//                          silence. L'ecart se lit ici dans les deux sens.
+//   0xE0  CNT_WANOM    RO  [31:0] beats FANTOMES, [63:32] W-last orphelins
+//                          fantome = l'aval prend le beat alors que le maitre
+//                          n'en est pas informe, donc le maitre le represente
+//                          et l'aval en recoit deux. Trou reel de la branche
+//                          HOLD de response_manager ; le banc le dit
+//                          inatteignable par cet accelerateur, ce compteur
+//                          verifie la meme chose sur la carte.
+//   0xE8  DBG_WOWED    RO  [7:0] w_owed courant, [15:8] filigrane de maximum
+//
+// Corrige aussi CNT_CYC[63:32] (cyc_hold), qui etait conditionne a la
+// presentation d'une adresse et manquait donc tout HOLD entre pendant une phase
+// W -- exactement le cas d'une rafale d'ecritures.
 //
 // Ces compteurs chronometrent au cycle, dans le wrapper : ils remplacent la
 // mesure logicielle prise autour de `*ctrl = 1`, dont jusqu'a 48 % du chiffre
@@ -558,6 +586,13 @@ always_comb begin
     armor_status[11]  = msi_storm;
     armor_status[12]  = legit_hit;
     armor_status[13]  = csr_enforce_q;
+    // bad_id (2026-09-10). Il n'apparaissait NI ici, NI dans STICKY, NI dans
+    // aucun compteur -- et c'est le seul mecanisme gate par ENFORCE : il
+    // fabrique une terminaison SLVERR vers le maitre en forcant b_ready et
+    // r_ready en aval. Un gel avec sticky=0 et cyc_block=0 etait donc
+    // indiscernable d'un gel ou rien ne s'est passe. Il est desormais visible,
+    // instantanement et de facon collante.
+    armor_status[14]  = bad_id;
 end
 
 // -----------------------------------------------------------------------------
@@ -875,10 +910,29 @@ logic [31:0] cnt_req_up_q,    cnt_req_dn_q;
 logic [63:0] cyc_total_q;
 
 //  HOLD : la fenetre pendant laquelle response_manager tient le maitre sans
-//  encore rien decider. On ne compte que si une requete est effectivement
-//  presentee, sinon on compterait le repos (verdict_known_q vaut 0 apres reset).
-logic hold_mode;
-assign hold_mode = req_presented & ~block_req_i & ~block_ip_eff & ~bad_id
+//  encore rien decider.
+//
+//  CORRECTIF DU 2026-09-10. La version precedente conditionnait le comptage a
+//  `req_presented` (aw_valid | ar_valid). Or le commentaire du correctif de
+//  verdict_known_q dit exactement pourquoi c'est faux : « une fois l'AW absorbe,
+//  le maitre passe en phase W, plus rien n'est presente ». Un HOLD entre pendant
+//  une phase W -- le cas qui compte pour une rafale d'ecritures -- etait donc
+//  invisible, et c'est ce qui a fait lire `cyc_hold = 0` sur la campagne SC02
+//  qui gele. Le compteur avait le meme angle mort que le defaut qu'il devait
+//  eclairer.
+//
+//  On garde une garde d'activite, sinon on compterait le repos : apres reset et
+//  sous ENFORCE = 1, verdict_known_q vaut 0 et le compteur saturerait sans qu'un
+//  seul maitre attende. Mais cette garde couvre maintenant les trois facons
+//  d'attendre : presenter une adresse, pousser des donnees, ou attendre une
+//  reponse.
+logic master_active, hold_mode;
+
+assign master_active = req_presented
+                     | req_IP_wrapper_i.w_valid
+                     | lat_busy_q;
+
+assign hold_mode = master_active & ~block_req_i & ~block_ip_eff & ~bad_id
                  & (~legit_hit_eff | ~verdict_known_eff);
 
 logic [1:0] req_up_inc, req_dn_inc;
@@ -987,6 +1041,96 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
                 lat_evt_q  <= lat_verdict;
             end
         end
+    end
+end
+
+// -----------------------------------------------------------------------------
+//  LE CANAL W, ET CE QUI LUI ARRIVE VRAIMENT  (2026-09-10)
+//
+//  Trois compteurs qui ferment trois angles morts nommes par la campagne du
+//  2026-09-10, tous a l'endroit ou vit la signature du gel (sticky = 0,
+//  cyc_block = 0, cyc_hold = 0, w_owed = 0).
+//
+//  1. bad_id. Compte en fronts ET en cycles. C'est le seul mecanisme gate par
+//     ENFORCE, et il ne laissait aucune trace : ni bit de statut, ni bit
+//     collant, ni compteur. `block_req_i` l'exclut, et `hold_mode` l'excluait
+//     aussi. Un evenement bad_id etait litteralement indiscernable de rien.
+//
+//  2. Les deux cotes du canal W en aval, comptes SEPAREMENT. `w_owed_q` est un
+//     solde, et son decrement est garde a zero : un W-last excedentaire y est
+//     absorbe en silence. Compter les AW et les W-last separement rend le
+//     desalignement lisible DANS LES DEUX SENS -- un AW sans donnees comme un
+//     beat de trop. `cnt_w_orphan_q` isole directement le second cas.
+//
+//  3. Le BEAT FANTOME : l'aval prend le beat (w_valid & w_ready en aval) alors
+//     que le maitre n'en est pas informe (w_ready retire cote maitre). Le maitre
+//     croit son beat refuse et le represente ; l'aval en recoit deux, et le
+//     canal W est decale pour toujours.
+//
+//     C'est un trou reel de la branche HOLD de response_manager, qui sort '0
+//     sur tout -- donc w_ready = 0 -- alors que request_manager ne coupe
+//     w_valid que si `!w_pending`. La branche passe-plat traite ce piege
+//     explicitement ; la branche HOLD ne le traite pas.
+//
+//     Le banc dit ce trou INATTEIGNABLE par cet accelerateur : sa FSM est
+//     sequentielle (G_AW -> G_W -> G_NEXT), donc `aw_owed max = 1` et jamais
+//     deux ecritures ne se chevauchent. Mais le banc ne modelise ni la latence
+//     de l'IOMMU, ni le crossbar, et il a deja valide du vide quatre fois. Ce
+//     compteur est la version SUR CARTE du meme test : s'il bouge, le trou est
+//     atteignable en vrai et on a la cause racine.
+// -----------------------------------------------------------------------------
+logic [31:0] cnt_badid_rise_q, cnt_badid_cy_q;
+logic [31:0] cnt_aw_dn_q,      cnt_wlast_dn_q;
+logic [31:0] cnt_w_ghost_q,    cnt_w_orphan_q;
+logic [3:0]  w_owed_max_q;
+logic        bad_id_d_q;
+
+logic dn_w_ghost, dn_w_orphan;
+
+//  Le beat part en aval et y est pris, mais le maitre ne recoit pas son ready.
+assign dn_w_ghost  = req_wrapper_iommu_o.w_valid
+                   & resp_wrapper_iommu_i.w_ready
+                   & ~resp_IP_wrapper_o.w_ready;
+
+//  Un W-last accepte en aval alors qu'aucun AW n'y attend de donnees, et
+//  qu'aucun n'arrive dans le meme cycle : le solde ne peut pas le montrer.
+assign dn_w_orphan = dn_w_last_hs & (w_owed_q == 4'h0) & ~dn_aw_hs;
+
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        cnt_badid_rise_q <= 32'h0;
+        cnt_badid_cy_q   <= 32'h0;
+        cnt_aw_dn_q      <= 32'h0;
+        cnt_wlast_dn_q   <= 32'h0;
+        cnt_w_ghost_q    <= 32'h0;
+        cnt_w_orphan_q   <= 32'h0;
+        w_owed_max_q     <= 4'h0;
+        bad_id_d_q       <= 1'b0;
+    end else if (csr_cnt_clr) begin
+        cnt_badid_rise_q <= 32'h0;
+        cnt_badid_cy_q   <= 32'h0;
+        cnt_aw_dn_q      <= 32'h0;
+        cnt_wlast_dn_q   <= 32'h0;
+        cnt_w_ghost_q    <= 32'h0;
+        cnt_w_orphan_q   <= 32'h0;
+        w_owed_max_q     <= 4'h0;
+        bad_id_d_q       <= bad_id;
+    end else begin
+        bad_id_d_q <= bad_id;
+
+        if (bad_id) begin
+            if (cnt_badid_cy_q != 32'hFFFF_FFFF)
+                cnt_badid_cy_q <= cnt_badid_cy_q + 32'd1;
+            if (!bad_id_d_q)
+                cnt_badid_rise_q <= cnt_badid_rise_q + 32'd1;
+        end
+
+        if (dn_aw_hs)     cnt_aw_dn_q    <= cnt_aw_dn_q    + 32'd1;
+        if (dn_w_last_hs) cnt_wlast_dn_q <= cnt_wlast_dn_q + 32'd1;
+        if (dn_w_ghost)   cnt_w_ghost_q  <= cnt_w_ghost_q  + 32'd1;
+        if (dn_w_orphan)  cnt_w_orphan_q <= cnt_w_orphan_q + 32'd1;
+
+        if (w_owed_q > w_owed_max_q) w_owed_max_q <= w_owed_q;
     end
 end
 
@@ -1137,7 +1281,7 @@ always_comb begin
         5'd8:    csr_rdata = {32'h0, cnt_outs_q};
         5'd9:    csr_rdata = {32'h0, cnt_msi_q};
         5'd10:   csr_rdata = {{(64-DevIDWidth){1'b0}}, dev_id_last_q};
-        5'd11:   csr_rdata = 64'h41524D4F52000002;
+        5'd11:   csr_rdata = 64'h41524D4F52000003;
         // Observabilite (version 2 du MAGIC). Voir la carte des registres.
         5'd12:   csr_rdata = {52'h0, dbg_up};
         5'd13:   csr_rdata = {52'h0, dbg_dn};
@@ -1154,6 +1298,11 @@ always_comb begin
                               lat_det_max_q, lat_det_min_q};
         5'd24:   csr_rdata = {30'h0, lat_evt_q, lat_busy_q, lat_cnt_q};
         5'd25:   csr_rdata = cyc_total_q;
+        // Fermeture des trois angles morts du 2026-09-10 (MAGIC ...0003).
+        5'd26:   csr_rdata = {cnt_badid_cy_q,  cnt_badid_rise_q};
+        5'd27:   csr_rdata = {cnt_wlast_dn_q,  cnt_aw_dn_q};
+        5'd28:   csr_rdata = {cnt_w_orphan_q,  cnt_w_ghost_q};
+        5'd29:   csr_rdata = {56'h0, w_owed_max_q, w_owed_q};
         default: csr_rdata = 64'h0;
     endcase
 end
