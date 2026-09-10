@@ -130,19 +130,55 @@ déjà présenté en aval (violation AXI4). Corrélation mesurée sans exception
 retraits sur le canal W. La règle en cause était le correctif du « W orphelin »
 du 2026-09-09 : il avait échangé une violation contre une autre.
 
-**Correctif** — `armor/SRC/w_skid_buffer.sv`, derrière `CTRL[4]`, à 0 au reset.
+**Correctif, VALIDÉ SUR CARTE** — `armor/SRC/w_skid_buffer.sv`, derrière `CTRL[4]`.
 La coupure est décidée **à la capture** ; un beat entré est tenu jusqu'à son
 `ready` ; et le `ready` rendu au maître est celui de l'étage, jamais celui de
-l'aval ni un 1 fabriqué. **À valider sur carte** : le banc n'a jamais reproduit
-le retrait sur W. Protocole : `wskid0` doit reproduire `retr=0/0/4/0` et le gel,
-`wskid1` doit donner `retr=0/0/0/0` et passer — plusieurs runs de chaque côté,
-le point de gel s'étant promené sur six itérations différentes.
+l'aval ni un 1 fabriqué. **Les deux côtés doivent bouger ensemble** — une première
+tentative qui tenait le `VALID` sans corriger le `ready` avait fait passer les
+retraits de 1 à 33.
+
+Deux runs indépendants : SC02, SC04 et SC03 font **50/50 itérations chacun**,
+coupure active sur 49 à 50 d'entre elles, **zéro retrait W, aucun gel**. SC04 et
+SC03 n'avaient jamais été atteints sous `ENFORCE=1`. Coût : +1 cycle sur une
+écriture légitime, +75 LUT, +134 bascules, marge de timing inchangée.
+`w_owed_max` passe de 1 à 2 — preuve que l'étage est bien dans le chemin.
+
+## 5 bis. Prêt à synthétiser, décision en attente
+
+`CTRL[5] FRESH_VERDICT` supprime le retrait d'AW de **SC01**, le seul scénario qui
+gèle encore. Le défaut : `Device_ID_write_enable_o` est registré, donc
+`verdict_known_q` ne retombe qu'à T+2 — pendant T et T+1 l'adresse est jugée sur
+le verdict de la requête **précédente**. Aujourd'hui rien ne passe (`req up=8
+dn=0` sur SC01), mais c'est la **lenteur de l'IOMMU** qui referme la fenêtre, pas
+la logique.
+
+Matrice mesurée au banc, `DN_LAT=4`, campagne 10 OK / 1 ÉCHEC partout :
+
+| config | retrait AW SC01 | retrait AW SC04 | surcoût légitime |
+|---|---|---|---|
+| défaut | 1 | 1 | 0 cy |
+| `FRESH` | **0** | 1 | **+2 cy** |
+| `FRESH`+`WSKID` | 0 | 1 | +2 cy |
+| `FRESH`+`WSKID`+`TXBLOCK` | 0 | **4** | +2 cy |
+
+**Décision en attente** : accepter **+2 cycles par transaction légitime** contre une
+garantie d'identité qui ne dépend plus d'un accident de timing. Le « 0 cycle »
+actuel s'explique par le fait qu'ARMOR laisse l'adresse sortir avant de savoir si
+elle est légitime.
+
+`CTRL[6] TX_BLOCK` est **câblé mais nuisible seul** (retraits AW de SC04 : 1 → 4).
+Il ne redevient nécessaire qu'avec un futur étage sur AW. **Ne pas l'activer.**
+
+Configuration recommandée : **`W_SKID` + `FRESH_VERDICT`, sans `TX_BLOCK`.**
+
+**Le bitstream archivé est le v6, le RTL est en v7** : `tools/bitstream.sh check
+bench` dit donc PÉRIMÉ, et c'est normal — resynthétiser avant toute campagne.
 
 **Encore ouvert :**
 
-- retrait de VALID sur **AW** : une première tentative d'inhibition a été
-  réfutée (les retraits passaient de 1 à 33) ; le correctif juste doit traiter
-  les deux côtés du handshake ensemble ;
+- retrait de VALID résiduel sur **AW** (cause `block_req` : verdict frais et bon,
+  puis verdict volumétrique qui arrive après). Demanderait un étage sur AW de la
+  même forme que celui de W — **pas** `TX_BLOCK` ;
 - retrait de `b_valid`/`r_valid` dans la branche HOLD de `response_manager` :
   troisième site, jamais examiné ;
 - `MAX_REQ_PER_WINDOW = 8` sur une fenêtre de 100 cycles est hors d'atteinte à
