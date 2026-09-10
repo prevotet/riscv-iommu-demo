@@ -536,7 +536,12 @@ response_delayer #(
 //                          HOLD de response_manager ; le banc le dit
 //                          inatteignable par cet accelerateur, ce compteur
 //                          verifie la meme chose sur la carte.
-//   0xE8  DBG_WOWED    RO  [7:0] w_owed courant, [15:8] filigrane de maximum
+//   0xE8  DBG_WOWED    RO  [3:0] w_owed courant, [7:4] filigrane de maximum
+//                          (w_owed_q fait 4 bits et sature a 15 ; le premier
+//                          commentaire annoncait 8 bits par champ et le
+//                          firmware l'a cru, d'ou un « w_owed=16 max=0 »
+//                          impossible dans le log du 2026-09-10 12:36 :
+//                          c'etait 0x10, soit max=1 et owed=0)
 //
 // Corrige aussi CNT_CYC[63:32] (cyc_hold), qui etait conditionne a la
 // presentation d'une adresse et manquait donc tout HOLD entre pendant une phase

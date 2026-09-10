@@ -90,6 +90,14 @@
 #define WRAP_CNT_WANOM_OFF      (0xE0ULL)   /* beats fantomes | W orphelins   */
 #define WRAP_DBG_WOWED_OFF      (0xE8ULL)   /* w_owed courant | son maximum   */
 
+/* DBG_WOWED : DEUX CHAMPS DE 4 BITS, pas de 8. w_owed_q fait 4 bits et sature a
+ * 15. La premiere version de ce decodeur lisait 8 bits par champ -- parce que le
+ * commentaire du RTL l'annoncait ainsi -- et sortait « w_owed=16 max=0 » dans le
+ * log du 2026-09-10 12:36 : deux impossibilites a la fois, un compteur 4 bits a
+ * 16 et un maximum sous la valeur courante. C'etait 0x10, soit max=1, owed=0. */
+#define WRAP_WOWED_CUR(v)       ((unsigned long)((v)       & 0xF))
+#define WRAP_WOWED_MAX(v)       ((unsigned long)(((v) >> 4) & 0xF))
+
 /* Canaux surveilles par DBG_STALL_*, dans l'ordre des champs de 12 bits. */
 #define WRAP_STALL_FIELD(v, i)  (((v) >> (12 * (i))) & 0xFFFULL)
 
@@ -428,7 +436,7 @@ static void armor_wrap_perf_one(const char *tag, const char *who, uint64_t base)
            (long)((int64_t)(uint32_t)wch - (int64_t)(uint32_t)(wch >> 32)),
            (unsigned long)(uint32_t)wan,
            (unsigned long)(uint32_t)(wan >> 32),
-           (unsigned long)((wow >> 8) & 0xFF));
+           WRAP_WOWED_MAX(wow));
 
     uint64_t su = w[WRAP_DBG_STALL_UP_OFF / 8];
     uint64_t sd = w[WRAP_DBG_STALL_DN_OFF / 8];
@@ -613,8 +621,8 @@ static void armor_wrap_snapshot(const char *when, volatile uint64_t *accel_statu
                (long)((int64_t)awdn - (int64_t)wldn),
                (unsigned long)(uint32_t)wan,
                (unsigned long)(uint32_t)(wan >> 32),
-               (unsigned long)(wow & 0xFF),
-               (unsigned long)((wow >> 8) & 0xFF));
+               WRAP_WOWED_CUR(wow),
+               WRAP_WOWED_MAX(wow));
     }
 }
 
@@ -787,7 +795,8 @@ static void stat_add(stats_t *s, int expected_block, int observed_block,
 #    define TRACE_N 3
 #  endif
 static int g_trace_left = TRACE_N;
-#  define TRACE_ARM() do { g_trace_left = TRACE_N; } while (0)
+static int g_iter        = 0;   /* index d'iteration, pour le digest */
+#  define TRACE_ARM() do { g_trace_left = TRACE_N; g_iter = 0; } while (0)
 #else
 #  define TRACE_ARM() do { } while (0)
 #endif
@@ -888,6 +897,57 @@ static uint64_t fire_one(char accel, uint64_t mode, uint64_t dst,
     TRACE("-> lecture STATUS finale");
     st = *status;
     TRACE("   lecture STATUS finale OK");
+
+#ifdef BENCH_TRACE_MMIO
+    /* DIGEST D'UNE LIGNE PAR ITERATION.
+     *
+     * Pourquoi il a fallu l'ajouter : le 2026-09-10 a 12:36, le gel de
+     * SC02-STORM s'est produit APRES l'iteration 2, donc au-dela des TRACE_N = 3
+     * snapshots verbeux -- et le log s'arrete sur une iteration parfaitement
+     * normale, sans rien dire de l'etat d'entree en gel. Les runs precedents
+     * gelaient aux iterations 1 et 2, dans la fenetre tracee ; le point de gel
+     * se deplace d'un run a l'autre.
+     *
+     * PLACE APRES LA FERMETURE DE LA FENETRE CHRONOMETREE, volontairement : t1
+     * est deja pris, donc ni les lectures CSR ni le printf n'entrent dans la
+     * mesure, et les latences de TOUTES les iterations restent valables. C'est
+     * la difference avec les TRACE() ci-dessus, qui sont dans la fenetre et
+     * obligent a jeter leurs iterations.
+     *
+     * L'etat imprime apres l'iteration k EST l'etat d'entree du lancement k+1 :
+     * la derniere ligne du log nomme donc le point de gel, avec ses compteurs.
+     *
+     * Ce qu'il coute quand meme : une ligne a 115200 bauds retarde l'iteration
+     * suivante d'environ 8 ms, ce qui change la cadence des salves. Sur un
+     * defaut aussi sensible au temps que celui-ci, ca peut deplacer le gel --
+     * c'est le meme compromis que OBS_CHECK au banc. On l'accepte : un gel
+     * date valant mieux qu'un gel muet. */
+    {
+        volatile uint64_t *w = (volatile uint64_t *)
+            ((accel == 'M') ? WRAP2_BASE_ADDR : WRAP1_BASE_ADDR);
+        uint64_t req = w[WRAP_CNT_REQ_OFF    / 8];
+        uint64_t cyc = w[WRAP_CNT_CYC_OFF    / 8];
+        uint64_t bad = w[WRAP_CNT_BADID_OFF  / 8];
+        uint64_t wch = w[WRAP_CNT_WCH_OFF    / 8];
+        uint64_t wan = w[WRAP_CNT_WANOM_OFF  / 8];
+        uint64_t wow = w[WRAP_DBG_WOWED_OFF  / 8];
+        uint32_t r_up = (uint32_t)req, r_dn = (uint32_t)(req >> 32);
+        printf("# IT,%d,st=0x%lx,up=%lu,dn=%lu,cut=%ld,blk=%lu,hold=%lu,"
+               "bad=%lu,ecart=%ld,fant=%lu,orph=%lu,owed=%lu/%lu\r\n",
+               g_iter, (unsigned long)st,
+               (unsigned long)r_up, (unsigned long)r_dn,
+               (long)((int64_t)r_up - (int64_t)r_dn),
+               (unsigned long)(uint32_t)cyc,
+               (unsigned long)(uint32_t)(cyc >> 32),
+               (unsigned long)(uint32_t)bad,
+               (long)((int64_t)(uint32_t)wch - (int64_t)(uint32_t)(wch >> 32)),
+               (unsigned long)(uint32_t)wan,
+               (unsigned long)(uint32_t)(wan >> 32),
+               WRAP_WOWED_CUR(wow), WRAP_WOWED_MAX(wow));
+        g_iter++;
+    }
+#endif
+
     return st;
 }
 #undef TRACE
