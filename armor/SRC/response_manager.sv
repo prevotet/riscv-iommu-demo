@@ -75,12 +75,26 @@ module response_manager #(
     input  logic       wskid_en_i,
     input  logic       wskid_ready_i,
 
+    //  BLOCAGE TRANSACTIONNEL (CTRL[6]). Une ecriture dont l'AW est deja admis
+    //  en aval ne peut PAS etre terminee en SLVERR : le maitre cesserait
+    //  d'envoyer ses donnees et l'aval garderait une adresse orpheline -- le
+    //  defaut corrige le 2026-09-09, reintroduit par l'autre bout. On laisse
+    //  donc cette transaction s'achever, et le blocage prend effet a la
+    //  SUIVANTE (l'AW suivant est coupe par request_manager).
+    //
+    //  NE PAS ACTIVER SANS CTRL[5]. Sans exigence de verdict frais, une adresse
+    //  peut etre presentee sur le verdict de la requete precedente ; « ce qui
+    //  est presente est engage » reviendrait alors a admettre une ecriture
+    //  usurpee. L'ordre des deux correctifs n'est pas negociable.
+    input  logic       txblock_en_i,
+
     input  resp_slv_t  resp_wrapper_iommu_i,
     output resp_slv_t  resp_IP_wrapper_o
 );
 
     always_comb begin
-        if (block_ip_i || block_req_i || bad_id_i) begin
+        if ((block_ip_i || block_req_i || bad_id_i)
+            && !(txblock_en_i && w_pending_i)) begin
             // ---- Terminaison de bus gracieuse (SLVERR) ----
             resp_IP_wrapper_o = '0;
 

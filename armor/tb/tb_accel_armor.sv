@@ -96,6 +96,24 @@ module tb_accel_armor;
     localparam logic [63:0] CSR_CNT_RETR  = 64'hF0;
     localparam logic [63:0] CSR_DBG_RETR  = 64'hF8;
 
+    //  Options de CTRL activees par la ligne de commande (voir run_sim.sh).
+    //  Un seul endroit les compose : les `ifdef imbriques de la version
+    //  precedente devenaient illisibles des la troisieme option, et surtout
+    //  ils rendaient impossible de les combiner deux a deux -- or c'est
+    //  exactement ce qu'il faut faire ici, CTRL[6] ne devant jamais etre teste
+    //  sans CTRL[5].
+    localparam logic [63:0] CTRL_OPTS = 64'h0
+`ifdef WSKID
+        | (64'h1 << 4)
+`endif
+`ifdef FRESH
+        | (64'h1 << 5)
+`endif
+`ifdef TXBLOCK
+        | (64'h1 << 6)
+`endif
+        ;
+
     int unsigned obs_fail = 0;   // defauts trouves dans le bloc d'observabilite
 
     //  Valeurs des compteurs du banc au moment du CNT_CLR d'un pas de campagne,
@@ -103,7 +121,7 @@ module tb_accel_armor;
     int unsigned obs_ref_badid, obs_ref_badcy;
     int unsigned obs_ref_ghost, obs_ref_orph, obs_ref_awdn;
 
-    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000006;   // version 6 : + etage W sur CTRL[4]
+    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000007;   // version 7 : + verdict frais et blocage transactionnel
 
     localparam logic [63:0] LEGIT_DST = 64'h0000_0000_9100_0000;
 
@@ -1008,15 +1026,7 @@ module tb_accel_armor;
             //  attribuable au scenario.
             //  AWFIX (CTRL[3]) : active le correctif AXI4, pour que le meme
             //  banc mesure la violation puis verifie sa disparition.
-`ifdef WSKID
-            //  CTRL[4] : etage W actif. Le meme banc mesure donc la violation
-            //  (defaut) puis verifie sa disparition (WSKID=1).
-            csr_write(CSR_CTRL, {59'h0, 1'b1, 1'b0, 1'b1, 1'b1, enforce});
-`elsif AWFIX
-            csr_write(CSR_CTRL, {60'h0, 1'b1, 1'b1, 1'b1, enforce});
-`else
-            csr_write(CSR_CTRL, {61'h0, 1'b1, 1'b1, enforce});  // CNT_CLR|STICKY_CLR
-`endif
+            csr_write(CSR_CTRL, CTRL_OPTS | {61'h0, 1'b1, 1'b1, enforce});
             if (cfg_timeout) return;
 
             acc_write(ACC_BASE,   LEGIT_DST);

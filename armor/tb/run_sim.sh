@@ -134,6 +134,17 @@ fi
 # la campagne change de verdict.
 [[ "${WSKID:-0}" == "1" ]] && DEFINES+=("-d" "WSKID")
 
+# FRESH=1   : CTRL[5], n'admet une adresse que sur un verdict d'identite FRAIS.
+#             Ferme une fenetre de deux cycles ou l'adresse etait jugee sur le
+#             verdict de la requete precedente.
+# TXBLOCK=1 : CTRL[6], blocage transactionnel -- une ecriture engagee en aval
+#             se termine au lieu d'etre coupee en SLVERR.
+#
+# NE JAMAIS tester TXBLOCK sans FRESH : sans verdict frais, « ce qui est
+# presente est engage » revient a admettre une ecriture usurpee.
+[[ "${FRESH:-0}" == "1" ]]   && DEFINES+=("-d" "FRESH")
+[[ "${TXBLOCK:-0}" == "1" ]] && DEFINES+=("-d" "TXBLOCK")
+
 echo "=== xvlog ==="
 xvlog -sv --nolog \
       "${DEFINES[@]+"${DEFINES[@]}"}" \
