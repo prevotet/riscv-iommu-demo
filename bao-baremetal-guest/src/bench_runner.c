@@ -60,6 +60,26 @@
 #define WRAP_CTRL_ENFORCE       (1ULL << 0)
 #define WRAP_CTRL_STICKY_CLR    (1ULL << 1)
 #define WRAP_CTRL_CNT_CLR       (1ULL << 2)
+#define WRAP_CTRL_AWFIX         (1ULL << 3)   /* INERTE : tentative refutee */
+#define WRAP_CTRL_WSKID         (1ULL << 4)   /* etage d'un emplacement sur W */
+
+/* Compiler avec -DARMOR_WSKID=1 pour activer l'etage W (CTRL[4]).
+ *
+ * C'est le correctif du retrait de VALID mesure le 2026-09-10 : la coupure d'un
+ * beat W est decidee A LA CAPTURE, un beat entre est tenu jusqu'a son ready, et
+ * le ready rendu au maitre est celui de l'etage. Le retrait devient impossible
+ * par construction.
+ *
+ * A 0 (defaut) l'etage est en derivation : le MEME bitstream donne donc les deux
+ * comportements, et c'est ainsi qu'on verifiera le correctif -- `retr=0/0/4/0`
+ * et le gel a 0, `retr=0/0/0/0` et la campagne qui passe a 1.
+ *
+ * La simulation ne peut PAS valider ce correctif : le banc n'a jamais reproduit
+ * le retrait sur W (ni IOMMU ni crossbar modelises, et la FSM de l'accelerateur
+ * n'y chevauche pas ses ecritures). La carte est le seul juge. */
+#ifndef ARMOR_WSKID
+#define ARMOR_WSKID 0
+#endif
 #define WRAP_MAGIC_EXPECTED     (0x41524D4F52000005ULL)
 #define WRAP_MAGIC_V3           (0x41524D4F52000003ULL)  /* sans compteurs de retrait */
 #define WRAP_MAGIC_V2           (0x41524D4F52000002ULL)  /* sans bad_id ni canal W */
@@ -314,19 +334,25 @@ static void armor_wrap_init(int enforce) {
     *mha_msi_addr             = MSI_TARGET_DST;   /* meme adresse cote accel */
 
     uint64_t ctrl = (enforce ? WRAP_CTRL_ENFORCE : 0ULL)
+                  | (ARMOR_WSKID ? WRAP_CTRL_WSKID : 0ULL)
                   | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
     w1[WRAP_CTRL_OFF / 8] = ctrl;
     w2[WRAP_CTRL_OFF / 8] = ctrl;
     fence();
 
-    printf("# ARMOR arme : ENFORCE=%d, ID_CFG w1=1 w2=2, MSI_ADDR=0x%08x\r\n",
-           enforce, (unsigned)MSI_TARGET_DST);
+    printf("# ARMOR arme : ENFORCE=%d, W_SKID=%d, ID_CFG w1=1 w2=2, "
+           "MSI_ADDR=0x%08x\r\n",
+           enforce, ARMOR_WSKID, (unsigned)MSI_TARGET_DST);
     printf("# ARMOR devid_last : w1=%lu w2=%lu\r\n",
            (unsigned long)w1[WRAP_DEVID_LAST_OFF / 8],
            (unsigned long)w2[WRAP_DEVID_LAST_OFF / 8]);
 }
 
 /* Vide les compteurs d'evenements ARMOR entre deux scenarios. */
+/* NB : ce clear RELIT CTRL et n'ecrit que les bits d'impulsion par-dessus. Il
+ * preserve donc ENFORCE et W_SKID. Ne pas le "simplifier" en ecrivant une
+ * constante : on desarmerait l'etage W au premier scenario, et le correctif
+ * serait teste sur un wrapper qui ne l'a plus. */
 static void armor_wrap_clear(void) {
     volatile uint64_t *w1 = (volatile uint64_t *)WRAP1_BASE_ADDR;
     volatile uint64_t *w2 = (volatile uint64_t *)WRAP2_BASE_ADDR;
