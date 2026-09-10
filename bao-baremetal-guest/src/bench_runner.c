@@ -60,7 +60,29 @@
 #define WRAP_CTRL_ENFORCE       (1ULL << 0)
 #define WRAP_CTRL_STICKY_CLR    (1ULL << 1)
 #define WRAP_CTRL_CNT_CLR       (1ULL << 2)
-#define WRAP_MAGIC_EXPECTED     (0x41524D4F52000001ULL)
+#define WRAP_MAGIC_EXPECTED     (0x41524D4F52000002ULL)
+#define WRAP_MAGIC_V1           (0x41524D4F52000001ULL)  /* sans observabilite */
+
+/* Bloc d'observabilite du wrapper (MAGIC version 2). Lecture seule, remis a
+ * zero par CNT_CLR comme les compteurs d'evenements. Carte complete dans
+ * armor/SRC/wrapper.sv. */
+#define WRAP_DBG_UP_OFF         (0x60ULL)   /* poignees de main cote maitre  */
+#define WRAP_DBG_DN_OFF         (0x68ULL)   /* poignees de main cote aval    */
+#define WRAP_DBG_STATE_OFF      (0x70ULL)   /* w_owed, verdicts, FSM, seuils */
+#define WRAP_DBG_STALL_UP_OFF   (0x78ULL)   /* plus longue attente par canal */
+#define WRAP_DBG_STALL_DN_OFF   (0x80ULL)
+#define WRAP_CNT_CYC_OFF        (0x88ULL)   /* cycles de blocage | de HOLD   */
+#define WRAP_CNT_REQ_OFF        (0x90ULL)   /* transferts amont | aval       */
+#define WRAP_LAT_LAST_OFF       (0x98ULL)   /* det | tx de la derniere       */
+#define WRAP_LAT_DET_SUM_OFF    (0xA0ULL)
+#define WRAP_LAT_TX_SUM_OFF     (0xA8ULL)
+#define WRAP_LAT_N_OFF          (0xB0ULL)   /* n | n avec verdict            */
+#define WRAP_LAT_MINMAX_OFF     (0xB8ULL)
+#define WRAP_LAT_CUR_OFF        (0xC0ULL)   /* transaction EN VOL            */
+#define WRAP_CYC_TOTAL_OFF      (0xC8ULL)
+
+/* Canaux surveilles par DBG_STALL_*, dans l'ordre des champs de 12 bits. */
+#define WRAP_STALL_FIELD(v, i)  (((v) >> (12 * (i))) & 0xFFFULL)
 
 #define IOMMU_BASE_ADDR         (0x50010000ULL)
 #define IOMMU_DDTP_OFF          (0x10ULL)
@@ -236,7 +258,13 @@ static void armor_wrap_init(int enforce) {
     printf("# ARMOR CSR magic : wrap1=0x%08x%08x wrap2=0x%08x%08x\r\n",
            (unsigned)(m1 >> 32), (unsigned)m1,
            (unsigned)(m2 >> 32), (unsigned)m2);
-    if (m1 != WRAP_MAGIC_EXPECTED || m2 != WRAP_MAGIC_EXPECTED) {
+    if (m1 == WRAP_MAGIC_V1 || m2 == WRAP_MAGIC_V1) {
+        /* Le bitstream porte l'interface CSR mais pas le bloc d'observabilite
+         * du 2026-09-10 : les registres 0x60..0xC8 lisent zero. Les lignes
+         * ARMORHW/ARMORLAT seront donc a zero, ce n'est pas une panne. */
+        printf("# ATTENTION : magic ARMOR v1 — bitstream SANS observabilite "
+               "materielle, les compteurs 0x60..0xC8 liront zero\r\n");
+    } else if (m1 != WRAP_MAGIC_EXPECTED || m2 != WRAP_MAGIC_EXPECTED) {
         printf("# ATTENTION : magic ARMOR inattendu — bitstream sans interface CSR ?\r\n");
     }
 
@@ -287,6 +315,227 @@ static void armor_wrap_report_one(const char *tag, const char *who, uint64_t bas
 static void armor_wrap_report(const char *tag) {
     armor_wrap_report_one(tag, "w1", WRAP1_BASE_ADDR);
     armor_wrap_report_one(tag, "w2", WRAP2_BASE_ADDR);
+}
+
+/* Compteurs MATERIELS du wrapper (MAGIC v2), lus en fin de scenario.
+ *
+ * Ce que ces chiffres apportent par rapport aux latences deja publiees : ils
+ * sont pris DANS le wrapper, au cycle, sans instrument dans la boucle. Les
+ * latences logicielles de ce fichier sont bornees par la sonde -- une lecture
+ * de compteur coute ~1300 cycles coeur sous Bao, jusqu'a 48 % du chiffre
+ * publie. `Lhw` n'a pas ce biais, et l'ecart `Lp50 - Lhw` chiffre la sonde.
+ *
+ * ATTENTION a ce qui est compte : le wrapper mesure UNE TRANSACTION AXI (front
+ * de presentation -> reponse rendue au maitre), la ou le logiciel mesure UNE
+ * ITERATION de l'accelerateur (`*ctrl = 1` -> BUSY = 0), qui en contient
+ * plusieurs sur les modes de rafale. Les deux ne sont pas la meme grandeur :
+ * en simulation, SC02-STORM donne n = 128 pour 8 iterations. Ne jamais les
+ * mettre dans la meme colonne d'un tableau.
+ *
+ * Le chronometre ne suit qu'UNE transaction a la fois : celles qui arrivent
+ * pendant qu'une mesure court ne sont pas echantillonnees. n est donc un
+ * echantillon, pas un total -- c'est CNT_REQ qui donne le total.
+ *
+ * `n_verdict` compte les transactions pour lesquelles un verdict etait visible.
+ * Une detection a 0 cycle y est comptee : elle signifie que la fenetre de
+ * blocage etait deja ouverte a l'arrivee de la requete, pas que la mesure a
+ * echoue.
+ *
+ * `req_up - req_dn` est la seule mesure DIRECTE de l'action d'ARMOR : le nombre
+ * de transferts d'adresse qu'il a coupes. Tout le reste se deduisait des
+ * verdicts vus par l'accelerateur.
+ */
+static void armor_wrap_perf_one(const char *tag, const char *who, uint64_t base) {
+    volatile uint64_t *w = (volatile uint64_t *)base;
+
+    uint64_t lat_n    = w[WRAP_LAT_N_OFF      / 8];
+    uint64_t lat_last = w[WRAP_LAT_LAST_OFF   / 8];
+    uint64_t lat_mm   = w[WRAP_LAT_MINMAX_OFF / 8];
+    uint64_t det_sum  = w[WRAP_LAT_DET_SUM_OFF / 8];
+    uint64_t tx_sum   = w[WRAP_LAT_TX_SUM_OFF  / 8];
+    uint64_t cyc      = w[WRAP_CNT_CYC_OFF    / 8];
+    uint64_t req      = w[WRAP_CNT_REQ_OFF    / 8];
+    uint64_t total    = w[WRAP_CYC_TOTAL_OFF  / 8];
+
+    uint32_t n     = (uint32_t)lat_n;
+    uint32_t n_blk = (uint32_t)(lat_n >> 32);
+
+    /* Moyennes calculees ici : le materiel accumule, il ne divise pas. */
+    uint64_t det_avg = n ? det_sum / n : 0;
+    uint64_t tx_avg  = n ? tx_sum  / n : 0;
+
+    /* Les minima valent 0xFFFF au reset : sans echantillon ils ne veulent rien
+     * dire, et les publier tels quels ferait croire a une latence de 65535. */
+    if (n == 0) {
+        /* Surtout PAS de return ici : ARMORSTALL et ARMORHW gardent tout leur
+         * sens sans echantillon de latence -- c'est meme le cas ou ils sont le
+         * plus utiles, celui ou rien n'a abouti. */
+        printf("# ARMORLAT,%s,%s,n=0 (aucune transaction echantillonnee)\r\n",
+               tag, who);
+    } else {
+    printf("# ARMORLAT,%s,%s,n=%lu,n_verdict=%lu,det_avg=%lu,tx_avg=%lu,"
+           "det_last=%lu,tx_last=%lu,det_min=%lu,det_max=%lu,tx_min=%lu,tx_max=%lu\r\n",
+           tag, who,
+           (unsigned long)n, (unsigned long)n_blk,
+           (unsigned long)det_avg, (unsigned long)tx_avg,
+           (unsigned long)(uint32_t)lat_last,
+           (unsigned long)(uint32_t)(lat_last >> 32),
+           (unsigned long)(lat_mm        & 0xFFFF),
+           (unsigned long)((lat_mm >> 16) & 0xFFFF),
+           (unsigned long)((lat_mm >> 32) & 0xFFFF),
+           (unsigned long)((lat_mm >> 48) & 0xFFFF));
+    }
+
+    printf("# ARMORHW,%s,%s,cyc_block=%lu,cyc_hold=%lu,req_up=%lu,req_dn=%lu,"
+           "req_cut=%ld,cyc_total=%lu\r\n",
+           tag, who,
+           (unsigned long)(uint32_t)cyc,
+           (unsigned long)(uint32_t)(cyc >> 32),
+           (unsigned long)(uint32_t)req,
+           (unsigned long)(uint32_t)(req >> 32),
+           (long)((int64_t)(uint32_t)req - (int64_t)(uint32_t)(req >> 32)),
+           (unsigned long)total);
+
+    /* Attentes les plus longues, par canal. Une valeur a 4095 est SATUREE :
+     * elle dit « coince », pas « 4095 cycles ». */
+    uint64_t su = w[WRAP_DBG_STALL_UP_OFF / 8];
+    uint64_t sd = w[WRAP_DBG_STALL_DN_OFF / 8];
+    printf("# ARMORSTALL,%s,%s,up aw=%lu w=%lu b=%lu ar=%lu r=%lu | "
+           "dn aw=%lu w=%lu b=%lu ar=%lu r=%lu\r\n",
+           tag, who,
+           (unsigned long)WRAP_STALL_FIELD(su, 0),
+           (unsigned long)WRAP_STALL_FIELD(su, 1),
+           (unsigned long)WRAP_STALL_FIELD(su, 2),
+           (unsigned long)WRAP_STALL_FIELD(su, 3),
+           (unsigned long)WRAP_STALL_FIELD(su, 4),
+           (unsigned long)WRAP_STALL_FIELD(sd, 0),
+           (unsigned long)WRAP_STALL_FIELD(sd, 1),
+           (unsigned long)WRAP_STALL_FIELD(sd, 2),
+           (unsigned long)WRAP_STALL_FIELD(sd, 3),
+           (unsigned long)WRAP_STALL_FIELD(sd, 4));
+}
+
+static void armor_wrap_perf(const char *tag) {
+    armor_wrap_perf_one(tag, "w1", WRAP1_BASE_ADDR);
+    armor_wrap_perf_one(tag, "w2", WRAP2_BASE_ADDR);
+}
+
+/* Instantane des verdicts VIVANTS, juste avant un lancement (`*ctrl = 1`).
+ *
+ * Pourquoi : le gel de SC02-STORM se produit sur le `*ctrl = 1` de l'iteration 1,
+ * apres que le blocage de tempete se soit engage une premiere fois. Le chemin
+ * CPU -> port de config ne traverse pas ARMOR, donc pour qu'un store CPU reste
+ * en l'air il faut que le canal d'ecriture du crossbar partage soit coince par
+ * le chemin DMA. La derniere ligne ARMORSNAP imprimee donne l'etat exact
+ * d'entree en gel.
+ *
+ * Registre 0x18 (STATUS) = verdicts INSTANTANES, non gates par ENFORCE pour les
+ * bits bruts :
+ *   [3] BLOCKED [4] BANNED [5] STORM [6] OUTS [7] MSI
+ *   [8] threat  [9] storm_flag [10] outs_overflow [11] msi_storm
+ *   [12] legit_hit [13] ENFORCE
+ * `storm_flag` (niveau) encore haut alors que `STORM` (block_req) est retombe,
+ * ou l'inverse, signe un moniteur qui n'a pas desarme.
+ *
+ * LECTURE SEULE : aucune ecriture, pour ne pas dependre du canal d'ecriture que
+ * l'on soupconne justement d'etre coince. Le STATUS de l'accelerateur est lu au
+ * passage : s'il porte encore BUSY a l'entree, l'iteration precedente est sortie
+ * de sa boucle de sondage sur TIMEOUT et le materiel etait deja coince avant ce
+ * `*ctrl = 1`.
+ */
+/* Decode un vecteur DBG_UP / DBG_DN. Meme disposition des deux cotes, donc un
+ * seul decodeur : c'est tout l'interet de les avoir cables pareil.
+ *   [0] aw_valid [1] aw_ready [2] w_valid [3] w_ready [4] w_last
+ *   [5] b_valid  [6] b_ready  [7] ar_valid [8] ar_ready
+ *   [9] r_valid [10] r_ready [11] r_last
+ *
+ * Un `V` sans `R` en face nomme le canal qui attend son ready -- exactement ce
+ * qu'on cherche quand le bus est fige. */
+static void armor_hs_print(const char *when, const char *who, const char *side,
+                           uint64_t v)
+{
+    printf("# ARMORHS,%s,%s,%s,0x%03lx, AW %c%c  W %c%c%s  B %c%c  AR %c%c  R %c%c%s\r\n",
+           when, who, side, (unsigned long)(v & 0xFFF),
+           (v & (1ULL << 0))  ? 'V' : '-', (v & (1ULL << 1))  ? 'R' : '-',
+           (v & (1ULL << 2))  ? 'V' : '-', (v & (1ULL << 3))  ? 'R' : '-',
+           (v & (1ULL << 4))  ? " last" : "",
+           (v & (1ULL << 5))  ? 'V' : '-', (v & (1ULL << 6))  ? 'R' : '-',
+           (v & (1ULL << 7))  ? 'V' : '-', (v & (1ULL << 8))  ? 'R' : '-',
+           (v & (1ULL << 9))  ? 'V' : '-', (v & (1ULL << 10)) ? 'R' : '-',
+           (v & (1ULL << 11)) ? " last" : "");
+}
+
+static void armor_wrap_snapshot(const char *when, volatile uint64_t *accel_status)
+{
+    volatile uint64_t *w1 = (volatile uint64_t *)WRAP1_BASE_ADDR;
+    volatile uint64_t *w2 = (volatile uint64_t *)WRAP2_BASE_ADDR;
+
+    uint64_t a  = accel_status ? *accel_status : 0;
+    uint64_t s1 = w1[WRAP_STATUS_OFF / 8];
+    uint64_t s2 = w2[WRAP_STATUS_OFF / 8];
+    uint64_t k1 = w1[WRAP_STICKY_OFF / 8];
+    uint64_t k2 = w2[WRAP_STICKY_OFF / 8];
+
+    printf("# ARMORSNAP,%s,accel_status=0x%lx%s\r\n",
+           when, (unsigned long)a, (a & ST_BUSY) ? " BUSY-A-L-ENTREE" : "");
+    printf("# ARMORSNAP,%s,w1,status=0x%lx sticky=0x%lx |%s%s%s%s%s%s%s%s%s\r\n",
+           when, (unsigned long)s1, (unsigned long)k1,
+           (s1 & (1ULL <<  3)) ? " BLOCKED"   : "",
+           (s1 & (1ULL <<  4)) ? " BANNED"    : "",
+           (s1 & (1ULL <<  5)) ? " STORM"     : "",
+           (s1 & (1ULL <<  6)) ? " OUTS"      : "",
+           (s1 & (1ULL <<  7)) ? " MSI"       : "",
+           (s1 & (1ULL <<  9)) ? " stormflag" : "",
+           (s1 & (1ULL << 10)) ? " outsovf"   : "",
+           (s1 & (1ULL << 12)) ? " legit"     : "",
+           (s1 & (1ULL << 13)) ? " ENF"       : "");
+    printf("# ARMORSNAP,%s,w2,status=0x%lx sticky=0x%lx |%s%s%s%s%s%s%s%s%s\r\n",
+           when, (unsigned long)s2, (unsigned long)k2,
+           (s2 & (1ULL <<  3)) ? " BLOCKED"   : "",
+           (s2 & (1ULL <<  4)) ? " BANNED"    : "",
+           (s2 & (1ULL <<  5)) ? " STORM"     : "",
+           (s2 & (1ULL <<  6)) ? " OUTS"      : "",
+           (s2 & (1ULL <<  7)) ? " MSI"       : "",
+           (s2 & (1ULL <<  9)) ? " stormflag" : "",
+           (s2 & (1ULL << 10)) ? " outsovf"   : "",
+           (s2 & (1ULL << 12)) ? " legit"     : "",
+           (s2 & (1ULL << 13)) ? " ENF"       : "");
+
+    /* Poignees de main VIVANTES des deux cotes de la coupure, et etat interne.
+     * C'est ce bloc qui doit nommer le canal fige : si le gel vient d'un AW
+     * admis en aval dont les W ne viennent jamais, on doit voir `w_owed != 0`
+     * avec un `AW V-` cote aval. Le port CSR ne traverse pas ARMOR et les
+     * lectures reviennent alors que le canal d'ecriture est coince, donc ce
+     * bloc reste lisible dans l'etat meme ou tout le reste est muet. */
+    armor_hs_print(when, "w1", "up", w1[WRAP_DBG_UP_OFF / 8]);
+    armor_hs_print(when, "w1", "dn", w1[WRAP_DBG_DN_OFF / 8]);
+    armor_hs_print(when, "w2", "up", w2[WRAP_DBG_UP_OFF / 8]);
+    armor_hs_print(when, "w2", "dn", w2[WRAP_DBG_DN_OFF / 8]);
+
+    for (int i = 0; i < 2; i++) {
+        volatile uint64_t *w  = i ? w2 : w1;
+        const char        *nm = i ? "w2" : "w1";
+        uint64_t st  = w[WRAP_DBG_STATE_OFF / 8];
+        uint64_t cur = w[WRAP_LAT_CUR_OFF   / 8];
+        printf("# ARMORDBG,%s,%s,w_owed=%lu w_pending=%lu vk=%lu cvalid=%lu "
+               "bad_id=%lu legit=%lu fail=%lu outs=%lu req_cnt=%lu "
+               "fsm_w=%lu fsm_r=%lu | en_vol=%lu cyc=%lu verdict_vu=%lu\r\n",
+               when, nm,
+               (unsigned long)(st         & 0xF),
+               (unsigned long)((st >>  4) & 1),
+               (unsigned long)((st >>  5) & 1),
+               (unsigned long)((st >>  6) & 1),
+               (unsigned long)((st >>  7) & 1),
+               (unsigned long)((st >>  8) & 1),
+               (unsigned long)((st >> 16) & 0xFF),
+               (unsigned long)((st >> 24) & 0xFF),
+               (unsigned long)((st >> 32) & 0xFF),
+               (unsigned long)((st >> 11) & 3),
+               (unsigned long)((st >> 13) & 1),
+               (unsigned long)((cur >> 32) & 1),
+               (unsigned long)(uint32_t)cur,
+               (unsigned long)((cur >> 33) & 1));
+    }
 }
 
 /* Initialise la DDT (copié de main.c) :
@@ -518,6 +767,12 @@ static uint64_t fire_one(char accel, uint64_t mode, uint64_t dst,
     uint64_t t_event = 0;
     int      got_event = 0;
     uint32_t to = 2000000;
+#ifdef BENCH_TRACE_MMIO
+    /* Etat ARMOR a l'entree, AVANT le chronometre : les iterations tracees sont
+     * de toute facon exclues des statistiques (voir plus bas), mais autant ne
+     * pas melanger le cout de trois printf avec la mesure. */
+    if (tr) armor_wrap_snapshot("pre-ctrl", status);
+#endif
     uint64_t t0 = read_counter();
     TRACE("-> ecriture CTRL=1 (lancement)");
     *ctrl = 1;
@@ -572,6 +827,13 @@ static void run_scenario(const char *tag, char accel, uint64_t mode,
            tag, N, accel, (unsigned long)mode,
            (unsigned long)cfg_bits, expected_block);
 
+    /* Etat d'entree du scenario, apres le CNT_CLR : trois lignes qui disent si
+     * le wrapper part propre. Un `stormflag` ou un `BANNED` encore haut ici
+     * signifie que le scenario precedent a laisse ARMOR arme -- exactement le
+     * piege du bannissement residuel de la sonde (cf. b4c8525), et de quoi
+     * disqualifier un verdict avant de l'attribuer au scenario en cours. */
+    armor_wrap_snapshot(tag, (accel == 'M') ? mha_status : lha_status);
+
     /* Compteurs par verdict pour visibilité par scénario sans VERBOSE_CSV.
      * Imprimé une fois en fin de scénario, plus utile que les SUMMARY
      * agrégés tout à la fin (qui peuvent ne jamais venir si on freeze). */
@@ -608,6 +870,7 @@ static void run_scenario(const char *tag, char accel, uint64_t mode,
            tag, (unsigned long)*st_reg,
            c_done, c_blk, c_ban, c_storm, c_outs, c_msi, c_err, c_unk);
     armor_wrap_report(tag);   /* recoupement cote wrapper, independant de l'accel */
+    armor_wrap_perf(tag);     /* latences et cycles mesures PAR LE MATERIEL */
 }
 
 /* ============================================================
