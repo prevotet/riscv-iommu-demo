@@ -1343,6 +1343,35 @@ void main(void) {
      * device banni et tout y paraît bloqué. Fond LHA actif pour la contention. */
     run_sc08(&s[n++]);
 
+#ifdef BENCH_SC03_FIRST
+    /* ==================================================================
+     * DIAGNOSTIC (-DBENCH_SC03_FIRST) — SC03 AVANT SC02.
+     *
+     * La question posée, et une seule : LE GEL EST-IL SPÉCIFIQUE AUX
+     * ÉCRITURES ? SC03 est la seule attaque en LECTURE (mode 5, inondation
+     * d'AR avec r_ready=0). Sous ENFORCE=1 il n'a jamais été atteint : SC02
+     * gèle avant lui, à chaque run.
+     *
+     *   SC03 gèle aussi  -> le canal W est hors de cause, le défaut est sur le
+     *                       chemin d'adresse ou de réponse ;
+     *   SC03 va au bout   -> le gel est propre aux écritures, et le canal W
+     *                       redevient suspect malgré `ecart = 0`.
+     *
+     * CE QUE CET ORDRE DÉTRUIT, à savoir avant de lire le reste du log :
+     * SC03 laisse le compteur d'outstanding du wrapper SATURÉ pour toute la
+     * suite de la campagne (voir le commentaire à sa place normale). Tout ce
+     * qui vient après hérite donc d'un OUTS parasite : **les verdicts de SC02,
+     * SC04 et SC01 ne valent rien dans ce build**. Seule la question du gel a
+     * un sens ici — elle ne dépend d'aucun verdict, seulement de l'endroit où
+     * le log s'arrête.
+     *
+     * Ne jamais publier de chiffres issus d'un build portant ce drapeau.
+     * ================================================================== */
+    printf("# DIAG : SC03 JOUE EN PREMIER (-DBENCH_SC03_FIRST) — "
+           "les verdicts de SC02, SC04 et SC01 sont contamines par OUTS\r\n");
+    run_scenario("SC03-OUTS",  'M', /*mode*/5, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
+#endif
+
     /* SC-02 : Request storm — attendu STORM. */
     run_scenario("SC02-STORM", 'M', /*mode*/4, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
 
@@ -1358,8 +1387,13 @@ void main(void) {
      * et `outs_i` reste asserté pour le RESTE de la campagne. Tant qu'il tournait
      * avant SC04/SC07, ces scénarios héritaient d'un OUTS parasite (sticky_outs
      * se re-latche après chaque clear-au-start). En le plaçant tout à la fin,
-     * plus aucun scénario ne s'exécute après -> aucune contamination. */
+     * plus aucun scénario ne s'exécute après -> aucune contamination.
+     *
+     * -DBENCH_SC03_FIRST le remonte avant SC02, pour un diagnostic precis et au
+     * prix de la contamination -- voir le commentaire a cet endroit. */
+#ifndef BENCH_SC03_FIRST
     run_scenario("SC03-OUTS",  'M', /*mode*/5, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
+#endif
 
     /* SC-01 : ID spoofing — attendu BANNED par ARMOR. EXÉCUTÉ EN TOUT DERNIER,
      * et c'est un contournement assumé, pas un choix de méthode.
