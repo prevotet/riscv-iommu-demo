@@ -70,6 +70,26 @@ module request_manager #(
     input  logic        bad_id_i,        // verdict rendu, et mauvais
     input  logic        verdict_known_i, // le verdict de la requete presentee est rendu
     input  logic        w_pending_i,     // un AW admis en aval attend ses donnees
+
+    //  INTERDICTION DE COUPER UN VALID DEJA PRESENTE (correctif 2026-09-10,
+    //  derriere CTRL[3], donc inactif par defaut).
+    //
+    //  La coupure ci-dessous est COMBINATOIRE : si le maitre avait deja
+    //  aw_valid haut en attente de son aw_ready et que block_req_i monte, ARMOR
+    //  RETIRE ce VALID. AXI4 l'interdit -- un VALID asserte doit etre tenu
+    //  jusqu'au READY -- et un IOMMU qui a commence une traduction sur ce VALID
+    //  peut en garder un etat partiel. Mesure : c'est ce qui se produit sur
+    //  SC04-MSI (cause block_req) et SC01-SPOOF (cause bad_id) en simulation.
+    //
+    //  Ces deux signaux valent 1 quand un VALID a ete presente au cycle
+    //  precedent sans obtenir son READY : la coupure est alors differee au
+    //  prochain cycle ou le canal est libre. Le cout est UNE requete deja
+    //  presentee qui aboutit en aval ; response_manager la termine tout de meme
+    //  vers le maitre, et request_manager avale sa reponse (b_ready/r_ready
+    //  forces), donc rien ne s'accumule.
+    input  logic        no_cut_aw_i,
+    input  logic        no_cut_ar_i,
+
     input  req_iommu_t  req_IP_wrapper_i,
     output req_iommu_t  req_wrapper_iommu_o
 );
@@ -83,8 +103,10 @@ module request_manager #(
         // pendant 2 cycles, l'aval l'acceptait, et l'absence de W qui suivait le
         // SLVERR coincait le canal d'ecriture du crossbar.
         if (block_req_i || !legit_hit || !verdict_known_i) begin
-            req_wrapper_iommu_o.aw_valid = 1'b0;
-            req_wrapper_iommu_o.ar_valid = 1'b0;
+            //  no_cut_*_i differe la coupure d'un VALID deja presente, pour ne
+            //  pas violer AXI4. A 0 (defaut) le comportement est inchange.
+            if (!no_cut_aw_i) req_wrapper_iommu_o.aw_valid = 1'b0;
+            if (!no_cut_ar_i) req_wrapper_iommu_o.ar_valid = 1'b0;
         end
 
         // Un beat W ne part JAMAIS avant que son AW n'ait ete admis en aval.

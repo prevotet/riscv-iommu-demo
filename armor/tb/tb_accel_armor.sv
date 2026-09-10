@@ -92,6 +92,9 @@ module tb_accel_armor;
     localparam logic [63:0] CSR_CNT_WCH   = 64'hD8;
     localparam logic [63:0] CSR_CNT_WANOM = 64'hE0;
     localparam logic [63:0] CSR_DBG_WOWED = 64'hE8;
+    // Version 4 : violation AXI4 -- VALID retire sans READY
+    localparam logic [63:0] CSR_CNT_RETR  = 64'hF0;
+    localparam logic [63:0] CSR_DBG_RETR  = 64'hF8;
 
     int unsigned obs_fail = 0;   // defauts trouves dans le bloc d'observabilite
 
@@ -100,7 +103,7 @@ module tb_accel_armor;
     int unsigned obs_ref_badid, obs_ref_badcy;
     int unsigned obs_ref_ghost, obs_ref_orph, obs_ref_awdn;
 
-    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000003;   // version 3 : bad_id, canal W, filigranes
+    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000005;   // version 5 : + correctif AXI4 sur CTRL[3]
 
     localparam logic [63:0] LEGIT_DST = 64'h0000_0000_9100_0000;
 
@@ -1003,7 +1006,13 @@ module tb_accel_armor;
             //  firmware : sans lui les compteurs materiels s'additionnent d'un
             //  pas sur l'autre et la ligne HW ci-dessous ne serait pas
             //  attribuable au scenario.
+            //  AWFIX (CTRL[3]) : active le correctif AXI4, pour que le meme
+            //  banc mesure la violation puis verifie sa disparition.
+`ifdef AWFIX
+            csr_write(CSR_CTRL, {60'h0, 1'b1, 1'b1, 1'b1, enforce});
+`else
             csr_write(CSR_CTRL, {61'h0, 1'b1, 1'b1, enforce});  // CNT_CLR|STICKY_CLR
+`endif
             if (cfg_timeout) return;
 
             acc_write(ACC_BASE,   LEGIT_DST);
@@ -1360,7 +1369,7 @@ module tb_accel_armor;
     endtask
 
     task automatic obs_line(input string name);
-        logic [63:0] cyc, req, ln, ll, mm, sd, cur, bad, wan;
+        logic [63:0] cyc, req, ln, ll, mm, sd, cur, bad, wan, rtr, rtd;
         begin
             if (cfg_timeout) return;
             csr_read(CSR_CNT_CYC,  cyc);
@@ -1372,6 +1381,8 @@ module tb_accel_armor;
             csr_read(CSR_LAT_CUR,  cur);
             csr_read(CSR_CNT_BADID, bad);
             csr_read(CSR_CNT_WANOM, wan);
+            csr_read(CSR_CNT_RETR,  rtr);
+            csr_read(CSR_DBG_RETR,  rtd);
             $display("  %-12s  HW : n=%0d/%0d verdict | det[min,max]=[%0d,%0d] tx[min,max]=[%0d,%0d] | req up=%0d dn=%0d coupees=%0d | block=%0d cy hold=%0d cy | attente dn aw=%0d ar=%0d | en vol=%0b(%0d cy)",
                      name, ln[31:0], ln[63:32],
                      mm[15:0], mm[31:16], mm[47:32], mm[63:48],
@@ -1383,6 +1394,13 @@ module tb_accel_armor;
             //  bad_id et les anomalies du canal W, par pas. Silencieux quand
             //  tout est a zero : on ne veut voir ces lignes que si quelque
             //  chose bouge.
+            //  VALID retire sans READY : l'hypothese du 2026-09-10. Imprime
+            //  des qu'un seul retrait est vu -- c'est LE chiffre cherche.
+            if (rtr != 0)
+                $display("  %-12s  *** VALID RETIRE SANS READY : aw=%0d ar=%0d w=%0d b/r=%0d | 1er a %0d cy, cause=%b (b0 block, b1 !legit, b2 !vk, b3 bad_id), canal=%0d",
+                         name, rtr[15:0], rtr[31:16], rtr[47:32], rtr[63:48],
+                         rtd[31:0], rtd[35:32], rtd[39:36]);
+
             if (bad[31:0] != 0 || wan != 0)
                 $display("  %-12s  W/ID : bad_id %0d fronts %0d cy | fantomes=%0d orphelins=%0d",
                          name, bad[31:0], bad[63:32], wan[31:0], wan[63:32]);

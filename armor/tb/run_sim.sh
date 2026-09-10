@@ -122,6 +122,11 @@ fi
 # MESURE ne peuvent pas etre le meme run.
 [[ "${OBS_CHECK:-0}" == "1" ]] && DEFINES+=("-d" "OBS_CHECK")
 
+# AWFIX=1 : active CTRL[3], le correctif AXI4 qui interdit de retirer un VALID
+# deja presente en aval. Le meme bitstream et le meme banc servent donc a
+# mesurer la violation (defaut) puis a verifier qu'elle disparait (AWFIX=1).
+[[ "${AWFIX:-0}" == "1" ]] && DEFINES+=("-d" "AWFIX")
+
 echo "=== xvlog ==="
 xvlog -sv --nolog \
       "${DEFINES[@]+"${DEFINES[@]}"}" \

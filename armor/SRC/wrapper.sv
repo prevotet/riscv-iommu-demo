@@ -141,6 +141,7 @@ localparam logic [63:0] ARMOR_STICKY_MASK = 64'h0000_0000_0000_4FF8;
 logic [63:0]            csr_id_cfg_q;
 logic [63:0]            csr_msi_addr_q;
 logic                   csr_enforce_q;
+logic                   csr_awfix_q;      // CTRL[3] : ne pas retirer un VALID
 logic [63:0]            csr_sticky_q;
 logic [31:0]            cnt_banned_q, cnt_storm_q, cnt_outs_q, cnt_msi_q;
 logic [DevIDWidth-1:0]  dev_id_last_q;
@@ -282,6 +283,39 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
     end
 end
 
+// -----------------------------------------------------------------------------
+//  VALID PRESENTE ET NON ACQUITTE  (correctif derriere CTRL[3])
+//
+//  Echantillon REGISTRE du valid reellement sorti en aval. Pas de boucle
+//  combinatoire : ces bascules sont lues au cycle SUIVANT pour interdire la
+//  coupure, et le cas « presente et coupe dans le meme cycle » est impossible
+//  par construction -- si la coupure est active, aucun valid n'est sorti.
+//
+//  A 0 (reset) CTRL[3] laisse le comportement historique, pour que le MEME
+//  bitstream serve a mesurer la violation AXI4 et a verifier qu'elle disparait.
+// -----------------------------------------------------------------------------
+logic aw_pres_q, ar_pres_q;
+logic no_cut_aw, no_cut_ar;
+logic dn_ar_hs_pres;
+
+assign dn_ar_hs_pres = req_wrapper_iommu_o.ar_valid & resp_wrapper_iommu_i.ar_ready;
+
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        aw_pres_q <= 1'b0;
+        ar_pres_q <= 1'b0;
+    end else begin
+        if (dn_aw_hs)                          aw_pres_q <= 1'b0;
+        else if (req_wrapper_iommu_o.aw_valid) aw_pres_q <= 1'b1;
+
+        if (dn_ar_hs_pres)                     ar_pres_q <= 1'b0;
+        else if (req_wrapper_iommu_o.ar_valid) ar_pres_q <= 1'b1;
+    end
+end
+
+assign no_cut_aw = csr_awfix_q & aw_pres_q;
+assign no_cut_ar = csr_awfix_q & ar_pres_q;
+
 //  w_pending : un AW est admis en aval et attend encore ses donnees. C'est la
 //  seule condition dans laquelle un beat W a le droit de partir. Voir
 //  request_manager pour le raisonnement complet.
@@ -353,6 +387,8 @@ request_manager #(
     .bad_id_i(bad_id),
     .verdict_known_i(verdict_known_eff),
     .w_pending_i(w_pending),
+    .no_cut_aw_i(no_cut_aw),
+    .no_cut_ar_i(no_cut_ar),
     .req_wrapper_iommu_o(req_wrapper_iommu_o)
 
 );
@@ -468,7 +504,32 @@ response_delayer #(
 //   0x00  ID_CFG       RW  identifiant legitime attendu = STREAM_ID de l'accel
 //                          (1 pour sec_wrapper #1, 2 pour #2, cf. accel_wrap.sv)
 //   0x08  MSI_ADDR     RW  adresse MSI surveillee par msi_detector
-//   0x10  CTRL         RW  b0 ENFORCE, b1 STICKY_CLR, b2 CNT_CLR
+//   0x10  CTRL         RW  b0 ENFORCE, b1 STICKY_CLR, b2 CNT_CLR,
+//                          b3 AW_HOLD_FIX -- TENTATIVE REFUTEE, gardee pour
+//                          etre mesurable sur carte. A 0 (reset), donc sans
+//                          effet par defaut. Echo dans STATUS[15].
+//
+//                          L'idee etait : interdire de retirer un VALID deja
+//                          presente en aval, en differant la coupure. La
+//                          simulation la refute -- les retraits d'AW passent de
+//                          1 a 33 sur SC04-MSI et de 1 a 8 sur SC01-SPOOF, et
+//                          un nouveau apparait sur du trafic legitime.
+//
+//                          POURQUOI. Pendant un blocage, response_manager
+//                          fabrique aw_ready = 1 vers le maitre pour absorber sa
+//                          requete. Maintenir en meme temps le aw_valid en aval
+//                          sans qu'il y soit acquitte fait que le maitre
+//                          considere son AW termine et RETIRE lui-meme son
+//                          valid : le retrait revient, et plus souvent.
+//
+//                          Le vrai defaut n'est donc pas la coupure seule, c'est
+//                          qu'ARMOR ABSORBE la requete cote maitre alors qu'elle
+//                          est encore presentee en aval. Un correctif doit
+//                          traiter les deux cotes ensemble : soit laisser l'AW
+//                          deja presente s'accomplir en aval AVANT de fabriquer
+//                          le ready, soit ne jamais presenter en aval un AW
+//                          qu'on pourrait avoir a absorber -- ce qui demande un
+//                          skid buffer, pas une inhibition.
 //                          (b1/b2 sont des commandes a impulsion, auto-effacees)
 //   0x18  STATUS       RO  verdicts instantanes
 //   0x20  STICKY       RO  OU cumulatif de STATUS depuis le dernier STICKY_CLR
@@ -478,7 +539,7 @@ response_delayer #(
 //   0x40  CNT_OUTS     RO  nombre d'episodes de saturation outstanding
 //   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
 //   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
-//   0x58  MAGIC        RO  0x41524D4F52000003 ("ARMOR" + version)
+//   0x58  MAGIC        RO  0x41524D4F52000005 ("ARMOR" + version)
 //
 // Bloc d'observabilite, ajoute le 2026-09-10 (d'ou MAGIC ...0002 : le logiciel
 // distingue ainsi un bitstream qui porte ces registres d'un qui n'en a pas).
@@ -537,6 +598,24 @@ response_delayer #(
 //                          inatteignable par cet accelerateur, ce compteur
 //                          verifie la meme chose sur la carte.
 //   0xE8  DBG_WOWED    RO  [3:0] w_owed courant, [7:4] filigrane de maximum
+//
+// Version 4 (2026-09-10, apres le run SC03-first qui montre le gel specifique
+// aux ECRITURES et non proportionnel a l'action d'ARMOR) :
+//
+//   0xF0  CNT_RETRACT  RO  VALID retire sans READY, 16 bits par canal :
+//                          [15:0] AW aval, [31:16] AR aval, [47:32] W aval,
+//                          [63:48] B ou R vers le maitre
+//                          AXI4 interdit de retirer un VALID asserte. Ces
+//                          compteurs sont les seuls a pouvoir le voir : aucun
+//                          handshake ne s'accomplit, donc aucun autre ne bouge.
+//   0xF8  DBG_RETRACT  RO  [31:0] cycle du PREMIER retrait (base CYC_TOTAL)
+//                          [35:32] cause : b0 block_req, b1 !legit_hit,
+//                                  b2 !verdict_known, b3 bad_id
+//                          [39:36] canal : 1 AW, 2 AR, 3 W, 4 B/R
+//                          [40] un retrait a ete vu
+//                          La cause distingue « retrait pendant un blocage » de
+//                          « retrait pendant l'attente de verdict » : deux
+//                          correctifs differents.
 //                          (w_owed_q fait 4 bits et sature a 15 ; le premier
 //                          commentaire annoncait 8 bits par champ et le
 //                          firmware l'a cru, d'ou un « w_owed=16 max=0 »
@@ -598,6 +677,7 @@ always_comb begin
     // indiscernable d'un gel ou rien ne s'est passe. Il est desormais visible,
     // instantanement et de facon collante.
     armor_status[14]  = bad_id;
+    armor_status[15]  = csr_awfix_q;   // echo du correctif AXI4
 end
 
 // -----------------------------------------------------------------------------
@@ -679,6 +759,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         csr_id_cfg_q   <= 64'h0;
         csr_msi_addr_q <= 64'h0;
         csr_enforce_q  <= 1'b0;   // reset : wrapper transparent
+        csr_awfix_q    <= 1'b0;   // reset : comportement historique conserve
         csr_sticky_clr <= 1'b0;
         csr_cnt_clr    <= 1'b0;
     end else begin
@@ -703,6 +784,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
                             csr_enforce_q  <= req_CPU_Wrapper__i.w.data[0];
                             csr_sticky_clr <= req_CPU_Wrapper__i.w.data[1];
                             csr_cnt_clr    <= req_CPU_Wrapper__i.w.data[2];
+                            csr_awfix_q    <= req_CPU_Wrapper__i.w.data[3];
                         end
                         default: ; // registres en lecture seule
                     endcase
@@ -1140,6 +1222,117 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
 end
 
 // -----------------------------------------------------------------------------
+//  VALID RETIRE SANS READY  (2026-09-10, apres le run SC03-first)
+//
+//  Le seul mecanisme qui reste compatible avec tout ce qui a ete mesure, et le
+//  seul qu'aucun compteur existant ne puisse voir.
+//
+//  Ce que le run du 2026-09-10 13:07 etablit : SC03 (lectures) coupe 612
+//  requetes et bloque 3251 cycles sans geler, SC02 (ecritures) gele apres 16
+//  coupures et 78 cycles, et SC07 (100 ecritures legitimes, zero coupure) passe.
+//  Le declencheur n'est donc ni l'ecriture seule, ni la quantite de blocage :
+//  c'est UNE COUPURE SUR LE CHEMIN D'ECRITURE. Et a la frontiere d'ARMOR le
+//  canal W est equilibre a chaque iteration, gel inclus.
+//
+//  L'explication : request_manager coupe `aw_valid` de facon COMBINATOIRE des
+//  que block_req_i, !legit_hit ou !verdict_known monte. Si le maitre avait deja
+//  aw_valid haut en attente de son aw_ready, ARMOR le RETIRE. AXI4 l'interdit --
+//  un VALID asserte doit etre tenu jusqu'au READY -- et un IOMMU qui a commence
+//  une traduction sur ce VALID peut en garder un etat partiel. Aucun de mes
+//  compteurs ne bouge, puisqu'aucun handshake ne s'accomplit.
+//
+//  response_manager fait la meme chose dans l'autre sens : son mode HOLD sort
+//  '0 sur tout, ce qui retire b_valid et r_valid vers le maitre. Meme famille de
+//  violation, comptee aussi.
+//
+//  Definition : au cycle precedent VALID etait haut sans handshake, et VALID est
+//  retombe. Comptage sature a 65535, un champ de 16 bits par canal.
+//
+//  Le premier retrait est HORODATE et sa CAUSE est capturee : c'est ce qui
+//  distinguera « ARMOR retire un VALID pendant un blocage » de « pendant
+//  l'attente de verdict », deux correctifs differents.
+// -----------------------------------------------------------------------------
+logic dn_aw_v_q, dn_ar_v_q, dn_w_v_q, up_b_v_q, up_r_v_q;
+logic dn_aw_r_q, dn_ar_r_q, dn_w_r_q, up_b_r_q, up_r_r_q;
+
+logic retract_aw, retract_ar, retract_w, retract_br;
+
+//  « VALID etait haut, READY ne l'etait pas, et VALID est retombe. »
+assign retract_aw = dn_aw_v_q & ~dn_aw_r_q & ~req_wrapper_iommu_o.aw_valid;
+assign retract_ar = dn_ar_v_q & ~dn_ar_r_q & ~req_wrapper_iommu_o.ar_valid;
+assign retract_w  = dn_w_v_q  & ~dn_w_r_q  & ~req_wrapper_iommu_o.w_valid;
+assign retract_br = (up_b_v_q & ~up_b_r_q & ~resp_IP_wrapper_o.b_valid)
+                  | (up_r_v_q & ~up_r_r_q & ~resp_IP_wrapper_o.r_valid);
+
+logic [15:0] cnt_retr_aw_q, cnt_retr_ar_q, cnt_retr_w_q, cnt_retr_br_q;
+logic [31:0] retr_first_cyc_q;
+logic [3:0]  retr_first_cause_q;   // {bad_id, ~vk, ~legit, block_req}
+logic [3:0]  retr_first_chan_q;    // 1 AW, 2 AR, 3 W, 4 B/R
+logic        retr_seen_q;
+
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        dn_aw_v_q <= 1'b0; dn_ar_v_q <= 1'b0; dn_w_v_q <= 1'b0;
+        up_b_v_q  <= 1'b0; up_r_v_q  <= 1'b0;
+        dn_aw_r_q <= 1'b0; dn_ar_r_q <= 1'b0; dn_w_r_q <= 1'b0;
+        up_b_r_q  <= 1'b0; up_r_r_q  <= 1'b0;
+        cnt_retr_aw_q      <= 16'h0;
+        cnt_retr_ar_q      <= 16'h0;
+        cnt_retr_w_q       <= 16'h0;
+        cnt_retr_br_q      <= 16'h0;
+        retr_first_cyc_q   <= 32'h0;
+        retr_first_cause_q <= 4'h0;
+        retr_first_chan_q  <= 4'h0;
+        retr_seen_q        <= 1'b0;
+    end else begin
+        //  Memoire d'un cycle des deux cotes de chaque handshake surveille.
+        dn_aw_v_q <= req_wrapper_iommu_o.aw_valid;
+        dn_ar_v_q <= req_wrapper_iommu_o.ar_valid;
+        dn_w_v_q  <= req_wrapper_iommu_o.w_valid;
+        up_b_v_q  <= resp_IP_wrapper_o.b_valid;
+        up_r_v_q  <= resp_IP_wrapper_o.r_valid;
+        dn_aw_r_q <= resp_wrapper_iommu_i.aw_ready;
+        dn_ar_r_q <= resp_wrapper_iommu_i.ar_ready;
+        dn_w_r_q  <= resp_wrapper_iommu_i.w_ready;
+        up_b_r_q  <= req_IP_wrapper_i.b_ready;
+        up_r_r_q  <= req_IP_wrapper_i.r_ready;
+
+        if (csr_cnt_clr) begin
+            cnt_retr_aw_q      <= 16'h0;
+            cnt_retr_ar_q      <= 16'h0;
+            cnt_retr_w_q       <= 16'h0;
+            cnt_retr_br_q      <= 16'h0;
+            retr_first_cyc_q   <= 32'h0;
+            retr_first_cause_q <= 4'h0;
+            retr_first_chan_q  <= 4'h0;
+            retr_seen_q        <= 1'b0;
+        end else begin
+            if (retract_aw && cnt_retr_aw_q != 16'hFFFF)
+                cnt_retr_aw_q <= cnt_retr_aw_q + 16'd1;
+            if (retract_ar && cnt_retr_ar_q != 16'hFFFF)
+                cnt_retr_ar_q <= cnt_retr_ar_q + 16'd1;
+            if (retract_w  && cnt_retr_w_q  != 16'hFFFF)
+                cnt_retr_w_q  <= cnt_retr_w_q  + 16'd1;
+            if (retract_br && cnt_retr_br_q != 16'hFFFF)
+                cnt_retr_br_q <= cnt_retr_br_q + 16'd1;
+
+            //  Premier retrait : on garde l'instant, la cause et le canal.
+            //  L'ordre de priorite ne sert qu'a nommer UN canal quand plusieurs
+            //  retombent ensemble ; les compteurs, eux, les comptent tous.
+            if (!retr_seen_q && (retract_aw | retract_ar | retract_w | retract_br)) begin
+                retr_seen_q        <= 1'b1;
+                retr_first_cyc_q   <= cyc_total_q[31:0];
+                retr_first_cause_q <= {bad_id, ~verdict_known_eff,
+                                       ~legit_hit_eff, block_req_i};
+                retr_first_chan_q  <= retract_aw ? 4'd1 :
+                                      retract_ar ? 4'd2 :
+                                      retract_w  ? 4'd3 : 4'd4;
+            end
+        end
+    end
+end
+
+// -----------------------------------------------------------------------------
 //  Canal qui n'obtient pas son ready, et depuis combien de cycles
 //
 //  Cinq canaux par cote, dans l'ordre AW, W, B, AR, R. On garde la plus longue
@@ -1277,7 +1470,7 @@ always_comb begin
     case (r_idx_q)
         5'd0:    csr_rdata = csr_id_cfg_q;
         5'd1:    csr_rdata = csr_msi_addr_q;
-        5'd2:    csr_rdata = {63'h0, csr_enforce_q};
+        5'd2:    csr_rdata = {60'h0, csr_awfix_q, 2'b00, csr_enforce_q};
         5'd3:    csr_rdata = armor_status;
         5'd4:    csr_rdata = csr_sticky_q;
         5'd5:    csr_rdata = {56'h0, failure_count};
@@ -1286,7 +1479,7 @@ always_comb begin
         5'd8:    csr_rdata = {32'h0, cnt_outs_q};
         5'd9:    csr_rdata = {32'h0, cnt_msi_q};
         5'd10:   csr_rdata = {{(64-DevIDWidth){1'b0}}, dev_id_last_q};
-        5'd11:   csr_rdata = 64'h41524D4F52000003;
+        5'd11:   csr_rdata = 64'h41524D4F52000005;
         // Observabilite (version 2 du MAGIC). Voir la carte des registres.
         5'd12:   csr_rdata = {52'h0, dbg_up};
         5'd13:   csr_rdata = {52'h0, dbg_dn};
@@ -1308,6 +1501,12 @@ always_comb begin
         5'd27:   csr_rdata = {cnt_wlast_dn_q,  cnt_aw_dn_q};
         5'd28:   csr_rdata = {cnt_w_orphan_q,  cnt_w_ghost_q};
         5'd29:   csr_rdata = {56'h0, w_owed_max_q, w_owed_q};
+        // VALID retire sans READY : violation AXI4, invisible aux compteurs de
+        // handshake puisqu'aucun handshake ne s'accomplit.
+        5'd30:   csr_rdata = {cnt_retr_br_q, cnt_retr_w_q,
+                              cnt_retr_ar_q, cnt_retr_aw_q};
+        5'd31:   csr_rdata = {23'h0, retr_seen_q, retr_first_chan_q,
+                              retr_first_cause_q, retr_first_cyc_q};
         default: csr_rdata = 64'h0;
     endcase
 end
