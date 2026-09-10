@@ -60,7 +60,8 @@
 #define WRAP_CTRL_ENFORCE       (1ULL << 0)
 #define WRAP_CTRL_STICKY_CLR    (1ULL << 1)
 #define WRAP_CTRL_CNT_CLR       (1ULL << 2)
-#define WRAP_MAGIC_EXPECTED     (0x41524D4F52000003ULL)
+#define WRAP_MAGIC_EXPECTED     (0x41524D4F52000005ULL)
+#define WRAP_MAGIC_V3           (0x41524D4F52000003ULL)  /* sans compteurs de retrait */
 #define WRAP_MAGIC_V2           (0x41524D4F52000002ULL)  /* sans bad_id ni canal W */
 #define WRAP_MAGIC_V1           (0x41524D4F52000001ULL)  /* sans observabilite */
 
@@ -89,6 +90,16 @@
 #define WRAP_CNT_WCH_OFF        (0xD8ULL)   /* AW aval | W-last aval          */
 #define WRAP_CNT_WANOM_OFF      (0xE0ULL)   /* beats fantomes | W orphelins   */
 #define WRAP_DBG_WOWED_OFF      (0xE8ULL)   /* w_owed courant | son maximum   */
+
+/* Version 5 : VALID retire sans READY -- violation AXI4. Ces deux registres
+ * sont les SEULS a pouvoir la voir : aucun handshake ne s'accomplit, donc aucun
+ * compteur de handshake ne bouge. Confirme en simulation avant synthese, la
+ * cause distinguant ARMOR (block_req, bad_id) du maitre (aucune cause : la FSM
+ * de l'accelerateur abandonne sur timeout et lache son ar_valid). */
+#define WRAP_CNT_RETRACT_OFF    (0xF0ULL)   /* aw | ar | w | b-r, 16 bits chacun */
+#define WRAP_DBG_RETRACT_OFF    (0xF8ULL)   /* 1er retrait : cycle, cause, canal */
+
+#define WRAP_RETR_FIELD(v, i)   (((v) >> (16 * (i))) & 0xFFFFULL)
 
 /* DBG_WOWED : DEUX CHAMPS DE 4 BITS, pas de 8. w_owed_q fait 4 bits et sature a
  * 15. La premiere version de ce decodeur lisait 8 bits par champ -- parce que le
@@ -275,7 +286,13 @@ static void armor_wrap_init(int enforce) {
     printf("# ARMOR CSR magic : wrap1=0x%08x%08x wrap2=0x%08x%08x\r\n",
            (unsigned)(m1 >> 32), (unsigned)m1,
            (unsigned)(m2 >> 32), (unsigned)m2);
-    if (m1 == WRAP_MAGIC_V2 || m2 == WRAP_MAGIC_V2) {
+    if (m1 == WRAP_MAGIC_V3 || m2 == WRAP_MAGIC_V3) {
+        /* Tout sauf les compteurs de retrait : 0xF0 et 0xF8 liront zero, ce qui
+         * n'est PAS « aucune violation ». */
+        printf("# ATTENTION : magic ARMOR v3 — pas de compteurs de retrait de "
+               "VALID ; 0xF0/0xF8 liront zero, ce n'est pas une absence de "
+               "violation\r\n");
+    } else if (m1 == WRAP_MAGIC_V2 || m2 == WRAP_MAGIC_V2) {
         /* Observabilite presente, mais sans bad_id, sans les compteurs du canal
          * W et avec le cyc_hold aveugle a la phase W : les registres
          * 0xD0..0xE8 liront zero et cyc_hold sous-comptera. */
@@ -437,6 +454,29 @@ static void armor_wrap_perf_one(const char *tag, const char *who, uint64_t base)
            (unsigned long)(uint32_t)wan,
            (unsigned long)(uint32_t)(wan >> 32),
            WRAP_WOWED_MAX(wow));
+
+    /* Retraits de VALID, et le detail du PREMIER : sa cause dit si la violation
+     * est celle d'ARMOR (block_req, bad_id) ou celle du maitre (aucune cause --
+     * la FSM de l'accelerateur lache son valid sur timeout). */
+    uint64_t rtr = w[WRAP_CNT_RETRACT_OFF / 8];
+    uint64_t rtd = w[WRAP_DBG_RETRACT_OFF / 8];
+    if (rtr != 0) {
+        printf("# ARMORRETR,%s,%s,aw=%lu ar=%lu w=%lu b-r=%lu | 1er a %lu cy, "
+               "cause=%s%s%s%s, canal=%lu\r\n",
+               tag, who,
+               (unsigned long)WRAP_RETR_FIELD(rtr, 0),
+               (unsigned long)WRAP_RETR_FIELD(rtr, 1),
+               (unsigned long)WRAP_RETR_FIELD(rtr, 2),
+               (unsigned long)WRAP_RETR_FIELD(rtr, 3),
+               (unsigned long)(uint32_t)rtd,
+               (rtd & (1ULL << 32)) ? "block_req " : "",
+               (rtd & (1ULL << 33)) ? "!legit "    : "",
+               (rtd & (1ULL << 34)) ? "!verdict "  : "",
+               (rtd & (1ULL << 35)) ? "bad_id "    : "",
+               (unsigned long)((rtd >> 36) & 0xF));
+    } else {
+        printf("# ARMORRETR,%s,%s,aucun retrait de VALID\r\n", tag, who);
+    }
 
     uint64_t su = w[WRAP_DBG_STALL_UP_OFF / 8];
     uint64_t sd = w[WRAP_DBG_STALL_DN_OFF / 8];
@@ -931,9 +971,11 @@ static uint64_t fire_one(char accel, uint64_t mode, uint64_t dst,
         uint64_t wch = w[WRAP_CNT_WCH_OFF    / 8];
         uint64_t wan = w[WRAP_CNT_WANOM_OFF  / 8];
         uint64_t wow = w[WRAP_DBG_WOWED_OFF  / 8];
+        uint64_t rtr = w[WRAP_CNT_RETRACT_OFF / 8];
         uint32_t r_up = (uint32_t)req, r_dn = (uint32_t)(req >> 32);
         printf("# IT,%d,st=0x%lx,up=%lu,dn=%lu,cut=%ld,blk=%lu,hold=%lu,"
-               "bad=%lu,ecart=%ld,fant=%lu,orph=%lu,owed=%lu/%lu\r\n",
+               "bad=%lu,ecart=%ld,fant=%lu,orph=%lu,owed=%lu/%lu,"
+               "retr=%lu/%lu/%lu/%lu\r\n",
                g_iter, (unsigned long)st,
                (unsigned long)r_up, (unsigned long)r_dn,
                (long)((int64_t)r_up - (int64_t)r_dn),
@@ -943,7 +985,13 @@ static uint64_t fire_one(char accel, uint64_t mode, uint64_t dst,
                (long)((int64_t)(uint32_t)wch - (int64_t)(uint32_t)(wch >> 32)),
                (unsigned long)(uint32_t)wan,
                (unsigned long)(uint32_t)(wan >> 32),
-               WRAP_WOWED_CUR(wow), WRAP_WOWED_MAX(wow));
+               WRAP_WOWED_CUR(wow), WRAP_WOWED_MAX(wow),
+               /* retr = aw/ar/w/(b,r) : VALID retires sans READY. Sur du
+                * trafic legitime les quatre doivent rester a zero. */
+               (unsigned long)WRAP_RETR_FIELD(rtr, 0),
+               (unsigned long)WRAP_RETR_FIELD(rtr, 1),
+               (unsigned long)WRAP_RETR_FIELD(rtr, 2),
+               (unsigned long)WRAP_RETR_FIELD(rtr, 3));
         g_iter++;
     }
 #endif
