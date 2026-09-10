@@ -314,8 +314,25 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
     end
 end
 
-assign no_cut_aw = csr_awfix_q & aw_pres_q;
-assign no_cut_ar = csr_awfix_q & ar_pres_q;
+//  CTRL[3] EST DESORMAIS INERTE, et c'est deliberé.
+//
+//  Deux raisons de couper son effet plutot que de le laisser derriere un bit a
+//  0 :
+//
+//  1. Il est NUISIBLE, mesure : les retraits d'AW passaient de 1 a 33 en
+//     simulation (cf. 2ea871d). Un bouton dont on sait qu'il aggrave le defaut
+//     n'a pas a rester cablé, meme a 0 -- c'est un piege pour la prochaine
+//     personne qui lira la carte des registres, moi compris.
+//
+//  2. Il vise LE MAUVAIS CANAL. La mesure du 2026-09-10 place le retrait sur
+//     W (`retr=0/0/4/0`), pas sur AW. Sa valeur d'observation, qui etait le
+//     seul argument pour le garder, a disparu avec cette mesure.
+//
+//  Le bit reste lisible dans CTRL et STATUS[15] pour ne pas decaler la carte
+//  des registres, mais il ne pilote plus rien. aw_pres_q / ar_pres_q restent
+//  calcules : la synthese les elaguera, et ils documentent la tentative.
+assign no_cut_aw = 1'b0;
+assign no_cut_ar = 1'b0;
 
 //  w_pending : un AW est admis en aval et attend encore ses donnees. C'est la
 //  seule condition dans laquelle un beat W a le droit de partir. Voir
@@ -427,6 +444,21 @@ w_skid_buffer #(
     .w_ready_i (resp_wrapper_iommu_i.w_ready)
 );
 
+//  RISQUE LATENT, non atteignable par CET accelerateur mais a connaitre.
+//
+//  La capture est autorisee par `w_pending`, qui est un COMPTE d'AW dus en aval,
+//  pas un suivi par transaction. Au cycle exact ou le dernier beat d'une rafale
+//  est accepte en aval, `w_owed` vaut encore 1 : un beat presente par le maitre
+//  dans ce meme cycle serait donc capture, puis emis alors que plus aucun AW
+//  n'attend de donnees -- un orphelin W.
+//
+//  Pas atteignable ici : la FSM de l'accelerateur passe par G_NEXT puis G_AW
+//  apres son dernier beat, elle ne presente jamais de W dans ce cycle
+//  (`w_owed max = 1`, mesure au banc ET sur carte). Un maitre qui pipelinerait
+//  ses ecritures le rendrait atteignable.
+//
+//  Deux compteurs le surveillent deja et doivent rester a zero :
+//  `cnt_w_orphan_q` cote materiel (0xE0[63:32]) et `w_excess_tot` au banc.
 always_comb begin
     req_wrapper_iommu_o = req_rm;
     if (csr_wskid_q) begin
