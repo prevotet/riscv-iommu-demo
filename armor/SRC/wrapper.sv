@@ -143,6 +143,8 @@ logic [63:0]            csr_msi_addr_q;
 logic                   csr_enforce_q;
 logic                   csr_awfix_q;      // CTRL[3] : ne pas retirer un VALID
 logic                   csr_wskid_q;      // CTRL[4] : etage W (skid buffer)
+logic                   csr_fresh_q;      // CTRL[5] : verdict FRAIS exige
+logic                   csr_txblk_q;      // CTRL[6] : blocage transactionnel
 logic [63:0]            csr_sticky_q;
 logic [31:0]            cnt_banned_q, cnt_storm_q, cnt_outs_q, cnt_msi_q;
 logic [DevIDWidth-1:0]  dev_id_last_q;
@@ -237,7 +239,72 @@ assign bad_id = csr_enforce_q & (comparison_valid | verdict_known_q) & ~legit_hi
 //
 //  ENFORCE = 0 -> toujours « connu », le wrapper reste un passe-plat intégral.
 logic verdict_known_eff;
-assign verdict_known_eff = ~csr_enforce_q | comparison_valid | verdict_known_q;
+// -----------------------------------------------------------------------------
+//  VERDICT FRAIS EXIGE  (CTRL[5], 2026-09-10)
+//
+//  LA FENETRE QUE CECI FERME. `Device_ID_write_enable_o` est REGISTRE dans
+//  ID_extractor : front de aw_valid a T, signal a T+1, et `verdict_known_q` ne
+//  retombe donc qu'a T+2. Pendant T et T+1, l'adresse presentee est jugee sur le
+//  verdict de la requete PRECEDENTE.
+//
+//  Aujourd'hui rien ne passe par cette fenetre -- mesure sur SC01 :
+//  `req up=8 dn=0`, les huit requetes usurpees sont coupees. Mais c'est la
+//  LENTEUR de l'aval qui la referme (l'AW attend sa traduction IOMMU plus de
+//  deux cycles), pas la logique d'ARMOR. Une garantie de securite qui repose sur
+//  un accident de timing n'est pas une garantie.
+//
+//  ET C'EST CE QUI BLOQUE LE BLOCAGE TRANSACTIONNEL. Le principe « une adresse
+//  presentee est engagee » transformerait ce rate de justesse en ADMISSION d'une
+//  ecriture usurpee. Il faut donc fermer cette fenetre AVANT, jamais apres.
+//
+//  `verdict_stale` vaut 1 des le cycle ou une requete se presente et jusqu'a ce
+//  que SA comparaison rende. Le front est pris de facon COMBINATOIRE -- c'est
+//  tout l'objet du correctif, l'etat registre arrivant deux cycles trop tard.
+//
+//  CE QUE CA COUTE, mesure au banc et non estime : +2 CYCLES par transaction
+//  legitime (lecture 20 -> 22, ecriture 21 -> 23). J'avais d'abord ecrit ici
+//  « aucune latence ajoutee », en raisonnant que l'admission reprenait a T+2
+//  comme aujourd'hui. C'est faux : aujourd'hui l'adresse est presentee des T et
+//  souvent ACCEPTEE la, deux cycles plus tot -- precisement parce qu'ARMOR la
+//  laisse sortir avant de savoir si elle est legitime.
+//
+//  Ces 2 cycles sont donc le PRIX du controle d'identite reellement effectue
+//  avant emission. Sans eux, la garantie ne tient que parce que l'IOMMU est plus
+//  lent que la fenetre de fuite. C'est le chiffre a publier comme surcout
+//  d'ARMOR sur paquet valide, et il est honnete.
+// -----------------------------------------------------------------------------
+logic aw_v_in_q, ar_v_in_q;
+logic aw_edge_raw, ar_edge_raw;
+logic verdict_pending_q, verdict_stale, verdict_fresh;
+
+assign aw_edge_raw = req_IP_wrapper_i.aw_valid & ~aw_v_in_q;
+assign ar_edge_raw = req_IP_wrapper_i.ar_valid & ~ar_v_in_q;
+
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        aw_v_in_q         <= 1'b0;
+        ar_v_in_q         <= 1'b0;
+        verdict_pending_q <= 1'b0;
+    end else begin
+        aw_v_in_q <= req_IP_wrapper_i.aw_valid;
+        ar_v_in_q <= req_IP_wrapper_i.ar_valid;
+
+        if (comparison_valid)                     verdict_pending_q <= 1'b0;
+        else if (aw_edge_raw | ar_edge_raw)       verdict_pending_q <= 1'b1;
+    end
+end
+
+//  `& ~comparison_valid` : au cycle ou la comparaison rend, le verdict est frais
+//  et l'attente cesse dans le meme cycle. Sans ce terme on ajouterait un cycle
+//  de coupure a chaque requete legitime.
+assign verdict_stale = (aw_edge_raw | ar_edge_raw | verdict_pending_q)
+                     & ~comparison_valid;
+
+assign verdict_fresh = (comparison_valid | verdict_known_q) & ~verdict_stale;
+
+assign verdict_known_eff = ~csr_enforce_q
+                         | (csr_fresh_q ? verdict_fresh
+                                        : (comparison_valid | verdict_known_q));
 
 // -----------------------------------------------------------------------------
 //  W DU EN AVAL — garde du correctif « W orphelin » (2026-09-09)
@@ -413,6 +480,7 @@ request_manager #(
     .w_pending_i(w_pending),
     .no_cut_aw_i(no_cut_aw),
     .no_cut_ar_i(no_cut_ar),
+    .txblock_en_i(csr_txblk_q),
     .req_wrapper_iommu_o(req_rm)
 
 );
@@ -480,6 +548,7 @@ response_manager #(
     .w_pending_i(w_pending),
     .wskid_en_i(csr_wskid_q),
     .wskid_ready_i(wskid_ready),
+    .txblock_en_i(csr_txblk_q),
     .resp_wrapper_iommu_i(resp_wrapper_iommu_i),
     .resp_IP_wrapper_o(resp_IP_wrapper_o)
 );
@@ -581,6 +650,19 @@ response_delayer #(
 //                          (1 pour sec_wrapper #1, 2 pour #2, cf. accel_wrap.sv)
 //   0x08  MSI_ADDR     RW  adresse MSI surveillee par msi_detector
 //   0x10  CTRL         RW  b0 ENFORCE, b1 STICKY_CLR, b2 CNT_CLR,
+//                          b5 FRESH_VERDICT -- n'admet une adresse en aval que
+//                          si SA comparaison d'identite a rendu. Ferme une
+//                          fenetre de DEUX cycles ou l'adresse etait jugee sur
+//                          le verdict de la requete precedente
+//                          (Device_ID_write_enable_o est registre). Aujourd'hui
+//                          seule la lenteur de l'IOMMU la referme. Echo
+//                          STATUS[17]. PREREQUIS de b6.
+//                          b6 TX_BLOCK -- blocage transactionnel : une ecriture
+//                          dont l'AW est deja admis en aval se termine au lieu
+//                          d'etre terminee en SLVERR, ce qui evite de laisser un
+//                          AW orphelin. NE PAS ACTIVER SANS b5 : sans verdict
+//                          frais, « ce qui est presente est engage » revient a
+//                          admettre une ecriture usurpee. Echo STATUS[18].
 //                          b4 W_SKID -- etage d'un emplacement sur le canal W.
 //                          Correctif du retrait de VALID mesure le 2026-09-10 :
 //                          la coupure est decidee A LA CAPTURE, un beat entre
@@ -622,7 +704,7 @@ response_delayer #(
 //   0x40  CNT_OUTS     RO  nombre d'episodes de saturation outstanding
 //   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
 //   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
-//   0x58  MAGIC        RO  0x41524D4F52000006 ("ARMOR" + version)
+//   0x58  MAGIC        RO  0x41524D4F52000007 ("ARMOR" + version)
 //
 // Bloc d'observabilite, ajoute le 2026-09-10 (d'ou MAGIC ...0002 : le logiciel
 // distingue ainsi un bitstream qui porte ces registres d'un qui n'en a pas).
@@ -762,6 +844,8 @@ always_comb begin
     armor_status[14]  = bad_id;
     armor_status[15]  = csr_awfix_q;   // echo du correctif AXI4
     armor_status[16]  = csr_wskid_q;   // echo de l'etage W
+    armor_status[17]  = csr_fresh_q;   // echo du verdict frais exige
+    armor_status[18]  = csr_txblk_q;   // echo du blocage transactionnel
 end
 
 // -----------------------------------------------------------------------------
@@ -845,6 +929,8 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         csr_enforce_q  <= 1'b0;   // reset : wrapper transparent
         csr_awfix_q    <= 1'b0;   // reset : comportement historique conserve
         csr_wskid_q    <= 1'b0;   // reset : etage W en derivation
+        csr_fresh_q    <= 1'b0;   // reset : comportement historique
+        csr_txblk_q    <= 1'b0;   // reset : comportement historique
         csr_sticky_clr <= 1'b0;
         csr_cnt_clr    <= 1'b0;
     end else begin
@@ -871,6 +957,8 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
                             csr_cnt_clr    <= req_CPU_Wrapper__i.w.data[2];
                             csr_awfix_q    <= req_CPU_Wrapper__i.w.data[3];
                             csr_wskid_q    <= req_CPU_Wrapper__i.w.data[4];
+                            csr_fresh_q    <= req_CPU_Wrapper__i.w.data[5];
+                            csr_txblk_q    <= req_CPU_Wrapper__i.w.data[6];
                         end
                         default: ; // registres en lecture seule
                     endcase
@@ -1556,7 +1644,8 @@ always_comb begin
     case (r_idx_q)
         5'd0:    csr_rdata = csr_id_cfg_q;
         5'd1:    csr_rdata = csr_msi_addr_q;
-        5'd2:    csr_rdata = {59'h0, csr_wskid_q, csr_awfix_q, 2'b00, csr_enforce_q};
+        5'd2:    csr_rdata = {57'h0, csr_txblk_q, csr_fresh_q, csr_wskid_q,
+                              csr_awfix_q, 2'b00, csr_enforce_q};
         5'd3:    csr_rdata = armor_status;
         5'd4:    csr_rdata = csr_sticky_q;
         5'd5:    csr_rdata = {56'h0, failure_count};
@@ -1565,7 +1654,7 @@ always_comb begin
         5'd8:    csr_rdata = {32'h0, cnt_outs_q};
         5'd9:    csr_rdata = {32'h0, cnt_msi_q};
         5'd10:   csr_rdata = {{(64-DevIDWidth){1'b0}}, dev_id_last_q};
-        5'd11:   csr_rdata = 64'h41524D4F52000006;
+        5'd11:   csr_rdata = 64'h41524D4F52000007;
         // Observabilite (version 2 du MAGIC). Voir la carte des registres.
         5'd12:   csr_rdata = {52'h0, dbg_up};
         5'd13:   csr_rdata = {52'h0, dbg_dn};

@@ -90,6 +90,12 @@ module request_manager #(
     input  logic        no_cut_aw_i,
     input  logic        no_cut_ar_i,
 
+    //  BLOCAGE TRANSACTIONNEL (CTRL[6]). Une ecriture dont l'AW est deja admis
+    //  en aval doit se terminer normalement : sa reponse B appartient au maitre
+    //  et ne doit pas etre avalee par le drainage anti-wedge, sinon le maitre
+    //  attend une reponse que personne ne lui rendra.
+    input  logic        txblock_en_i,
+
     input  req_iommu_t  req_IP_wrapper_i,
     output req_iommu_t  req_wrapper_iommu_o
 );
@@ -119,7 +125,12 @@ module request_manager #(
             req_wrapper_iommu_o.w_valid = 1'b0;
 
         // Blocage effectif : on avale les reponses en vol (anti-wedge).
-        if (block_req_i || bad_id_i) begin
+        //
+        // EXCEPTION sous CTRL[6] : si une ecriture est engagee en aval
+        // (w_pending), son B revient au MAITRE, qui l'attend. L'avaler
+        // reintroduirait le blocage du maitre que le drainage existe pour
+        // eviter -- par l'autre bout.
+        if ((block_req_i || bad_id_i) && !(txblock_en_i && w_pending_i)) begin
             req_wrapper_iommu_o.b_ready = 1'b1;
             req_wrapper_iommu_o.r_ready = 1'b1;
         end
