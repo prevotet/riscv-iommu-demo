@@ -60,7 +60,8 @@
 #define WRAP_CTRL_ENFORCE       (1ULL << 0)
 #define WRAP_CTRL_STICKY_CLR    (1ULL << 1)
 #define WRAP_CTRL_CNT_CLR       (1ULL << 2)
-#define WRAP_MAGIC_EXPECTED     (0x41524D4F52000002ULL)
+#define WRAP_MAGIC_EXPECTED     (0x41524D4F52000003ULL)
+#define WRAP_MAGIC_V2           (0x41524D4F52000002ULL)  /* sans bad_id ni canal W */
 #define WRAP_MAGIC_V1           (0x41524D4F52000001ULL)  /* sans observabilite */
 
 /* Bloc d'observabilite du wrapper (MAGIC version 2). Lecture seule, remis a
@@ -80,6 +81,14 @@
 #define WRAP_LAT_MINMAX_OFF     (0xB8ULL)
 #define WRAP_LAT_CUR_OFF        (0xC0ULL)   /* transaction EN VOL            */
 #define WRAP_CYC_TOTAL_OFF      (0xC8ULL)
+
+/* Version 3 : les trois angles morts fermes apres le gel du 2026-09-10, qui
+ * s'etait produit avec sticky=0, cyc_block=0, cyc_hold=0 et w_owed=0 -- soit
+ * sans qu'aucun compteur existant ne voie quoi que ce soit. */
+#define WRAP_CNT_BADID_OFF      (0xD0ULL)   /* fronts | cycles de bad_id      */
+#define WRAP_CNT_WCH_OFF        (0xD8ULL)   /* AW aval | W-last aval          */
+#define WRAP_CNT_WANOM_OFF      (0xE0ULL)   /* beats fantomes | W orphelins   */
+#define WRAP_DBG_WOWED_OFF      (0xE8ULL)   /* w_owed courant | son maximum   */
 
 /* Canaux surveilles par DBG_STALL_*, dans l'ordre des champs de 12 bits. */
 #define WRAP_STALL_FIELD(v, i)  (((v) >> (12 * (i))) & 0xFFFULL)
@@ -258,7 +267,13 @@ static void armor_wrap_init(int enforce) {
     printf("# ARMOR CSR magic : wrap1=0x%08x%08x wrap2=0x%08x%08x\r\n",
            (unsigned)(m1 >> 32), (unsigned)m1,
            (unsigned)(m2 >> 32), (unsigned)m2);
-    if (m1 == WRAP_MAGIC_V1 || m2 == WRAP_MAGIC_V1) {
+    if (m1 == WRAP_MAGIC_V2 || m2 == WRAP_MAGIC_V2) {
+        /* Observabilite presente, mais sans bad_id, sans les compteurs du canal
+         * W et avec le cyc_hold aveugle a la phase W : les registres
+         * 0xD0..0xE8 liront zero et cyc_hold sous-comptera. */
+        printf("# ATTENTION : magic ARMOR v2 — pas de bad_id ni de compteurs "
+               "du canal W ; 0xD0..0xE8 liront zero\r\n");
+    } else if (m1 == WRAP_MAGIC_V1 || m2 == WRAP_MAGIC_V1) {
         /* Le bitstream porte l'interface CSR mais pas le bloc d'observabilite
          * du 2026-09-10 : les registres 0x60..0xC8 lisent zero. Les lignes
          * ARMORHW/ARMORLAT seront donc a zero, ce n'est pas une panne. */
@@ -398,6 +413,23 @@ static void armor_wrap_perf_one(const char *tag, const char *who, uint64_t base)
 
     /* Attentes les plus longues, par canal. Une valeur a 4095 est SATUREE :
      * elle dit « coince », pas « 4095 cycles ». */
+    /* Les memes grandeurs en fin de scenario, pour un run qui ne gele pas. */
+    uint64_t bad = w[WRAP_CNT_BADID_OFF / 8];
+    uint64_t wch = w[WRAP_CNT_WCH_OFF   / 8];
+    uint64_t wan = w[WRAP_CNT_WANOM_OFF / 8];
+    uint64_t wow = w[WRAP_DBG_WOWED_OFF / 8];
+    printf("# ARMORW,%s,%s,bad_id=%lu fronts %lu cy | aw_dn=%lu wlast_dn=%lu "
+           "ecart=%ld | fantome=%lu orphelin=%lu | w_owed_max=%lu\r\n",
+           tag, who,
+           (unsigned long)(uint32_t)bad,
+           (unsigned long)(uint32_t)(bad >> 32),
+           (unsigned long)(uint32_t)wch,
+           (unsigned long)(uint32_t)(wch >> 32),
+           (long)((int64_t)(uint32_t)wch - (int64_t)(uint32_t)(wch >> 32)),
+           (unsigned long)(uint32_t)wan,
+           (unsigned long)(uint32_t)(wan >> 32),
+           (unsigned long)((wow >> 8) & 0xFF));
+
     uint64_t su = w[WRAP_DBG_STALL_UP_OFF / 8];
     uint64_t sd = w[WRAP_DBG_STALL_DN_OFF / 8];
     printf("# ARMORSTALL,%s,%s,up aw=%lu w=%lu b=%lu ar=%lu r=%lu | "
@@ -478,7 +510,7 @@ static void armor_wrap_snapshot(const char *when, volatile uint64_t *accel_statu
 
     printf("# ARMORSNAP,%s,accel_status=0x%lx%s\r\n",
            when, (unsigned long)a, (a & ST_BUSY) ? " BUSY-A-L-ENTREE" : "");
-    printf("# ARMORSNAP,%s,w1,status=0x%lx sticky=0x%lx |%s%s%s%s%s%s%s%s%s\r\n",
+    printf("# ARMORSNAP,%s,w1,status=0x%lx sticky=0x%lx |%s%s%s%s%s%s%s%s%s%s\r\n",
            when, (unsigned long)s1, (unsigned long)k1,
            (s1 & (1ULL <<  3)) ? " BLOCKED"   : "",
            (s1 & (1ULL <<  4)) ? " BANNED"    : "",
@@ -488,8 +520,9 @@ static void armor_wrap_snapshot(const char *when, volatile uint64_t *accel_statu
            (s1 & (1ULL <<  9)) ? " stormflag" : "",
            (s1 & (1ULL << 10)) ? " outsovf"   : "",
            (s1 & (1ULL << 12)) ? " legit"     : "",
-           (s1 & (1ULL << 13)) ? " ENF"       : "");
-    printf("# ARMORSNAP,%s,w2,status=0x%lx sticky=0x%lx |%s%s%s%s%s%s%s%s%s\r\n",
+           (s1 & (1ULL << 13)) ? " ENF"       : "",
+           (s1 & (1ULL << 14)) ? " BAD_ID"    : "");
+    printf("# ARMORSNAP,%s,w2,status=0x%lx sticky=0x%lx |%s%s%s%s%s%s%s%s%s%s\r\n",
            when, (unsigned long)s2, (unsigned long)k2,
            (s2 & (1ULL <<  3)) ? " BLOCKED"   : "",
            (s2 & (1ULL <<  4)) ? " BANNED"    : "",
@@ -499,7 +532,8 @@ static void armor_wrap_snapshot(const char *when, volatile uint64_t *accel_statu
            (s2 & (1ULL <<  9)) ? " stormflag" : "",
            (s2 & (1ULL << 10)) ? " outsovf"   : "",
            (s2 & (1ULL << 12)) ? " legit"     : "",
-           (s2 & (1ULL << 13)) ? " ENF"       : "");
+           (s2 & (1ULL << 13)) ? " ENF"       : "",
+           (s2 & (1ULL << 14)) ? " BAD_ID"    : "");
 
     /* Poignees de main VIVANTES des deux cotes de la coupure, et etat interne.
      * C'est ce bloc qui doit nommer le canal fige : si le gel vient d'un AW
@@ -559,6 +593,28 @@ static void armor_wrap_snapshot(const char *when, volatile uint64_t *accel_statu
                (long)((int64_t)r_up - (int64_t)r_dn),
                (unsigned long)(uint32_t)cyc,
                (unsigned long)(uint32_t)(cyc >> 32));
+
+        /* bad_id et le canal W : les trois grandeurs qui etaient muettes quand
+         * la campagne du 2026-09-10 a gele. `ecart` doit valoir zero -- un AW
+         * admis en aval finit toujours par recevoir son W-last. Non nul, il dit
+         * dans quel sens le canal est desaligne. `fantome` non nul prouve que
+         * l'aval a pris un beat que le maitre croit refuse. */
+        uint64_t bad  = w[WRAP_CNT_BADID_OFF / 8];
+        uint64_t wch  = w[WRAP_CNT_WCH_OFF   / 8];
+        uint64_t wan  = w[WRAP_CNT_WANOM_OFF / 8];
+        uint64_t wow  = w[WRAP_DBG_WOWED_OFF / 8];
+        uint32_t awdn = (uint32_t)wch, wldn = (uint32_t)(wch >> 32);
+        printf("# ARMORW,%s,%s,bad_id=%lu fronts %lu cy | aw_dn=%lu wlast_dn=%lu "
+               "ecart=%ld | fantome=%lu orphelin=%lu | w_owed=%lu max=%lu\r\n",
+               when, nm,
+               (unsigned long)(uint32_t)bad,
+               (unsigned long)(uint32_t)(bad >> 32),
+               (unsigned long)awdn, (unsigned long)wldn,
+               (long)((int64_t)awdn - (int64_t)wldn),
+               (unsigned long)(uint32_t)wan,
+               (unsigned long)(uint32_t)(wan >> 32),
+               (unsigned long)(wow & 0xFF),
+               (unsigned long)((wow >> 8) & 0xFF));
     }
 }
 
