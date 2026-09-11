@@ -1,8 +1,14 @@
 # Reprendre le travail ARMOR sur une autre machine
 
-État au 2026-09-10, branche `testbench`. Ce document existe parce que le README
-amont ne dit rien de la chaîne de bench, et que tout le reste vivait dans les
-messages de commit.
+État au 2026-09-11 au soir, branche `testbench`. Ce document existe parce que le
+README amont ne dit rien de la chaîne de bench, et que tout le reste vivait dans
+les messages de commit.
+
+**Bitstream archivé : v8** (`W_CAPDEBT`). **RTL de l'arbre : v9** (+ `RESP_HOLD`,
+validé au banc, jamais synthétisé). `tools/bitstream.sh check bench` dit donc
+PÉRIMÉ, et c'est normal : resynthétiser avant toute campagne qui a besoin de
+`CTRL[8]`. Les campagnes v8 se jouent sur le bitstream archivé
+(`tools/bitstream.sh use bench`).
 
 ## 1. Mise en route
 
@@ -55,7 +61,20 @@ sudo dd if=opensbi/build/platform/fpga/ariane/firmware/fw_payload.bin \
         of=/dev/sdX1 oflag=sync bs=1M status=progress
 ./2_build_HB.sh program
 tools/capture_uart.sh
+
+# 4 bis. SANS carte SD, par le JTAG de débogage de CVA6 — NON TESTÉ SUR CARTE
+#        (recette reprise de KERONEv2 ; essai à blanc seulement, le 2026-09-11)
+./2_build_HB.sh program
+pkill -x hw_server                       # program en laisse un, qui tient le câble
+tools/capture_uart.sh                    # autre terminal : attendre qu'il écoute
+tools/load_jtag.sh payloads/<image>.elf  # ELF : ~8 s ; un .bin prend ~2 min
 ```
+
+`load_jtag.sh` appelle `/usr/bin/openocd` (0.12) : celui de Quartus, souvent
+premier dans le `PATH`, est en 0.11 et ne comprend pas la config. L'ordre compte :
+`capture_uart.sh` peut recharger `ftdi_sio`, et lancé après OpenOCD il lui
+arracherait le câble. Pour avoir un ELF, copier
+`opensbi/build/platform/fpga/ariane/firmware/fw_payload.elf` à côté du `.bin`.
 
 **Pièges de cette chaîne, tous rencontrés :**
 
@@ -234,7 +253,8 @@ référence).
 **Encore ouvert :**
 
 - **l'étage W décale le canal W — DÉMONTRÉ au banc, corrigé par `CTRL[7]
-  W_CAPDEBT` (MAGIC v8), validé en simulation, PAS ENCORE SYNTHÉTISÉ.** Sur carte,
+  W_CAPDEBT` (MAGIC v8), validé en simulation, SYNTHÉTISÉ en v8 (`d172928`), À
+  VALIDER SUR CARTE** avec `payloads/fw_payload_v8_fresh1_wskid1_wcap0` puis `_wcap1`. Sur carte,
   dans les quatre runs `W_SKID=1` (v6 ×2, v7 ×2), un beat W reste présenté en aval
   dès SC02 et jusqu'à la fin, avec `w_owed=0` et `w_pending=0`
   (`ARMORHS,pre-ctrl,w2,dn` : `W V- last`) ; il n'est pas la cause du gel de SC01.
