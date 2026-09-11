@@ -62,8 +62,9 @@ sudo dd if=opensbi/build/platform/fpga/ariane/firmware/fw_payload.bin \
 ./2_build_HB.sh program
 tools/capture_uart.sh
 
-# 4 bis. SANS carte SD, par le JTAG de débogage de CVA6 — NON TESTÉ SUR CARTE
-#        (recette reprise de KERONEv2 ; essai à blanc seulement, le 2026-09-11)
+# 4 bis. SANS carte SD, par le JTAG de débogage de CVA6 — VALIDÉ SUR CARTE le
+#        2026-09-11 14:19 (recette KERONEv2) : du lancement de la capture au
+#        « ###### END » en moins d'une minute, contre le dd + la carte à déplacer
 ./2_build_HB.sh program
 pkill -x hw_server                       # program en laisse un, qui tient le câble
 tools/capture_uart.sh                    # autre terminal : attendre qu'il écoute
