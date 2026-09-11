@@ -75,6 +75,14 @@ module response_manager #(
     input  logic       wskid_en_i,
     input  logic       wskid_ready_i,
 
+    //  ABSORPTION DU W D'UN AW COUPE (CTRL[9] W_FATE, 2026-09-11). Le beat W
+    //  presente par le maitre appartient a un AW qu'ARMOR a acquitte par
+    //  fabrication et n'a jamais admis en aval : il faut l'acquitter (w_ready=1)
+    //  sans rien envoyer -- request_manager coupe deja son w_valid --, Y COMPRIS
+    //  HORS BLOCAGE. Sans cela le maitre attendait son w_ready jusqu'a son timeout
+    //  (sur carte : SC02 17/50 sous W_CAPDEBT).
+    input  logic       w_absorb_i,
+
     //  BLOCAGE TRANSACTIONNEL (CTRL[6]). Une ecriture dont l'AW est deja admis
     //  en aval ne peut PAS etre terminee en SLVERR : le maitre cesserait
     //  d'envoyer ses donnees et l'aval garderait une adresse orpheline -- le
@@ -191,7 +199,10 @@ module response_manager #(
                 //  Le handshake du maitre se fait contre l'etage : de la place
                 //  et un AW du, sinon le maitre attend. Il ne voit plus jamais
                 //  le ready de l'aval sur ce canal.
-                resp_base.w_ready = wskid_ready_i & w_pending_i;
+                //  W_FATE : le W d'un AW coupe est acquitte sans etre envoye --
+                //  c'est ici, hors blocage, qu'il manquait. En blocage, la branche
+                //  du dessus rend deja 1 quand aucune dette ne l'attend.
+                resp_base.w_ready = w_absorb_i ? 1'b1 : (wskid_ready_i & w_pending_i);
             else if (!w_pending_i)
                 resp_base.w_ready = 1'b0;
         end

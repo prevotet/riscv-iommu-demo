@@ -118,6 +118,9 @@ module tb_accel_armor;
 `ifdef RHOLD
         | (64'h1 << 8)
 `endif
+`ifdef WFATE
+        | (64'h1 << 9)
+`endif
         ;
 
     int unsigned obs_fail = 0;   // defauts trouves dans le bloc d'observabilite
@@ -127,7 +130,7 @@ module tb_accel_armor;
     int unsigned obs_ref_badid, obs_ref_badcy;
     int unsigned obs_ref_ghost, obs_ref_orph, obs_ref_awdn;
 
-    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000009;   // version 9 : + maintien des reponses presentees
+    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F5200000A;   // version 10 : + sort de chaque AW (W_FATE)
 
     localparam logic [63:0] LEGIT_DST = 64'h0000_0000_9100_0000;
 

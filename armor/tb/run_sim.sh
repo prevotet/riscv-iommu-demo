@@ -157,6 +157,12 @@ fi
 # FRESH, 73 avec, sur carte).
 [[ "${RHOLD:-0}" == "1" ]]   && DEFINES+=("-d" "RHOLD")
 
+# WFATE=1 : CTRL[9], sort de chaque AW suivi par transaction (admis ou coupe) ;
+# le W d'un AW coupe est absorbe meme hors blocage. Correctif des timeouts de
+# l'accelerateur (sur carte, SC02 17/50 sous W_CAPDEBT ; au banc, etat W, beat 0,
+# blocage retombe). N'a d'effet qu'avec WSKID=1 ; supplante WCAP.
+[[ "${WFATE:-0}" == "1" ]]   && DEFINES+=("-d" "WFATE")
+
 echo "=== xvlog ==="
 xvlog -sv --nolog \
       "${DEFINES[@]+"${DEFINES[@]}"}" \

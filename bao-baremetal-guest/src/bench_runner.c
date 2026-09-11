@@ -65,6 +65,7 @@
 #define WRAP_CTRL_FRESH         (1ULL << 5)   /* verdict d'identite frais exige (v7) */
 #define WRAP_CTRL_WCAP          (1ULL << 7)   /* dette W comptee a la capture (v8) */
 #define WRAP_CTRL_RHOLD         (1ULL << 8)   /* reponses B/R tenues jusqu'au ready (v9) */
+#define WRAP_CTRL_WFATE         (1ULL << 9)   /* sort de chaque AW, W des AW coupes absorbe (v10) */
 /* CTRL[6] TX_BLOCK n'a volontairement AUCUNE option ici : nuisible seul
  * (retraits AW de SC04 : 1 -> 4 au banc). Voir wrapper.sv. */
 
@@ -125,6 +126,18 @@
  * observe au banc. */
 #ifndef ARMOR_RHOLD
 #define ARMOR_RHOLD 0
+#endif
+
+/* Compiler avec -DARMOR_WFATE=1 pour suivre le sort de chaque AW acquitte au
+ * maitre -- admis en aval ou coupe -- et absorber le W des AW coupes meme hors
+ * blocage (CTRL[9], MAGIC v10). N'a d'effet qu'avec ARMOR_WSKID=1 ; supplante
+ * ARMOR_WCAP.
+ *
+ * Correctif des timeouts de l'accelerateur : pendant un blocage ARMOR fabrique
+ * aw_ready, et si le blocage retombe avant le W de cet AW coupe, plus rien ne
+ * l'absorbait. Sur carte sous ARMOR_WCAP : SC02 17 fois sur 50 au timeout. */
+#ifndef ARMOR_WFATE
+#define ARMOR_WFATE 0
 #endif
 /* CONTROLE DE VERSION PAR SEUIL, ET NON PAR EGALITE.
  *
@@ -411,6 +424,12 @@ static void armor_wrap_init(int enforce) {
         if (ARMOR_RHOLD && v < 9)
             printf("# ATTENTION : ARMOR_RHOLD=1 mais bitstream v%u -- CTRL[8] "
                    "SANS EFFET, les reponses B/R peuvent etre retirees\r\n", v);
+        if (ARMOR_WFATE && v < 10)
+            printf("# ATTENTION : ARMOR_WFATE=1 mais bitstream v%u -- CTRL[9] "
+                   "SANS EFFET, le maitre peut caler jusqu'au timeout\r\n", v);
+        if (ARMOR_WFATE && !ARMOR_WSKID)
+            printf("# ATTENTION : ARMOR_WFATE=1 sans ARMOR_WSKID -- CTRL[9] "
+                   "n'agit que sur l'etage W, il est ici sans effet\r\n");
     }
 
     w1[WRAP_ID_CFG_OFF   / 8] = 1ULL;         /* LHA : STREAM_ID = 1 */
@@ -423,14 +442,15 @@ static void armor_wrap_init(int enforce) {
                   | (ARMOR_FRESH ? WRAP_CTRL_FRESH : 0ULL)
                   | (ARMOR_WCAP  ? WRAP_CTRL_WCAP  : 0ULL)
                   | (ARMOR_RHOLD ? WRAP_CTRL_RHOLD : 0ULL)
+                  | (ARMOR_WFATE ? WRAP_CTRL_WFATE : 0ULL)
                   | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
     w1[WRAP_CTRL_OFF / 8] = ctrl;
     w2[WRAP_CTRL_OFF / 8] = ctrl;
     fence();
 
-    printf("# ARMOR arme : ENFORCE=%d, W_SKID=%d, FRESH=%d, WCAP=%d, RHOLD=%d, ID_CFG w1=1 w2=2, "
-           "MSI_ADDR=0x%08x\r\n",
-           enforce, ARMOR_WSKID, ARMOR_FRESH, ARMOR_WCAP, ARMOR_RHOLD,
+    printf("# ARMOR arme : ENFORCE=%d, W_SKID=%d, FRESH=%d, WCAP=%d, RHOLD=%d, WFATE=%d, "
+           "ID_CFG w1=1 w2=2, MSI_ADDR=0x%08x\r\n",
+           enforce, ARMOR_WSKID, ARMOR_FRESH, ARMOR_WCAP, ARMOR_RHOLD, ARMOR_WFATE,
            (unsigned)MSI_TARGET_DST);
 
     /* Ce que le MATERIEL a retenu, et non ce qu'on lui a demande. Un bit que le

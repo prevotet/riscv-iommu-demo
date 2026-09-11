@@ -288,7 +288,26 @@ référence).
   `W_CAPDEBT`** (timeouts à `DN_WLAT=8` : SC02 3 et 4, SC04 4 et 4) ; sans lui, l'étage est
   plein d'un beat d'une autre écriture coupée et 757 beats partent mal adressés, avec lui
   l'étage est vide et aucun. `W_CAPDEBT` répare donc l'intégrité, et ni l'un ni l'autre ne
-  sait absorber le W d'un AW coupé hors blocage ; Sur carte,
+  sait absorber le W d'un AW coupé hors blocage.
+
+  **`CTRL[9] W_FATE` (MAGIC v10), validé au banc, pas encore synthétisé.** Une FIFO de 4
+  bits garde le sort de chaque AW acquitté au maître — admis en aval dans le même cycle,
+  ou coupé — et le W d'un AW coupé est absorbé (`w_valid` coupé en aval, `w_ready = 1`
+  au maître) quel que soit l'état du blocage. Supplante `W_CAPDEBT`.
+
+  | aval banc | timeouts en état W, avant → `W_FATE` | itération SC02 / SC04 | beats d'une autre écriture |
+  |---|---|---|---|
+  | `DN_WLAT=4` | SC08-m4 31 → **0**, SC02 4 → **0**, SC04 2 → **0** | 109 / 246 cy | **0** / 1778 |
+  | `DN_WLAT=8` | SC08-m4 31 → **0**, SC02 4 → **0**, SC04 4 → **0** | 110 / 241 cy | **0** / 1772 |
+  | `DN_WLAT=40` | — | 672 / 1396 cy | **0** / 2538 |
+  | historique | — | 353 / 244 cy | **0** / 1773 |
+
+  `OBS_CHECK` 0 défaut, verdicts inchangés. **Deux points ouverts** : (1) avec l'aval
+  historique, SC02 finit UNE fois en timeout en état **DRAIN** (14 B reçus sur 16) —
+  hypothèse non vérifiée : ARMOR ne fabrique de B que pendant un blocage, et le B d'un
+  AW coupé dont le W a été absorbé après la fin du blocage ne vient jamais ; le correctif
+  complet devrait devoir un SLVERR B par AW coupé ; (2) à `DN_WLAT=40`, SC04 dure en
+  moyenne 1396 cycles sans aucun timeout (775 à 837 avant) — à comprendre ; Sur carte,
   dans les quatre runs `W_SKID=1` (v6 ×2, v7 ×2), un beat W reste présenté en aval
   dès SC02 et jusqu'à la fin, avec `w_owed=0` et `w_pending=0`
   (`ARMORHS,pre-ctrl,w2,dn` : `W V- last`) ; il n'est pas la cause du gel de SC01.
