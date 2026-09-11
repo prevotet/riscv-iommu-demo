@@ -6,33 +6,41 @@ reste vivait dans les messages de commit.
 
 ## 0. Où reprendre, exactement
 
-**Configuration de référence, validée sur carte : `W_SKID + FRESH + RESP_HOLD`**
-(`CTRL` relu `0x131`). **RTL de l'arbre : v10**, qui ajoute `CTRL[9] W_FATE` (commit
-`1bdc2f6`) — validé au banc, **pas encore validé sur carte**.
+**Configuration de référence, VALIDÉE SUR CARTE : `W_SKID + FRESH + RESP_HOLD + W_FATE`**
+(`CTRL` relu `0x331`). **Bitstream archivé : v10** (`c0df50b`) — `tools/bitstream.sh use
+bench`, puis `check bench` doit dire À JOUR.
 
-- Si `git log --oneline` contient « archive the v10 BENCH bitstream », le v10 est archivé :
-  `tools/bitstream.sh use bench`, puis `check bench` doit dire À JOUR.
-- Sinon le bitstream archivé est le **v9** et `check` dit PÉRIMÉ : resynthétiser (§ 2,
-  ~45 min) avant la campagne v10. Le v9 archivé reste valable pour toute campagne sans
-  `W_FATE`.
+**Validation de `W_FATE` sur carte, 2026-09-11 17:00**, même bitstream v10, chargement par
+`capture_uart.sh -j` :
 
-**Prochaine action : valider `W_FATE` sur carte**, même bitstream v10, deux images qui ne
-diffèrent que par ce bit. `payloads/` n'est pas versionné : les construire par le § 2,
-étape 2, avec `-DARMOR_WSKID=1 -DARMOR_FRESH=1 -DARMOR_RHOLD=1 -DARMOR_WFATE=0` puis
-`=1`, et copier **`fw_payload.elf` et `fw_payload.bin`** dans `payloads/` sous
-`fw_payload_v10_fresh1_wskid1_rhold1_wfate0` / `_wfate1`.
+| | `wfate0` (`results/bench_2026-09-11_170057.log`) | `wfate1` (`170253`) |
+|---|---|---|
+| `CTRL` relu | `0x131` | `0x331` |
+| `W V- last` en aval du wrapper 2 | 9 / 21 | **0 / 21** |
+| SC04 `SUMMARY-TX` p99 / max | 65 671 / 65 687 (timeout) | **1230 / 1230** |
+| SC02 p99 / max | 565 / 565 | 560 / 565 |
+| SC03 `b-r` | 0 | 0 |
+| ERR SC02 / SC04 | 0 / 0 | 0 / 0 |
+| `tx_sum` SC06 / SC07 | 3712 / 3711 | 3712 / 3753 |
+| FIFO débordée (`STATUS[22]`) | — | 0 sur 21 instantanés |
+
+Détection SC02 18 → 34, SC04 41 → 45, SC03 et SC01 50/50, zéro faux positif — sans
+aucune ERR, donc sans l'artefact de timeout de `W_CAPDEBT` ; mais un seul run, et SC02 a
+déjà varié de 16 à 34 : ne pas l'attribuer au correctif sans runs répétés.
+
+Images (`payloads/` n'est pas versionné) : § 2, étape 2, avec
+`-DARMOR_WSKID=1 -DARMOR_FRESH=1 -DARMOR_RHOLD=1 -DARMOR_WFATE=1`, en copiant
+**`fw_payload.elf` et `fw_payload.bin`** dans `payloads/`. Campagne :
 
 ```sh
 ./2_build_HB.sh program
 pkill -x hw_server
-tools/capture_uart.sh -j payloads/fw_payload_v10_fresh1_wskid1_rhold1_wfate0.elf
 tools/capture_uart.sh -j payloads/fw_payload_v10_fresh1_wskid1_rhold1_wfate1.elf
 ```
 
-Attendu : MAGIC `...000a` ; `CTRL` relu `0x131` puis `0x331` ; avec `wfate1`, plus d'ERR
-ni de latence `SUMMARY-TX` p99 ≈ 65 7xx sur SC02 et SC04, plus de `W V- last` en aval du
-wrapper 2 ; SC03 `b-r=0` dans les deux cas. Ensuite : le B manquant des AW coupés
-(« Encore ouvert »).
+**Prochaine action** : le B manquant des AW coupés (« Encore ouvert ») — un timeout en état
+DRAIN, vu une seule fois au banc ; puis des runs répétés de la configuration de référence
+pour chiffrer la détection.
 
 ## 1. Mise en route
 
@@ -81,12 +89,13 @@ make clean                              # obligatoire : sources.mk change de fic
 make PLATFORM=cva6 \
      CROSS_COMPILE=/home/jc/Work/Software/riscv-imac/bin/riscv64-unknown-elf- \
      BENCH=1 ARCH_CPPFLAGS="-DBENCH_QUICK -DBENCH_TRACE_MMIO -DBENCH_NO_LHA_BG \
-                            -DARMOR_WSKID=1 -DARMOR_FRESH=1 -DARMOR_RHOLD=1" \
+                            -DARMOR_WSKID=1 -DARMOR_FRESH=1 -DARMOR_RHOLD=1 \
+                            -DARMOR_WFATE=1" \
      -j$(nproc)
-# Les trois ARMOR_* donnent la configuration de référence, validée sur carte
-# (CTRL relu 0x131). Sur un bitstream v10, -DARMOR_WFATE=1 ajoute W_FATE (0x331).
-# Ne PAS mettre -DARMOR_WCAP=1 : il fait caler le maître jusqu'au timeout.
-# Retirer les ARMOR_* donne le témoin historique, sur le même bitstream.
+# Les quatre ARMOR_* donnent la configuration de référence, validée sur carte le
+# 2026-09-11 sur le bitstream v10 (CTRL relu 0x331). -DARMOR_WFATE=0 donne le témoin
+# de W_FATE (0x131). Ne PAS mettre -DARMOR_WCAP=1 : il fait caler le maître jusqu'au
+# timeout. Retirer tous les ARMOR_* donne le témoin historique, sur le même bitstream.
 cd .. && cp bao-baremetal-guest/build/cva6/baremetal.bin build/guests/baremetal.bin
 
 # 3. hyperviseur et firmware
@@ -326,7 +335,7 @@ référence).
   l'étage est vide et aucun. `W_CAPDEBT` répare donc l'intégrité, et ni l'un ni l'autre ne
   sait absorber le W d'un AW coupé hors blocage.
 
-  **`CTRL[9] W_FATE` (MAGIC v10), validé au banc, pas encore synthétisé.** Une FIFO de 4
+  **`CTRL[9] W_FATE` (MAGIC v10), validé au banc, VALIDÉ SUR CARTE le 2026-09-11 (§ 0).** Une FIFO de 4
   bits garde le sort de chaque AW acquitté au maître — admis en aval dans le même cycle,
   ou coupé — et le W d'un AW coupé est absorbé (`w_valid` coupé en aval, `w_ready = 1`
   au maître) quel que soit l'état du blocage. Supplante `W_CAPDEBT`.
