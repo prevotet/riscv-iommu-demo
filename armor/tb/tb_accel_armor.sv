@@ -121,6 +121,9 @@ module tb_accel_armor;
 `ifdef WFATE
         | (64'h1 << 9)
 `endif
+`ifdef BFATE
+        | (64'h1 << 10)
+`endif
         ;
 
     int unsigned obs_fail = 0;   // defauts trouves dans le bloc d'observabilite
@@ -130,7 +133,7 @@ module tb_accel_armor;
     int unsigned obs_ref_badid, obs_ref_badcy;
     int unsigned obs_ref_ghost, obs_ref_orph, obs_ref_awdn;
 
-    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F5200000A;   // version 10 : + sort de chaque AW (W_FATE)
+    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F5200000B;   // version 11 : + un B par ecriture (B_FATE)
 
     localparam logic [63:0] LEGIT_DST = 64'h0000_0000_9100_0000;
 
@@ -1131,6 +1134,65 @@ module tb_accel_armor;
     end
 
     // -------------------------------------------------------------------------
+    //  COMPTABILITE DU CANAL B COTE MAITRE  (2026-09-11)
+    //
+    //  AXI : un B repond a UNE ecriture, apres son dernier beat W. Cote maitre,
+    //  chaque W-last accepte ouvre donc droit a exactement un B, ni plus ni moins.
+    //  Aucun compteur ne le verifiait. Deux defauts possibles :
+    //
+    //    - B EN TROP : le maitre prend un B alors qu'aucun W-last n'attend de
+    //      reponse. Lu au RTL : pendant un blocage, response_manager presente un
+    //      SLVERR fabrique EN CONTINU, et accel_wrap, qui tient b_ready a 1, en
+    //      compte un par cycle -- et non un par ecriture.
+    //    - B MANQUANT : a la fin d'une iteration (etat FINISH), des W-last restent
+    //      sans reponse. C'est la signature du timeout en DRAIN.
+    //
+    //  Une ecriture terminee sur le timeout du maitre avant son W-last n'ouvre
+    //  aucun droit : elle ne compte ni en trop ni en manque. Le compte repart de
+    //  zero a chaque FINISH, pour qu'une iteration ne paie pas pour la precedente.
+    // -------------------------------------------------------------------------
+    int          b_open;                    // W-last acceptes cote maitre, sans B
+    int unsigned b_paired, b_extra, b_missing;
+    int unsigned b_paired_0, b_extra_0, b_missing_0;
+    bit          b_extra_shown, b_missing_shown;
+
+    always @(posedge clk_i) begin
+        if (!rst_ni) begin
+            b_open = 0;
+        end else begin
+            automatic bit wl = req_in.w_valid && resp_in.w_ready && req_in.w.last;
+            automatic bit bh = resp_in.b_valid && req_in.b_ready;
+            if (wl) b_open++;
+            if (bh) begin
+                if (b_open > 0) begin
+                    b_open--;
+                    b_paired++;
+                end else begin
+                    b_extra++;
+                    if (!b_extra_shown) begin
+                        b_extra_shown = 1'b1;
+                        $display("[%0t] *** B EN TROP : pris par le maitre sans W-last en attente | resp=%0d block_req=%0b bad_id=%0b block_ip=%0b etat %s",
+                                 $time, resp_in.b.resp, i_sec_wrap.block_req_i, i_sec_wrap.bad_id,
+                                 i_sec_wrap.block_ip_eff, g_state_name(int'(i_accel.g_state_q)));
+                    end
+                end
+            end
+            //  FINISH : ce qui reste ouvert ne sera plus jamais repondu.
+            if (int'(i_accel.g_state_q) == 6) begin
+                if (b_open > 0) begin
+                    b_missing += b_open;
+                    if (!b_missing_shown) begin
+                        b_missing_shown = 1'b1;
+                        $display("[%0t] *** B MANQUANT(S) : %0d W-last sans reponse en fin d'iteration | requete %0d, B recus %0d, timeout=%0b",
+                                 $time, b_open, i_accel.req_idx_q, i_accel.b_cnt_q, i_accel.timeout_hit);
+                    end
+                end
+                b_open = 0;
+            end
+        end
+    end
+
+    // -------------------------------------------------------------------------
     //  DIAGNOSTIC DES TIMEOUTS DE L'ACCELERATEUR  (2026-09-11)
     //
     //  Sur carte, W_CAPDEBT fait finir la moitie des transactions SC02 sur le
@@ -1282,6 +1344,17 @@ module tb_accel_armor;
                          name, resp_lost_b - lost_b_0, resp_lost_r - lost_r_0);
             lost_b_0 = resp_lost_b;
             lost_r_0 = resp_lost_r;
+
+            //  Canal B cote maitre : imprime aussi quand tout est juste.
+            if (b_extra != b_extra_0 || b_missing != b_missing_0)
+                $display("  %-12s  !! CANAL B : %0d en trop (sans W-last en attente), %0d manquant(s) en fin d'iteration | %0d apparie(s)",
+                         name, b_extra - b_extra_0, b_missing - b_missing_0, b_paired - b_paired_0);
+            else if (b_paired != b_paired_0)
+                $display("  %-12s  canal B : %0d B apparie(s) a leur W-last, aucun en trop ni manquant",
+                         name, b_paired - b_paired_0);
+            b_paired_0  = b_paired;
+            b_extra_0   = b_extra;
+            b_missing_0 = b_missing;
 
             pair_ok_0     = pair_ok;
             pair_bad_0    = pair_bad;
@@ -1630,6 +1703,8 @@ module tb_accel_armor;
                 $display(" *** CANAL W DECALE : des beats sont partis en aval avec l'adresse d'une autre ecriture");
             $display(" REPONSES PERDUES (prises en aval, jamais vues du maitre, hors drainage) : B=%0d R=%0d",
                      resp_lost_b, resp_lost_r);
+            $display(" CANAL B COTE MAITRE : %0d apparie(s) a leur W-last | %0d en trop, %0d manquant(s)",
+                     b_paired, b_extra, b_missing);
             $display(" bad_id : %0d fronts, %0d cycles hauts (invisible au logiciel)",
                      bad_id_rise, bad_id_cy);
             if (w_ghost_tot != 0)

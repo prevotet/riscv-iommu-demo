@@ -148,6 +148,7 @@ logic                   csr_txblk_q;      // CTRL[6] : blocage transactionnel
 logic                   csr_wcap_q;       // CTRL[7] : dette W comptee a la capture
 logic                   csr_rhold_q;      // CTRL[8] : reponses B/R tenues jusqu'au ready
 logic                   csr_wfate_q;      // CTRL[9] : sort de chaque AW, W des AW coupes absorbe
+logic                   csr_bfate_q;      // CTRL[10] : sort de chaque ecriture cote B, un B par AW
 logic [63:0]            csr_sticky_q;
 logic [31:0]            cnt_banned_q, cnt_storm_q, cnt_outs_q, cnt_msi_q;
 logic [DevIDWidth-1:0]  dev_id_last_q;
@@ -420,6 +421,11 @@ logic w_pending_sel;
 //  maitre ; request_manager ne prend alors aucune reponse reelle en aval.
 logic resp_hold_b, resp_hold_r;
 
+//  B_FATE (CTRL[10]) : nets de la file du sort cote B, calcules plus bas (apres
+//  W_FATE, dont ils reprennent les handshakes) et lus par les deux managers.
+logic                  bfate_on, bq_fab, bq_take;
+logic [IdWidthSlv-1:0] bq_head_id;
+
 
 
 ID_extractor#(
@@ -496,6 +502,8 @@ request_manager #(
     .txblock_en_i(csr_txblk_q),
     .hold_b_i(resp_hold_b),         // RESP_HOLD : un B fabrique est tenu
     .hold_r_i(resp_hold_r),         // RESP_HOLD : un R fabrique est tenu
+    .bfate_en_i(bfate_on),          // B_FATE : ready B aval pilote par la file
+    .bfate_take_i(bq_take),
     .req_wrapper_iommu_o(req_rm)
 
 );
@@ -668,6 +676,105 @@ end
 logic w_absorb;
 assign w_absorb = csr_wskid_q & csr_wfate_q & ~fate_empty & ~fate_head;
 
+// -----------------------------------------------------------------------------
+//  SORT DE CHAQUE ECRITURE COTE B  (CTRL[10] B_FATE, 2026-09-11)
+//
+//  LE DEFAUT, MESURE AU BANC. W_FATE rend au maitre le W de chaque AW coupe ;
+//  personne ne lui rendait son B. Le canal B vers le maitre etait une fonction de
+//  la branche de response_manager : pendant un blocage, un SLVERR fabrique
+//  presente EN CONTINU -- accel_wrap tient b_ready a 1 et en prend un PAR CYCLE ;
+//  hors blocage, seul le B de l'aval passe, et l'aval ne repond pas a un AW qu'il
+//  n'a jamais vu. Controle du banc « un B par W-last cote maitre », configuration
+//  de reference : aval historique 1958 B apparies, 2674 B sans ecriture en
+//  attente, 14 W-last jamais repondus ; aval realiste 782 et 1. Le maitre compte
+//  ses B sans les apparier : les B en trop masquaient les B manquants. Sans
+//  RESP_HOLD ils ne suffisaient plus -- d'ou le timeout en DRAIN (14 B recus sur
+//  16) laisse ouvert par W_FATE.
+//
+//  LE CORRECTIF. Un B par ecriture, dans l'ordre AXI. File du sort de chaque AW
+//  acquitte au maitre -- meme poussee que W_FATE, plus l'ID de l'AW, qu'accel_wrap
+//  fait varier en modes 4 et 5 --, depilee au B acquitte par le maitre :
+//    - tete COUPEE : un SLVERR fabrique, avec son ID, presente seulement une fois
+//      son W-last passe cote maitre (AXI : pas de B avant les donnees).
+//      bq_wdone_q compte les W-last passes dont le B n'est pas rendu ; l'ordre
+//      des W est celui des AW, donc celui de la file ;
+//    - tete ADMISE : le B de l'aval, et lui seul -- c'est aussi le seul cas ou
+//      l'aval recoit b_ready. Plus de drainage B : sous B_FATE tout B de l'aval
+//      appartient a une ecriture que le maitre attend ;
+//    - file vide : aucun B.
+//
+//  Limites connues : une ecriture abandonnee par le maitre avant son W-last
+//  (timeout en etat W) laisse son entree en tete et decale la file d'un cran --
+//  c'est precisement le cas que W_FATE supprime. Profondeur 16 = STORM_REQS ;
+//  une poussee sur file pleine est perdue et leve bq_ovf_q (echo dans STATUS,
+//  voir la carte des registres), qui doit rester a 0. A activer avant le trafic,
+//  comme W_FATE : une ecriture en vol a l'activation n'a pas d'entree.
+//
+//  N'agit qu'avec CTRL[4] W_SKID et CTRL[9] W_FATE : il reprend leurs handshakes
+//  et a besoin de W_FATE pour que le W d'un AW coupe soit absorbe. Suppose
+//  CTRL[5] FRESH : une ecriture admise en aval recoit son B reel, meme si son
+//  verdict tombe ensuite. A 0 au reset : comportement precedent.
+// -----------------------------------------------------------------------------
+localparam int unsigned BqDepth = 16;
+
+logic [BqDepth-1:0]                 bq_fate_q;    // [0] = tete ; 1 admise, 0 coupee
+logic [BqDepth-1:0][IdWidthSlv-1:0] bq_id_q;
+logic [4:0]                         bq_n_q;       // 0..16 entrees
+logic [4:0]                         bq_wdone_q;   // W-last passes, B pas encore rendu
+logic                               bq_ovf_q;     // poussee perdue sur file pleine (collant)
+logic                               bq_empty, bq_b_hs;
+
+assign bfate_on   = csr_bfate_q & csr_wskid_q & csr_wfate_q;
+assign bq_empty   = (bq_n_q == 5'd0);
+assign bq_fab     = bfate_on & ~bq_empty & ~bq_fate_q[0] & (bq_wdone_q != 5'd0);
+assign bq_take    = bfate_on & ~bq_empty &  bq_fate_q[0];
+assign bq_head_id = bq_id_q[0];
+assign bq_b_hs    = resp_IP_wrapper_o.b_valid & req_IP_wrapper_i.b_ready;
+
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        bq_fate_q  <= '0;
+        bq_id_q    <= '0;
+        bq_n_q     <= '0;
+        bq_wdone_q <= '0;
+        bq_ovf_q   <= 1'b0;
+    end else if (!bfate_on) begin
+        //  File inactive : rien a suivre, et B_FATE repart d'un etat vide.
+        bq_fate_q  <= '0;
+        bq_n_q     <= '0;
+        bq_wdone_q <= '0;
+    end else begin
+        automatic logic [BqDepth-1:0]                 f  = bq_fate_q;
+        automatic logic [BqDepth-1:0][IdWidthSlv-1:0] d  = bq_id_q;
+        automatic logic [4:0]                         n  = bq_n_q;
+        automatic logic [4:0]                         wd = bq_wdone_q;
+        //  Depiler d'abord, puis le W-last, puis l'AW : les trois peuvent tomber
+        //  dans le meme cycle.
+        if (bq_b_hs && n != 5'd0) begin
+            f = f >> 1;
+            d = d >> IdWidthSlv;
+            n = n - 5'd1;
+            if (wd != 5'd0) wd = wd - 5'd1;
+        end
+        //  Borne par n : un W-last sans entree n'ouvre aucun B.
+        if (fate_w_last_hs && wd < n)
+            wd = wd + 5'd1;
+        if (fate_aw_hs) begin
+            if (n < BqDepth) begin
+                f[n] = dn_aw_hs;
+                d[n] = IdWidthSlv'(req_IP_wrapper_i.aw.id);
+                n    = n + 5'd1;
+            end else begin
+                bq_ovf_q <= 1'b1;
+            end
+        end
+        bq_fate_q  <= f;
+        bq_id_q    <= d;
+        bq_n_q     <= n;
+        bq_wdone_q <= wd;
+    end
+end
+
 assign w_pending_sel = (csr_wskid_q & csr_wfate_q) ? (~fate_empty & fate_head)
                      : (csr_wskid_q & csr_wcap_q)  ? (w_cap_owed_q != 4'h0)
                      :                               w_pending;
@@ -680,7 +787,8 @@ always_comb begin
 end
 
 response_manager #(
-    .resp_slv_t(resp_slv_t)
+    .resp_slv_t(resp_slv_t),
+    .IdWidth(IdWidthSlv)
 ) response_manager_module (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
@@ -699,6 +807,10 @@ response_manager #(
     .r_ready_i(req_IP_wrapper_i.r_ready),
     .hold_b_o(resp_hold_b),
     .hold_r_o(resp_hold_r),
+    .bfate_en_i(bfate_on),          // B_FATE : un B par ecriture, dans l'ordre
+    .bfate_fab_i(bq_fab),
+    .bfate_take_i(bq_take),
+    .bfate_id_i(bq_head_id),
     .resp_wrapper_iommu_i(resp_wrapper_iommu_i),
     .resp_IP_wrapper_o(resp_IP_wrapper_o)
 );
@@ -835,6 +947,16 @@ response_delayer #(
 //                          sous b7). N'agit qu'avec b4 ; supplante b7. Echo
 //                          STATUS[21] ; STATUS[22] = poussee perdue sur FIFO pleine,
 //                          doit rester a 0.
+//                          b10 B_FATE -- un B par ecriture, dans l'ordre AXI : file
+//                          du sort de chaque AW acquitte au maitre (16 entrees, avec
+//                          l'ID). AW coupe : un SLVERR fabrique, apres son W-last ;
+//                          AW admis : le B de l'aval, seul cas ou l'aval recoit
+//                          b_ready (plus de drainage B). Correctif des B fabriques
+//                          en continu pendant un blocage (un par cycle au banc) et
+//                          des W-last jamais repondus (timeout en DRAIN). N'agit
+//                          qu'avec b4 et b9 ; suppose b5. Echo STATUS[23] ;
+//                          STATUS[24] = poussee perdue sur file pleine, doit rester
+//                          a 0.
 //                          b4 W_SKID -- etage d'un emplacement sur le canal W.
 //                          Correctif du retrait de VALID mesure le 2026-09-10 :
 //                          la coupure est decidee A LA CAPTURE, un beat entre
@@ -876,7 +998,7 @@ response_delayer #(
 //   0x40  CNT_OUTS     RO  nombre d'episodes de saturation outstanding
 //   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
 //   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
-//   0x58  MAGIC        RO  0x41524D4F5200000A ("ARMOR" + version)
+//   0x58  MAGIC        RO  0x41524D4F5200000B ("ARMOR" + version)
 //
 // Bloc d'observabilite, ajoute le 2026-09-10 (d'ou MAGIC ...0002 : le logiciel
 // distingue ainsi un bitstream qui porte ces registres d'un qui n'en a pas).
@@ -1022,6 +1144,8 @@ always_comb begin
     armor_status[20]  = csr_rhold_q;   // echo du maintien des reponses
     armor_status[21]  = csr_wfate_q;   // echo du sort de chaque AW
     armor_status[22]  = fate_ovf_q;    // FIFO W_FATE debordee : doit rester a 0
+    armor_status[23]  = csr_bfate_q;   // echo du sort de chaque ecriture cote B
+    armor_status[24]  = bq_ovf_q;      // file B_FATE debordee : doit rester a 0
 end
 
 // -----------------------------------------------------------------------------
@@ -1110,6 +1234,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         csr_wcap_q     <= 1'b0;   // reset : comportement historique
         csr_rhold_q    <= 1'b0;   // reset : comportement historique
         csr_wfate_q    <= 1'b0;   // reset : comportement historique
+        csr_bfate_q    <= 1'b0;   // reset : comportement historique
         csr_sticky_clr <= 1'b0;
         csr_cnt_clr    <= 1'b0;
     end else begin
@@ -1141,6 +1266,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
                             csr_wcap_q     <= req_CPU_Wrapper__i.w.data[7];
                             csr_rhold_q    <= req_CPU_Wrapper__i.w.data[8];
                             csr_wfate_q    <= req_CPU_Wrapper__i.w.data[9];
+                            csr_bfate_q    <= req_CPU_Wrapper__i.w.data[10];
                         end
                         default: ; // registres en lecture seule
                     endcase
@@ -1837,7 +1963,7 @@ always_comb begin
     case (r_idx_q)
         5'd0:    csr_rdata = csr_id_cfg_q;
         5'd1:    csr_rdata = csr_msi_addr_q;
-        5'd2:    csr_rdata = {54'h0, csr_wfate_q, csr_rhold_q, csr_wcap_q, csr_txblk_q, csr_fresh_q, csr_wskid_q,
+        5'd2:    csr_rdata = {53'h0, csr_bfate_q, csr_wfate_q, csr_rhold_q, csr_wcap_q, csr_txblk_q, csr_fresh_q, csr_wskid_q,
                               csr_awfix_q, 2'b00, csr_enforce_q};
         5'd3:    csr_rdata = armor_status;
         5'd4:    csr_rdata = csr_sticky_q;
@@ -1847,7 +1973,7 @@ always_comb begin
         5'd8:    csr_rdata = {32'h0, cnt_outs_q};
         5'd9:    csr_rdata = {32'h0, cnt_msi_q};
         5'd10:   csr_rdata = {{(64-DevIDWidth){1'b0}}, dev_id_last_q};
-        5'd11:   csr_rdata = 64'h41524D4F5200000A;
+        5'd11:   csr_rdata = 64'h41524D4F5200000B;
         // Observabilite (version 2 du MAGIC). Voir la carte des registres.
         5'd12:   csr_rdata = {52'h0, dbg_up};
         5'd13:   csr_rdata = {52'h0, dbg_dn};

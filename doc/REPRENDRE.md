@@ -1,6 +1,6 @@
 # Reprendre le travail ARMOR sur une autre machine
 
-État au **2026-09-11, 22h55**, branche `testbench`, poussée sur GitHub. Ce document
+État au **2026-09-11, 23h15**, branche `testbench`, poussée sur GitHub. Ce document
 existe parce que le README amont ne dit rien de la chaîne de bench, et que tout le
 reste vivait dans les messages de commit.
 
@@ -60,9 +60,11 @@ pkill -x hw_server
 tools/capture_uart.sh -j payloads/fw_payload_v10_fresh1_wskid1_rhold1_wfate1.elf
 ```
 
-**Prochaine action** : le B manquant des AW coupés (« Encore ouvert ») — un timeout en état
-DRAIN, vu une seule fois au banc. Les runs répétés de la configuration de référence sont
-faits (tableau ci-dessus).
+**Prochaine action** : synthétiser le bitstream v11 — `CTRL[10] B_FATE`, un B par écriture
+(§ 5, « Encore ouvert », et `armor/tb/README.md`, « Canal B ») —, puis l'A/B sur carte
+`bfate0` / `bfate1` sur la configuration de référence (`CTRL` relu `0x331` / `0x731`).
+**Validé au banc seulement.** Les runs répétés de la configuration de référence sont faits
+(tableau ci-dessus).
 
 ## 1. Mise en route
 
@@ -193,6 +195,7 @@ avant chaque lancement tracé.
 DN_LAT=4 ./armor/tb/run_sim.sh 3   # campagne complète
 OBS_CHECK=1 DN_LAT=4 ./armor/tb/run_sim.sh 3   # + contrôle croisé des compteurs
 WSKID=1 DN_LAT=4 ./armor/tb/run_sim.sh 3       # + étage W actif
+WSKID=1 FRESH=1 RHOLD=1 WFATE=1 BFATE=1 DN_LAT=4 ./armor/tb/run_sim.sh 3   # configuration v11
 ```
 
 `DN_LAT` doit valoir **au moins 2** : à 0 le banc validait précisément ce sur
@@ -371,9 +374,14 @@ référence).
 
   `OBS_CHECK` 0 défaut, verdicts inchangés. **Deux points ouverts** : (1) avec l'aval
   historique, SC02 finit UNE fois en timeout en état **DRAIN** (14 B reçus sur 16) —
-  hypothèse non vérifiée : ARMOR ne fabrique de B que pendant un blocage, et le B d'un
-  AW coupé dont le W a été absorbé après la fin du blocage ne vient jamais ; le correctif
-  complet devrait devoir un SLVERR B par AW coupé ; (2) à `DN_WLAT=40`, SC04 dure en
+  **cause établie au banc le 2026-09-11, corrigée par `CTRL[10] B_FATE` (MAGIC v11), non
+  synthétisé** : le canal B n'était pas compté par écriture. Pendant un blocage un SLVERR
+  est présenté en continu et l'accélérateur en prend un par cycle (2674 B en trop en
+  configuration de référence) ; après le blocage, le B d'un AW coupé ne vient jamais (14
+  manquants). Les premiers masquaient les seconds, sauf sans `RHOLD`, où s'ajoutaient
+  815 B perdus. Sous `B_FATE` : 0 en trop, 0 manquant, 0 perdu, verdicts inchangés, sur
+  les avals historique, réaliste et `DN_WLAT=8`, et sous `OBS_CHECK` — voir
+  `armor/tb/README.md`, « Canal B » ; (2) à `DN_WLAT=40`, SC04 dure en
   moyenne 1396 cycles sans aucun timeout (775 à 837 avant) — à comprendre ; Sur carte,
   dans les quatre runs `W_SKID=1` (v6 ×2, v7 ×2), un beat W reste présenté en aval
   dès SC02 et jusqu'à la fin, avec `w_owed=0` et `w_pending=0`

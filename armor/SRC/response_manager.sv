@@ -52,7 +52,8 @@
 //  3. TRANSPARENT — l'IP est legitime, les reponses traversent telles quelles.
 // =============================================================================
 module response_manager #(
-    parameter type resp_slv_t = logic
+    parameter type         resp_slv_t = logic,
+    parameter int unsigned IdWidth    = 6      // largeur de b.id vers le maitre (B_FATE)
 )(
     input  logic       clk_i,
     input  logic       rst_ni,
@@ -132,6 +133,26 @@ module response_manager #(
     input  logic       r_ready_i,       // ready du maitre sur R
     output logic       hold_b_o,        // un B FABRIQUE est tenu vers le maitre
     output logic       hold_r_o,        // un R FABRIQUE est tenu vers le maitre
+
+    //  SORT DE CHAQUE ECRITURE COTE B (CTRL[10] B_FATE, 2026-09-11).
+    //
+    //  LE DEFAUT. Le canal B vers le maitre etait, comme le reste, une fonction
+    //  de la branche courante : pendant un blocage un SLVERR fabrique est
+    //  presente EN CONTINU, et accel_wrap -- b_ready a 1 -- en prend un par
+    //  cycle, pas un par ecriture ; hors blocage, seul le B de l'aval passe, et
+    //  l'aval ne repondra jamais a un AW qu'il n'a pas vu. Au banc, configuration
+    //  de reference : 2674 B sans ecriture en attente et 14 W-last jamais
+    //  repondus. Les premiers masquaient les seconds dans le compte du maitre ;
+    //  sans RESP_HOLD ils ne suffisaient plus : timeout en DRAIN.
+    //
+    //  Sous B_FATE le wrapper tient une file, dans l'ordre AXI, du sort de chaque
+    //  AW acquitte au maitre. Tete COUPEE et W-last passe : bfate_fab_i, un
+    //  SLVERR, un seul, avec l'ID de l'AW. Tete ADMISE : bfate_take_i, le B de
+    //  l'aval, et lui seul. Sinon aucun B. Le canal B ne depend plus du blocage.
+    input  logic                bfate_en_i,
+    input  logic                bfate_fab_i,
+    input  logic                bfate_take_i,
+    input  logic [IdWidth-1:0]  bfate_id_i,
 
     input  resp_slv_t  resp_wrapper_iommu_i,
     output resp_slv_t  resp_IP_wrapper_o
@@ -218,7 +239,20 @@ module response_manager #(
 
     always_comb begin
         resp_IP_wrapper_o = resp_base;
-        if (resp_hold_en_i && b_pres_q) begin
+        if (bfate_en_i) begin
+            //  B_FATE : le B presente ne depend que de la tete de file, stable
+            //  jusqu'a son handshake -- le verrou de RESP_HOLD n'a rien a tenir.
+            resp_IP_wrapper_o.b_valid = 1'b0;
+            resp_IP_wrapper_o.b       = '0;
+            if (bfate_fab_i) begin
+                resp_IP_wrapper_o.b_valid = 1'b1;
+                resp_IP_wrapper_o.b.id    = bfate_id_i;
+                resp_IP_wrapper_o.b.resp  = 2'b10;   // SLVERR
+            end else if (bfate_take_i) begin
+                resp_IP_wrapper_o.b_valid = resp_wrapper_iommu_i.b_valid;
+                resp_IP_wrapper_o.b       = resp_wrapper_iommu_i.b;
+            end
+        end else if (resp_hold_en_i && b_pres_q) begin
             resp_IP_wrapper_o.b_valid = 1'b1;
             resp_IP_wrapper_o.b       = lat_q.b;
         end
@@ -241,7 +275,7 @@ module response_manager #(
             b_fab_q  <= 1'b0;
             r_fab_q  <= 1'b0;
         end else begin
-            b_pres_q <= resp_IP_wrapper_o.b_valid & ~b_ready_i;
+            b_pres_q <= resp_IP_wrapper_o.b_valid & ~b_ready_i & ~bfate_en_i;
             r_pres_q <= resp_IP_wrapper_o.r_valid & ~r_ready_i;
             if (resp_IP_wrapper_o.b_valid && !b_ready_i) begin
                 lat_q.b <= resp_IP_wrapper_o.b;
@@ -254,7 +288,7 @@ module response_manager #(
         end
     end
 
-    assign hold_b_o = resp_hold_en_i & b_pres_q & b_fab_q;
+    assign hold_b_o = resp_hold_en_i & b_pres_q & b_fab_q & ~bfate_en_i;
     assign hold_r_o = resp_hold_en_i & r_pres_q & r_fab_q;
 
 endmodule

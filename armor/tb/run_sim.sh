@@ -163,6 +163,13 @@ fi
 # blocage retombe). N'a d'effet qu'avec WSKID=1 ; supplante WCAP.
 [[ "${WFATE:-0}" == "1" ]]   && DEFINES+=("-d" "WFATE")
 
+# BFATE=1 : CTRL[10], un B par ecriture, dans l'ordre AXI. Le sort de chaque AW
+# (admis ou coupe) est suivi jusqu'a son B : SLVERR fabrique pour un AW coupe,
+# une fois son W-last passe ; B de l'aval pour un AW admis. Correctif des B
+# fabriques en continu pendant un blocage (un par cycle) et des W-last jamais
+# repondus apres (timeout en DRAIN). N'a d'effet qu'avec WSKID=1 et WFATE=1.
+[[ "${BFATE:-0}" == "1" ]]   && DEFINES+=("-d" "BFATE")
+
 echo "=== xvlog ==="
 xvlog -sv --nolog \
       "${DEFINES[@]+"${DEFINES[@]}"}" \
