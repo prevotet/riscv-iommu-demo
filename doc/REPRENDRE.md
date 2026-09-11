@@ -274,8 +274,16 @@ référence).
   capturé et partait avec l'adresse suivante : pas de blocage, mais une donnée mal
   adressée. **Correctif complet à concevoir** : suivre CHAQUE transaction — pour chaque
   AW acquitté au maître, retenir s'il a été admis en aval ou coupé (petite FIFO de bits,
-  dans l'ordre AXI) — et absorber les W des AW coupés même après la fin du blocage. Le
-  banc ne reproduit pas encore ces timeouts : à `DN_WLAT=40`, SC02 n'y est jamais détecté ; Sur carte,
+  dans l'ordre AXI) — et absorber les W des AW coupés même après la fin du blocage.
+
+  **Reproduit au banc** (`DN_WGATE=1`, `DN_WLAT` 4 et 8 — à 40 SC02 n'y est jamais détecté —,
+  après correction de SC08 qui tournait sans aucune option). Photographie au cycle de chaque
+  timeout, identique sur les 24 relevées : accélérateur en état **W, beat 0**, `w_valid=1
+  w_ready=0`, blocage retombé, `w_owed=0 cap_owed=0`. **La cause est la même avec et sans
+  `W_CAPDEBT`** (timeouts à `DN_WLAT=8` : SC02 3 et 4, SC04 4 et 4) ; sans lui, l'étage est
+  plein d'un beat d'une autre écriture coupée et 757 beats partent mal adressés, avec lui
+  l'étage est vide et aucun. `W_CAPDEBT` répare donc l'intégrité, et ni l'un ni l'autre ne
+  sait absorber le W d'un AW coupé hors blocage ; Sur carte,
   dans les quatre runs `W_SKID=1` (v6 ×2, v7 ×2), un beat W reste présenté en aval
   dès SC02 et jusqu'à la fin, avec `w_owed=0` et `w_pending=0`
   (`ARMORHS,pre-ctrl,w2,dn` : `W V- last`) ; il n'est pas la cause du gel de SC01.
