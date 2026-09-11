@@ -145,6 +145,12 @@ fi
 [[ "${FRESH:-0}" == "1" ]]   && DEFINES+=("-d" "FRESH")
 [[ "${TXBLOCK:-0}" == "1" ]] && DEFINES+=("-d" "TXBLOCK")
 
+# WCAP=1 : CTRL[7], la dette W est comptee a la CAPTURE dans l'etage W et non a
+# la sortie en aval. Correctif du decalage du canal W demontre le 2026-09-11
+# (DN_WGATE=1 DN_WLAT=40 : 147 beats partis avec la donnee d'une autre
+# ecriture). N'a d'effet qu'avec WSKID=1.
+[[ "${WCAP:-0}" == "1" ]]    && DEFINES+=("-d" "WCAP")
+
 echo "=== xvlog ==="
 xvlog -sv --nolog \
       "${DEFINES[@]+"${DEFINES[@]}"}" \
@@ -161,6 +167,17 @@ run_one() {
     # DN_LAT : latence d'acceptation de l'aval, en cycles (defaut 0 = aval
     # instantane). > 2 reproduit un IOMMU reel, et avec lui le gel SC01.
     [[ -n "${DN_LAT:-}" ]] && args+=("-testplusarg" "DN_LAT=$DN_LAT")
+    # DN_WGATE=1 : l'aval ne prend un W que si un AW l'y attend, comme l'IOMMU
+    # et le crossbar. A 0 (defaut) il tient w_ready haut et avale aussitot un
+    # beat presente sans adresse -- ce qui masquait le decalage de l'etage W.
+    [[ "${DN_WGATE:-0}" == "1" ]] && args+=("-testplusarg" "DN_WGATE")
+    # DN_WLAT=<n> : latence d'acceptation d'un beat W en aval. Sur carte,
+    # ARMORSTALL mesure 40 a 45 cycles : c'est ce qui garde le dernier beat dans
+    # l'etage W assez longtemps pour que le W suivant y soit capture.
+    [[ -n "${DN_WLAT:-}" ]] && args+=("-testplusarg" "DN_WLAT=$DN_WLAT")
+    # GUARD_MS=<n> : garde-fou global de la simulation, en ms (defaut 2). A
+    # relever avec DN_WLAT, sinon la campagne s'arrete avant la fin.
+    [[ -n "${GUARD_MS:-}" ]] && args+=("-testplusarg" "GUARD_MS=$GUARD_MS")
     echo
     echo "############### SCENARIO $sc ###############"
     xsim tb_snap --nolog --runall "${args[@]}"

@@ -112,6 +112,9 @@ module tb_accel_armor;
 `ifdef TXBLOCK
         | (64'h1 << 6)
 `endif
+`ifdef WCAP
+        | (64'h1 << 7)
+`endif
         ;
 
     int unsigned obs_fail = 0;   // defauts trouves dans le bloc d'observabilite
@@ -121,7 +124,7 @@ module tb_accel_armor;
     int unsigned obs_ref_badid, obs_ref_badcy;
     int unsigned obs_ref_ghost, obs_ref_orph, obs_ref_awdn;
 
-    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000007;   // version 7 : + verdict frais et blocage transactionnel
+    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000008;   // version 8 : + dette W comptee a la capture
 
     localparam logic [63:0] LEGIT_DST = 64'h0000_0000_9100_0000;
 
@@ -376,8 +379,55 @@ module tb_accel_armor;
         end
     end
 
+    // -------------------------------------------------------------------------
+    //  DN_WGATE : l'aval ne prend un beat W que si un AW l'y attend.
+    //
+    //  CINQUIEME ANGLE MORT (2026-09-11). L'aval historique tient w_ready haut
+    //  en permanence. Sur carte, ni l'IOMMU ni le crossbar ne font cela : un W
+    //  n'est route qu'une fois son AW decode. Un beat W presente sans adresse
+    //  y reste donc PRESENTE, indefiniment -- c'est l'etat releve sur les trois
+    //  runs W_SKID=1 (`W V- last`, w_owed=0), et le banc ne pouvait pas le
+    //  produire : il l'avalait aussitot comme un orphelin.
+    //
+    //  A 0 (defaut), comportement historique, pour rester comparable aux
+    //  campagnes deja faites. Mettre DN_WGATE=1 pour reproduire la carte.
+    // -------------------------------------------------------------------------
+    logic        dn_wgate = 1'b0;
+    int unsigned dn_w_owed;
+
+    //  DN_WLAT : latence d'acceptation d'un beat W en aval, en cycles.
+    //
+    //  C'est l'ingredient qui manquait VRAIMENT. Premiere simulation avec
+    //  l'etage W (WSKID=1 FRESH=1 DN_LAT=4, aval historique) : zero orphelin.
+    //  L'aval prenant le beat au cycle suivant, le dernier beat quitte l'etage
+    //  bien avant que l'accelerateur ne passe a l'adresse suivante, w_owed est
+    //  retombe quand le W suivant arrive, et le filtre le coupe. Sur carte,
+    //  ARMORSTALL mesure 40 a 45 cycles d'attente sur le canal W en aval : le
+    //  beat reste dans l'etage pendant que l'ecriture suivante est coupee et
+    //  que son W se presente. Mettre DN_WLAT=40 pour reproduire la carte.
+    int unsigned dn_wlat = 0;
+    logic [15:0] w_wait_q;
+
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            dn_w_owed <= 0;
+            w_wait_q  <= 16'd0;
+        end else begin
+            automatic int unsigned nxt = dn_w_owed;
+            if (req_out.aw_valid && resp_out.aw_ready)                  nxt = nxt + 1;
+            if (req_out.w_valid && resp_out.w_ready && req_out.w.last
+                && nxt > 0)                                             nxt = nxt - 1;
+            dn_w_owed <= nxt;
+
+            //  Repart de zero a chaque beat pris : chaque beat paie sa latence.
+            w_wait_q <= (req_out.w_valid && !resp_out.w_ready) ? (w_wait_q + 16'd1)
+                                                               : 16'd0;
+        end
+    end
+
     assign resp_out.aw_ready = dn_accept & ~b_pending & (aw_wait_q >= dn_lat);
-    assign resp_out.w_ready  = dn_accept;
+    assign resp_out.w_ready  = dn_accept & (~dn_wgate | (dn_w_owed != 0))
+                             & (w_wait_q >= dn_wlat);
     assign resp_out.ar_ready = dn_accept & ~r_pending & (ar_wait_q >= dn_lat);
 
     assign resp_out.b_valid  = b_pending & dn_respond;
@@ -654,6 +704,14 @@ module tb_accel_armor;
         // (aval instantane, comportement historique du banc). Mettre > 2 pour
         // reproduire un IOMMU reel -- voir le commentaire de dn_lat.
         if (!$value$plusargs("DN_LAT=%d", dn_lat)) dn_lat = 0;
+        // +DN_WGATE : l'aval ne prend un W que si un AW l'y attend (carte).
+        dn_wgate = $test$plusargs("DN_WGATE") ? 1'b1 : 1'b0;
+        // +DN_WLAT=<n> : latence d'acceptation d'un beat W (carte : 40 a 45).
+        if (!$value$plusargs("DN_WLAT=%d", dn_wlat)) dn_wlat = 0;
+        $display(" aval W : %s, latence %0d cycle(s)", dn_wgate
+                 ? "conditionne a un AW (DN_WGATE, comme la carte)"
+                 : "w_ready toujours haut (historique -- avale un W sans adresse)",
+                 dn_wlat);
 
         case (scenario)
             0: begin dn_accept = 1'b1; dn_respond = 1'b1; end
@@ -894,7 +952,10 @@ module tb_accel_armor;
                 if (!bad_id_d) bad_id_rise <= bad_id_rise + 1;
             end
 
-            if (w_hs && !resp_in.w_ready) begin
+            //  Sans objet sous l'etage W : handshakes aval et maitre y sont
+            //  decouples par construction (voir dn_w_ghost dans wrapper.sv).
+            //  L'appariement adresse/donnee est le controle qui fait foi.
+            if (w_hs && !resp_in.w_ready && !i_sec_wrap.csr_wskid_q) begin
                 w_ghost_tot <= w_ghost_tot + 1;
                 if (w_ghost_tot == 0) begin
                     w_ghost_first <= $time;
@@ -904,6 +965,129 @@ module tb_accel_armor;
                              i_wrapper_block_ip, i_wrapper_block_req,
                              i_wrapper_bad_id, i_wrapper_legit, i_wrapper_vk,
                              i_wrapper_w_pending);
+                end
+            end
+        end
+    end
+
+    // -------------------------------------------------------------------------
+    //  APPARIEMENT ADRESSE / DONNEES EN AVAL  (2026-09-11)
+    //
+    //  Tous les compteurs precedents verifient un EQUILIBRE : autant de W-last
+    //  que d'AW en aval, pas de beat sans adresse, pas de beat duplique. Aucun
+    //  ne verifie qu'un beat arrive avec SA PROPRE adresse. Or c'est ce que
+    //  l'etage W semble casser sur carte : un beat d'une ecriture COUPEE reste
+    //  presente en aval, part avec l'AW legitime suivant, et le vrai beat de
+    //  celui-ci se fait coincer a son tour. Le solde AW/W-last reste juste --
+    //  tout est decale d'un cran, rien n'est en trop.
+    //
+    //  Ce controle n'a besoin d'aucun CSR, donc ne perturbe pas la campagne
+    //  (contrairement a OBS_CHECK). Il repose sur deux faits de accel_wrap :
+    //    - le maitre emet ses beats W juste APRES l'acquittement de son AW
+    //      (G_AW -> G_W), donc un beat appartient au dernier AW acquitte ;
+    //    - wdata_q s'incremente a chaque beat acquitte : chaque beat a une
+    //      valeur unique, et le k-ieme beat d'une adresse vaut premier + k.
+    //
+    //  Chaque AW admis en aval est rattache a l'AW du maitre dont il provient ;
+    //  chaque beat pris en aval doit alors porter la valeur que le maitre a
+    //  emise pour l'AW admis le plus ancien. Toute autre valeur est un decalage.
+    // -------------------------------------------------------------------------
+    localparam int SB_N = 65536;
+    logic [63:0] sb_first [SB_N];   // valeur du premier beat emis pour l'AW n
+    bit          sb_seen  [SB_N];   // le maitre a emis au moins un beat pour n
+    bit          sb_adm   [SB_N];   // l'AW n a ete admis en aval
+    int          sb_dn_q  [$];      // AW admis en aval, dans l'ordre, par index maitre
+    int unsigned sb_up_n;           // AW acquittes au maitre
+    int          sb_cur_up = -1;    // AW dont le maitre emet les beats
+    int unsigned sb_up_beat, sb_dn_beat;
+
+    int unsigned pair_ok;           // beats pris en aval avec la bonne donnee
+    int unsigned pair_bad;          // beats pris en aval avec la donnee d'une autre ecriture
+    int unsigned pair_noaw;         // beats pris en aval sans aucun AW admis
+    int unsigned pair_nodata;       // beats pris pour un AW dont le maitre n'a rien emis
+    int unsigned pair_aw_orphan;    // AW admis en aval sans adresse du maitre
+    int unsigned pair_dup;          // AW du maitre admis deux fois en aval
+    bit          pair_shown;
+
+    always @(posedge clk_i) begin
+        if (rst_ni) begin
+            automatic bit up_aw = req_in.aw_valid  && resp_in.aw_ready;
+            automatic bit dn_aw = req_out.aw_valid && resp_out.aw_ready;
+            automatic bit up_w  = req_in.w_valid   && resp_in.w_ready;
+            automatic bit dn_w  = req_out.w_valid  && resp_out.w_ready;
+            automatic int idx;
+
+            //  1. Admission en aval : de quelle adresse du maitre s'agit-il ?
+            //     Acquittee dans ce cycle ou encore presentee -> la courante ;
+            //     acquittee plus tot (ready fabrique) puis admise en differe ->
+            //     la precedente.
+            if (dn_aw) begin
+                if (up_aw || req_in.aw_valid) idx = sb_up_n;
+                else if (sb_up_n > 0)         idx = sb_up_n - 1;
+                else                          idx = -1;
+                if (idx >= SB_N) idx = -1;
+                if (idx < 0) begin
+                    pair_aw_orphan++;
+                end else begin
+                    if (sb_adm[idx]) pair_dup++;
+                    sb_adm[idx] = 1'b1;
+                end
+                sb_dn_q.push_back(idx);
+            end
+
+            //  2. Cote maitre : l'AW acquitte, puis ses beats, dans cet ordre.
+            //     Traite AVANT l'aval : sans etage W, un beat traverse dans le
+            //     meme cycle.
+            if (up_aw) begin
+                sb_cur_up  = sb_up_n;
+                sb_up_n++;
+                sb_up_beat = 0;
+            end
+            if (up_w && sb_cur_up >= 0 && sb_cur_up < SB_N) begin
+                if (sb_up_beat == 0) begin
+                    sb_first[sb_cur_up] = req_in.w.data;
+                    sb_seen[sb_cur_up]  = 1'b1;
+                end
+                sb_up_beat = req_in.w.last ? 0 : sb_up_beat + 1;
+            end
+
+            //  3. Cote aval : le beat doit etre celui de l'AW admis le plus ancien.
+            if (dn_w) begin
+                automatic logic [63:0] exp_d = '0;
+                automatic string       why   = "";
+                if (sb_dn_q.size() == 0) begin
+                    pair_noaw++;
+                    why = "beat pris en aval alors qu'aucun AW n'y est admis";
+                end else begin
+                    idx = sb_dn_q[0];
+                    if (idx < 0) begin
+                        pair_bad++;
+                        why = "beat d'un AW admis sans adresse du maitre";
+                    end else if (!sb_seen[idx]) begin
+                        pair_nodata++;
+                        why = $sformatf("le maitre n'a emis aucun beat pour l'AW %0d", idx);
+                    end else begin
+                        exp_d = sb_first[idx] + sb_dn_beat;
+                        if (req_out.w.data == exp_d) begin
+                            pair_ok++;
+                        end else begin
+                            pair_bad++;
+                            why = $sformatf("AW %0d attendait 0x%0h, recoit 0x%0h (ecart %0d beat(s))",
+                                            idx, exp_d, req_out.w.data,
+                                            $signed(req_out.w.data - exp_d));
+                        end
+                    end
+                    sb_dn_beat = req_out.w.last ? 0 : sb_dn_beat + 1;
+                    if (req_out.w.last) void'(sb_dn_q.pop_front());
+                end
+
+                if (why != "" && !pair_shown) begin
+                    pair_shown = 1'b1;
+                    $display("[%0t] *** APPARIEMENT W ROMPU : %s", $time, why);
+                    $display("           aval : AW admis en file=%0d | wrapper : w_owed=%0d w_pending=%0b etage_plein=%0b block_req=%0b vk=%0b",
+                             sb_dn_q.size(), i_sec_wrap.w_owed_q, i_sec_wrap.w_pending,
+                             i_sec_wrap.i_w_skid.full_q, i_sec_wrap.block_req_i,
+                             i_sec_wrap.verdict_known_eff);
                 end
             end
         end
@@ -975,6 +1159,39 @@ module tb_accel_armor;
                 aw_adm_while_storm <= aw_adm_while_storm + 1;
         end
     end
+
+    //  Rapport d'appariement par pas : ecarts depuis le rapport precedent.
+    //
+    //  Imprime AUSSI quand tout est juste, avec le nombre de beats verifies. Le
+    //  banc a deja valide du vide quatre fois : un controle muet quand il n'y a
+    //  rien a signaler ne se distingue pas d'un controle qui ne voit rien passer.
+    int unsigned pair_ok_0, pair_bad_0, pair_noaw_0, pair_nodata_0, pair_orph_0, pair_dup_0;
+
+    task automatic pair_step_report(input string name);
+        int unsigned d_ok, d_bad, d_noaw, d_nodata, d_orph, d_dup;
+        begin
+            d_ok     = pair_ok        - pair_ok_0;
+            d_bad    = pair_bad       - pair_bad_0;
+            d_noaw   = pair_noaw      - pair_noaw_0;
+            d_nodata = pair_nodata    - pair_nodata_0;
+            d_orph   = pair_aw_orphan - pair_orph_0;
+            d_dup    = pair_dup       - pair_dup_0;
+
+            if (d_bad != 0 || d_noaw != 0 || d_nodata != 0 || d_orph != 0 || d_dup != 0)
+                $display("  %-12s  !! APPARIEMENT W : %0d beat(s) avec la donnee d'une AUTRE ecriture, %0d sans AW, %0d pour un AW sans donnee | AW sans adresse maitre %0d, admis deux fois %0d | %0d correct(s)",
+                         name, d_bad, d_noaw, d_nodata, d_orph, d_dup, d_ok);
+            else if (d_ok != 0)
+                $display("  %-12s  appariement W : %0d beat(s) verifie(s), tous avec leur adresse",
+                         name, d_ok);
+
+            pair_ok_0     = pair_ok;
+            pair_bad_0    = pair_bad;
+            pair_noaw_0   = pair_noaw;
+            pair_nodata_0 = pair_nodata;
+            pair_orph_0   = pair_aw_orphan;
+            pair_dup_0    = pair_dup;
+        end
+    endtask
 
     task automatic campaign_step(input string       name,
                                  input logic  [2:0] mode,
@@ -1088,6 +1305,7 @@ module tb_accel_armor;
             if (w_ghost_tot != w_ghost_0)
                 $display("  %-12s  !! BEAT W FANTOME : %0d beat(s) pris en aval sans que le maitre le sache -- canal W decale",
                          name, w_ghost_tot - w_ghost_0);
+            pair_step_report(name);
             if (bad_id_rise != bad_id_rise_0)
                 $display("  %-12s  bad_id : %0d front(s), %0d cycle(s) hauts -- INVISIBLE au logiciel",
                          name, bad_id_rise - bad_id_rise_0, bad_id_cy - bad_id_cy_0);
@@ -1173,6 +1391,10 @@ module tb_accel_armor;
             $display("  %-12s mode=%0d %2d salves x %0d, gap %0d cy -> %5s | passe %0d, bloque %0d | verdict=%b",
                      name, mode, salvos, burst, gap_cy,
                      ok ? "OK" : "ECHEC", n_passed, n_blocked, acc_bits);
+            //  SC08 en mode 4 est une tempete d'ecritures : exactement le regime
+            //  qui decale le canal W. Sans ce rapport ses anomalies seraient
+            //  imputees au pas suivant, SC02.
+            pair_step_report(name);
             if (ok) n_pass++; else n_fail++;
         end
     endtask
@@ -1296,6 +1518,10 @@ module tb_accel_armor;
             $display(" CAMPAGNE : %0d OK, %0d ECHEC", n_pass, n_fail);
             $display(" OBSERVABILITE : %0d defaut(s)", obs_fail);
             $display(" W orphelin / W fantome : %0d / %0d", w_excess_tot, w_ghost_tot);
+            $display(" APPARIEMENT W : %0d correct(s) | %0d avec la donnee d'une autre ecriture, %0d sans AW, %0d pour un AW sans donnee | AW sans adresse maitre %0d, admis deux fois %0d",
+                     pair_ok, pair_bad, pair_noaw, pair_nodata, pair_aw_orphan, pair_dup);
+            if (pair_bad != 0 || pair_noaw != 0 || pair_nodata != 0)
+                $display(" *** CANAL W DECALE : des beats sont partis en aval avec l'adresse d'une autre ecriture");
             $display(" bad_id : %0d fronts, %0d cycles hauts (invisible au logiciel)",
                      bad_id_rise, bad_id_cy);
             if (w_ghost_tot != 0)
@@ -1681,7 +1907,13 @@ module tb_accel_armor;
     //  Garde-fou global : la simulation ne doit jamais tourner indefiniment.
     // -------------------------------------------------------------------------
     initial begin
-        #2ms;
+        //  +GUARD_MS=<n> (defaut 2). Avec DN_WLAT=40, chaque beat W coute ~40
+        //  cycles et SC08 mode 4 depasse a lui seul 60 000 cycles : 2 ms
+        //  (200 000 cycles) ne suffisent plus a la campagne entiere, et un
+        //  arret par garde-fou se lirait comme un gel.
+        int unsigned guard_ms;
+        if (!$value$plusargs("GUARD_MS=%d", guard_ms)) guard_ms = 2;
+        #(guard_ms * 1ms);
         $display("[%0t] *** GARDE-FOU GLOBAL : la simulation ne se termine pas", $time);
         $display("      accel   : %s", accel_state_str());
         $display("      wrapper : %s", wrapper_state_str());
