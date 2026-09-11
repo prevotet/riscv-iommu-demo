@@ -146,6 +146,7 @@ logic                   csr_wskid_q;      // CTRL[4] : etage W (skid buffer)
 logic                   csr_fresh_q;      // CTRL[5] : verdict FRAIS exige
 logic                   csr_txblk_q;      // CTRL[6] : blocage transactionnel
 logic                   csr_wcap_q;       // CTRL[7] : dette W comptee a la capture
+logic                   csr_rhold_q;      // CTRL[8] : reponses B/R tenues jusqu'au ready
 logic [63:0]            csr_sticky_q;
 logic [31:0]            cnt_banned_q, cnt_storm_q, cnt_outs_q, cnt_msi_q;
 logic [DevIDWidth-1:0]  dev_id_last_q;
@@ -414,6 +415,10 @@ assign w_pending = (w_owed_q != 4'h0);
 //  sinon w_pending, inchange.
 logic w_pending_sel;
 
+//  RESP_HOLD (CTRL[8]) : response_manager tient un B / un R FABRIQUE vers le
+//  maitre ; request_manager ne prend alors aucune reponse reelle en aval.
+logic resp_hold_b, resp_hold_r;
+
 
 
 ID_extractor#(
@@ -488,6 +493,8 @@ request_manager #(
     .no_cut_aw_i(no_cut_aw),
     .no_cut_ar_i(no_cut_ar),
     .txblock_en_i(csr_txblk_q),
+    .hold_b_i(resp_hold_b),         // RESP_HOLD : un B fabrique est tenu
+    .hold_r_i(resp_hold_r),         // RESP_HOLD : un R fabrique est tenu
     .req_wrapper_iommu_o(req_rm)
 
 );
@@ -606,6 +613,11 @@ response_manager #(
     .wskid_en_i(csr_wskid_q),
     .wskid_ready_i(wskid_ready),
     .txblock_en_i(csr_txblk_q),
+    .resp_hold_en_i(csr_rhold_q),
+    .b_ready_i(req_IP_wrapper_i.b_ready),
+    .r_ready_i(req_IP_wrapper_i.r_ready),
+    .hold_b_o(resp_hold_b),
+    .hold_r_o(resp_hold_r),
     .resp_wrapper_iommu_i(resp_wrapper_iommu_i),
     .resp_IP_wrapper_o(resp_IP_wrapper_o)
 );
@@ -727,6 +739,14 @@ response_delayer #(
 //                          presente en aval et partir avec l'adresse legitime
 //                          suivante (demontre au banc le 2026-09-11). N'agit
 //                          qu'avec b4. Echo STATUS[19].
+//                          b8 RESP_HOLD -- une reponse B/R presentee au maitre
+//                          est tenue a l'identique jusqu'a son ready, et l'attente
+//                          de verdict laisse passer les reponses de l'aval.
+//                          Correctif du troisieme site de retrait de VALID (SC03 :
+//                          b-r = 16 sans FRESH, 73 avec, sur carte ; 8 -> 0 au
+//                          banc). Laisse aussi passer les reponses de l'aval
+//                          pendant l'attente : risque de perte lu au RTL, jamais
+//                          observe. Echo STATUS[20].
 //                          b4 W_SKID -- etage d'un emplacement sur le canal W.
 //                          Correctif du retrait de VALID mesure le 2026-09-10 :
 //                          la coupure est decidee A LA CAPTURE, un beat entre
@@ -768,7 +788,7 @@ response_delayer #(
 //   0x40  CNT_OUTS     RO  nombre d'episodes de saturation outstanding
 //   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
 //   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
-//   0x58  MAGIC        RO  0x41524D4F52000008 ("ARMOR" + version)
+//   0x58  MAGIC        RO  0x41524D4F52000009 ("ARMOR" + version)
 //
 // Bloc d'observabilite, ajoute le 2026-09-10 (d'ou MAGIC ...0002 : le logiciel
 // distingue ainsi un bitstream qui porte ces registres d'un qui n'en a pas).
@@ -911,6 +931,7 @@ always_comb begin
     armor_status[17]  = csr_fresh_q;   // echo du verdict frais exige
     armor_status[18]  = csr_txblk_q;   // echo du blocage transactionnel
     armor_status[19]  = csr_wcap_q;    // echo de la dette W a la capture
+    armor_status[20]  = csr_rhold_q;   // echo du maintien des reponses
 end
 
 // -----------------------------------------------------------------------------
@@ -997,6 +1018,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         csr_fresh_q    <= 1'b0;   // reset : comportement historique
         csr_txblk_q    <= 1'b0;   // reset : comportement historique
         csr_wcap_q     <= 1'b0;   // reset : comportement historique
+        csr_rhold_q    <= 1'b0;   // reset : comportement historique
         csr_sticky_clr <= 1'b0;
         csr_cnt_clr    <= 1'b0;
     end else begin
@@ -1026,6 +1048,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
                             csr_fresh_q    <= req_CPU_Wrapper__i.w.data[5];
                             csr_txblk_q    <= req_CPU_Wrapper__i.w.data[6];
                             csr_wcap_q     <= req_CPU_Wrapper__i.w.data[7];
+                            csr_rhold_q    <= req_CPU_Wrapper__i.w.data[8];
                         end
                         default: ; // registres en lecture seule
                     endcase
@@ -1722,7 +1745,7 @@ always_comb begin
     case (r_idx_q)
         5'd0:    csr_rdata = csr_id_cfg_q;
         5'd1:    csr_rdata = csr_msi_addr_q;
-        5'd2:    csr_rdata = {56'h0, csr_wcap_q, csr_txblk_q, csr_fresh_q, csr_wskid_q,
+        5'd2:    csr_rdata = {55'h0, csr_rhold_q, csr_wcap_q, csr_txblk_q, csr_fresh_q, csr_wskid_q,
                               csr_awfix_q, 2'b00, csr_enforce_q};
         5'd3:    csr_rdata = armor_status;
         5'd4:    csr_rdata = csr_sticky_q;
@@ -1732,7 +1755,7 @@ always_comb begin
         5'd8:    csr_rdata = {32'h0, cnt_outs_q};
         5'd9:    csr_rdata = {32'h0, cnt_msi_q};
         5'd10:   csr_rdata = {{(64-DevIDWidth){1'b0}}, dev_id_last_q};
-        5'd11:   csr_rdata = 64'h41524D4F52000008;
+        5'd11:   csr_rdata = 64'h41524D4F52000009;
         // Observabilite (version 2 du MAGIC). Voir la carte des registres.
         5'd12:   csr_rdata = {52'h0, dbg_up};
         5'd13:   csr_rdata = {52'h0, dbg_dn};

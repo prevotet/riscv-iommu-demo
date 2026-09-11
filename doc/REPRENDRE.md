@@ -259,14 +259,21 @@ référence).
 - retrait de VALID résiduel sur **AW** (cause `block_req` : verdict frais et bon,
   puis verdict volumétrique qui arrive après). Demanderait un étage sur AW de la
   même forme que celui de W — **pas** `TX_BLOCK` ;
-- retrait de `b_valid`/`r_valid` par `response_manager` : troisième site, **mesuré
-  sur carte le 2026-09-11**. La branche de blocage fabrique les réponses SLVERR comme
-  fonction pure du niveau de blocage courant ; quand le blocage retombe avant le
-  `ready` du maître, elles retombent. SC03 : `b-r` = 16 et 11 en v6 `wskid1`, **73**
-  en v7 avec `FRESH`, et la cause du premier retrait passe de vide à `!verdict` —
-  `FRESH` ouvre plus de fenêtres d'attente juste après un blocage. Le défaut
-  préexistait ; n'a jamais gelé. Correctif de la forme de l'étage W : tenir chaque
-  réponse fabriquée jusqu'à son `ready` ;
+- **retrait de `b_valid`/`r_valid` par `response_manager` — troisième site, corrigé
+  par `CTRL[8] RESP_HOLD` (MAGIC v9), validé au banc, PAS ENCORE SYNTHÉTISÉ.** Sur
+  carte, SC03 : `b-r` = 16 et 11 en v6 `wskid1`, **73** en v7 avec `FRESH` (cause du
+  premier retrait : vide → `!verdict`). Les branches de `response_manager` sont des
+  fonctions pures de l'état courant : une réponse présentée sans `ready` retombe dès
+  que la branche change — SLVERR fabriqué à la fin d'un blocage, ou R **réelle** à
+  l'ouverture d'une attente de verdict (d'où l'effet de `FRESH`, qui en ouvre une à
+  chaque front). Sous `RESP_HOLD`, toute réponse présentée est verrouillée, charge
+  utile comprise, jusqu'à son `ready` ; tant qu'une réponse *fabriquée* est tenue,
+  aucune réponse réelle n'est prise en aval. Banc, aval réaliste : SC03 `b/r` **8 →
+  0**, appariement W, `OBS_CHECK` et verdicts inchangés ; aval historique 10/1.
+  L'attente laisse aussi passer les réponses de l'aval au maître : **précaution** contre
+  une perte lue dans le RTL, **jamais observée** (détecteur « réponses perdues » à 0 sur
+  toutes les campagnes). Les `ar=8` qui restent sur SC03 au banc sont le timeout de
+  l'accélérateur lui-même (cause vide, 2031 cycles), pas ARMOR ;
 - `MAX_REQ_PER_WINDOW = 8` sur une fenêtre de 100 cycles est hors d'atteinte à
   la latence réelle de l'aval (37 cycles par transaction) : SC02 n'est détecté
   que par intermittence ;

@@ -88,19 +88,61 @@ module response_manager #(
     //  usurpee. L'ordre des deux correctifs n'est pas negociable.
     input  logic       txblock_en_i,
 
+    //  MAINTIEN DES REPONSES PRESENTEES (CTRL[8] RESP_HOLD, 2026-09-11).
+    //
+    //  LE TROISIEME SITE DE RETRAIT DE VALID. Les branches ci-dessous sont des
+    //  fonctions PURES de l'etat courant. Une reponse B/R presentee au maitre
+    //  sans son ready retombe donc des que la branche change :
+    //
+    //    - SLVERR fabrique pendant un blocage, puis le blocage retombe ;
+    //    - R REELLE en passe-plat, puis une nouvelle requete ouvre la fenetre
+    //      d'attente de verdict (FRESH le fait a chaque front) et la branche
+    //      d'attente sort '0.
+    //
+    //  Mesure sur carte, SC03 : b-r = 16 sans FRESH, 73 avec (cause !verdict).
+    //  L'accelerateur y tient r_ready bas pendant l'emission (mode 5), d'ou la
+    //  fenetre.
+    //
+    //  ET UN RISQUE DE PERTE, LU DANS LE RTL, JAMAIS OBSERVE. L'attente masque le
+    //  r_valid de l'aval au maitre, alors que request_manager transmet le r_ready
+    //  du maitre a l'aval : une reponse reelle pourrait y etre prise en aval sans
+    //  que le maitre l'ait vue. Le banc compte ces pertes (REPONSES PERDUES) :
+    //  ZERO sur toutes les campagnes, avec et sans RESP_HOLD. Le point 2
+    //  ci-dessous est donc une precaution, pas un correctif mesure -- seul le
+    //  retrait l'est (SC03 au banc : b/r 8 -> 0).
+    //
+    //  Sous RESP_HOLD :
+    //    1. toute reponse presentee sans ready est VERROUILLEE, charge utile
+    //       comprise, et representee a l'identique jusqu'a son ready ;
+    //    2. dans la branche d'attente, les reponses de l'aval traversent -- elles
+    //       appartiennent a des transactions deja admises ;
+    //    3. tant qu'une reponse FABRIQUEE est tenue, hold_*_o demande a
+    //       request_manager de ne prendre aucune reponse reelle en aval : le
+    //       ready du maitre appartient a la reponse tenue.
+    input  logic       resp_hold_en_i,
+    input  logic       b_ready_i,       // ready du maitre sur B
+    input  logic       r_ready_i,       // ready du maitre sur R
+    output logic       hold_b_o,        // un B FABRIQUE est tenu vers le maitre
+    output logic       hold_r_o,        // un R FABRIQUE est tenu vers le maitre
+
     input  resp_slv_t  resp_wrapper_iommu_i,
     output resp_slv_t  resp_IP_wrapper_o
 );
 
+    resp_slv_t resp_base;      // ce que produit la branche courante
+    logic      fabricating;    // la branche courante fabrique les reponses
+
+    assign fabricating = (block_ip_i || block_req_i || bad_id_i)
+                         && !(txblock_en_i && w_pending_i);
+
     always_comb begin
-        if ((block_ip_i || block_req_i || bad_id_i)
-            && !(txblock_en_i && w_pending_i)) begin
+        if (fabricating) begin
             // ---- Terminaison de bus gracieuse (SLVERR) ----
-            resp_IP_wrapper_o = '0;
+            resp_base = '0;
 
             // Absorption des requetes encore presentees par l'accelerateur.
-            resp_IP_wrapper_o.aw_ready = 1'b1;
-            resp_IP_wrapper_o.ar_ready = 1'b1;
+            resp_base.aw_ready = 1'b1;
+            resp_base.ar_ready = 1'b1;
 
             //  W : on n'absorbe de force que s'il n'y a RIEN a acheminer. Des
             //  qu'un AW est du en aval, ses beats doivent partir pour de vrai --
@@ -108,26 +150,37 @@ module response_manager #(
             //  distinction, le maitre avancerait pendant qu'un beat est encore
             //  presente en aval : c'est exactement le defaut mesure.
             if (wskid_en_i && w_pending_i)
-                resp_IP_wrapper_o.w_ready = wskid_ready_i;
+                resp_base.w_ready = wskid_ready_i;
             else
-                resp_IP_wrapper_o.w_ready = 1'b1;
+                resp_base.w_ready = 1'b1;
 
             // Reponse d'ecriture : SLVERR.
-            resp_IP_wrapper_o.b_valid  = 1'b1;
-            resp_IP_wrapper_o.b.resp   = 2'b10;
+            resp_base.b_valid  = 1'b1;
+            resp_base.b.resp   = 2'b10;
 
             // Reponse de lecture : SLVERR, un seul beat.
-            resp_IP_wrapper_o.r_valid  = 1'b1;
-            resp_IP_wrapper_o.r.resp   = 2'b10;
-            resp_IP_wrapper_o.r.last   = 1'b1;
+            resp_base.r_valid  = 1'b1;
+            resp_base.r.resp   = 2'b10;
+            resp_base.r.last   = 1'b1;
 
         end else if (!legit_hit || !verdict_known_i) begin
             // ---- Verdict d'ID en cours (2 cycles) : on tient le maitre ----
-            resp_IP_wrapper_o = '0;
+            resp_base = '0;
+
+            //  Sous RESP_HOLD, les reponses de l'aval traversent : tenir la
+            //  phase d'adresse du maitre n'exige pas de lui cacher les reponses
+            //  de transactions deja admises -- et les cacher pouvait les faire
+            //  perdre (risque lu au RTL, jamais observe au banc).
+            if (resp_hold_en_i) begin
+                resp_base.b_valid = resp_wrapper_iommu_i.b_valid;
+                resp_base.b       = resp_wrapper_iommu_i.b;
+                resp_base.r_valid = resp_wrapper_iommu_i.r_valid;
+                resp_base.r       = resp_wrapper_iommu_i.r;
+            end
 
         end else begin
             // ---- IP legitime : passe-plat ----
-            resp_IP_wrapper_o = resp_wrapper_iommu_i;
+            resp_base = resp_wrapper_iommu_i;
 
             // request_manager retient w_valid tant qu'aucun AW n'est admis en
             // aval. Or l'aval maintient son w_ready en permanence : le laisser
@@ -138,10 +191,59 @@ module response_manager #(
                 //  Le handshake du maitre se fait contre l'etage : de la place
                 //  et un AW du, sinon le maitre attend. Il ne voit plus jamais
                 //  le ready de l'aval sur ce canal.
-                resp_IP_wrapper_o.w_ready = wskid_ready_i & w_pending_i;
+                resp_base.w_ready = wskid_ready_i & w_pending_i;
             else if (!w_pending_i)
-                resp_IP_wrapper_o.w_ready = 1'b0;
+                resp_base.w_ready = 1'b0;
         end
     end
+
+    // -------------------------------------------------------------------------
+    //  Verrou des reponses presentees (RESP_HOLD). *_pres_q : une reponse est
+    //  presentee au maitre sans son ready ; *_fab_q : elle a ete fabriquee par
+    //  ARMOR, au cycle ou elle a ete presentee pour la premiere fois.
+    // -------------------------------------------------------------------------
+    resp_slv_t lat_q;
+    logic      b_pres_q, r_pres_q, b_fab_q, r_fab_q;
+
+    always_comb begin
+        resp_IP_wrapper_o = resp_base;
+        if (resp_hold_en_i && b_pres_q) begin
+            resp_IP_wrapper_o.b_valid = 1'b1;
+            resp_IP_wrapper_o.b       = lat_q.b;
+        end
+        if (resp_hold_en_i && r_pres_q) begin
+            resp_IP_wrapper_o.r_valid = 1'b1;
+            resp_IP_wrapper_o.r       = lat_q.r;
+        end
+    end
+
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            lat_q    <= '0;
+            b_pres_q <= 1'b0;
+            r_pres_q <= 1'b0;
+            b_fab_q  <= 1'b0;
+            r_fab_q  <= 1'b0;
+        end else if (!resp_hold_en_i) begin
+            b_pres_q <= 1'b0;
+            r_pres_q <= 1'b0;
+            b_fab_q  <= 1'b0;
+            r_fab_q  <= 1'b0;
+        end else begin
+            b_pres_q <= resp_IP_wrapper_o.b_valid & ~b_ready_i;
+            r_pres_q <= resp_IP_wrapper_o.r_valid & ~r_ready_i;
+            if (resp_IP_wrapper_o.b_valid && !b_ready_i) begin
+                lat_q.b <= resp_IP_wrapper_o.b;
+                if (!b_pres_q) b_fab_q <= fabricating;
+            end
+            if (resp_IP_wrapper_o.r_valid && !r_ready_i) begin
+                lat_q.r <= resp_IP_wrapper_o.r;
+                if (!r_pres_q) r_fab_q <= fabricating;
+            end
+        end
+    end
+
+    assign hold_b_o = resp_hold_en_i & b_pres_q & b_fab_q;
+    assign hold_r_o = resp_hold_en_i & r_pres_q & r_fab_q;
 
 endmodule

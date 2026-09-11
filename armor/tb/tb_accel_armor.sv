@@ -115,6 +115,9 @@ module tb_accel_armor;
 `ifdef WCAP
         | (64'h1 << 7)
 `endif
+`ifdef RHOLD
+        | (64'h1 << 8)
+`endif
         ;
 
     int unsigned obs_fail = 0;   // defauts trouves dans le bloc d'observabilite
@@ -124,7 +127,7 @@ module tb_accel_armor;
     int unsigned obs_ref_badid, obs_ref_badcy;
     int unsigned obs_ref_ghost, obs_ref_orph, obs_ref_awdn;
 
-    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000008;   // version 8 : + dette W comptee a la capture
+    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000009;   // version 9 : + maintien des reponses presentees
 
     localparam logic [63:0] LEGIT_DST = 64'h0000_0000_9100_0000;
 
@@ -1094,6 +1097,37 @@ module tb_accel_armor;
     end
 
     // -------------------------------------------------------------------------
+    //  REPONSES PERDUES  (2026-09-11)
+    //
+    //  Une reponse B/R prise EN AVAL alors que le maitre ne voyait AUCUN valid :
+    //  elle a ete consommee par le ready du maitre, transmis a l'aval, sans que le
+    //  maitre la recoive. C'est ce que produisait la branche d'attente de
+    //  response_manager, qui masquait les reponses de l'aval sans masquer le
+    //  ready.
+    //
+    //  Le drainage anti-wedge (block_req ou bad_id : b_ready/r_ready forces a 1
+    //  vers l'aval) avale des reponses A DESSEIN ; il est exclu du compte.
+    // -------------------------------------------------------------------------
+    int unsigned resp_lost_b, resp_lost_r;
+    bit          resp_lost_shown;
+
+    always @(posedge clk_i) begin
+        if (rst_ni) begin
+            automatic bit drain = i_sec_wrap.block_req_i || i_sec_wrap.bad_id;
+            automatic bit lb = resp_out.b_valid && req_out.b_ready && !resp_in.b_valid && !drain;
+            automatic bit lr = resp_out.r_valid && req_out.r_ready && !resp_in.r_valid && !drain;
+            if (lb) resp_lost_b++;
+            if (lr) resp_lost_r++;
+            if ((lb || lr) && !resp_lost_shown) begin
+                resp_lost_shown = 1'b1;
+                $display("[%0t] *** REPONSE PERDUE : %s pris en aval, le maitre n'a vu aucun valid | legit=%0b vk=%0b block_ip=%0b",
+                         $time, lb ? "B" : "R", i_sec_wrap.legit_hit_eff,
+                         i_sec_wrap.verdict_known_eff, i_sec_wrap.block_ip_eff);
+            end
+        end
+    end
+
+    // -------------------------------------------------------------------------
     //  INSTRUMENTATION SC02 — la forme reelle de block_req en profil BENCH.
     //
     //  FLOW_BLOCK_CYCLES_C vaut 4 en BENCH contre 750_000_000 en DEMO. Or
@@ -1166,6 +1200,7 @@ module tb_accel_armor;
     //  banc a deja valide du vide quatre fois : un controle muet quand il n'y a
     //  rien a signaler ne se distingue pas d'un controle qui ne voit rien passer.
     int unsigned pair_ok_0, pair_bad_0, pair_noaw_0, pair_nodata_0, pair_orph_0, pair_dup_0;
+    int unsigned lost_b_0, lost_r_0;
 
     task automatic pair_step_report(input string name);
         int unsigned d_ok, d_bad, d_noaw, d_nodata, d_orph, d_dup;
@@ -1183,6 +1218,14 @@ module tb_accel_armor;
             else if (d_ok != 0)
                 $display("  %-12s  appariement W : %0d beat(s) verifie(s), tous avec leur adresse",
                          name, d_ok);
+
+            //  Reponses perdues : meme logique d'ecart depuis le rapport
+            //  precedent, pour savoir QUEL pas les produit.
+            if (resp_lost_b != lost_b_0 || resp_lost_r != lost_r_0)
+                $display("  %-12s  !! REPONSES PERDUES : B=%0d R=%0d (prises en aval, jamais vues du maitre)",
+                         name, resp_lost_b - lost_b_0, resp_lost_r - lost_r_0);
+            lost_b_0 = resp_lost_b;
+            lost_r_0 = resp_lost_r;
 
             pair_ok_0     = pair_ok;
             pair_bad_0    = pair_bad;
@@ -1522,6 +1565,8 @@ module tb_accel_armor;
                      pair_ok, pair_bad, pair_noaw, pair_nodata, pair_aw_orphan, pair_dup);
             if (pair_bad != 0 || pair_noaw != 0 || pair_nodata != 0)
                 $display(" *** CANAL W DECALE : des beats sont partis en aval avec l'adresse d'une autre ecriture");
+            $display(" REPONSES PERDUES (prises en aval, jamais vues du maitre, hors drainage) : B=%0d R=%0d",
+                     resp_lost_b, resp_lost_r);
             $display(" bad_id : %0d fronts, %0d cycles hauts (invisible au logiciel)",
                      bad_id_rise, bad_id_cy);
             if (w_ghost_tot != 0)
