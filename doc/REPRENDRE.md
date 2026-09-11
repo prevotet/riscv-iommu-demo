@@ -333,7 +333,13 @@ référence).
   puis verdict volumétrique qui arrive après). Demanderait un étage sur AW de la
   même forme que celui de W — **pas** `TX_BLOCK` ;
 - **retrait de `b_valid`/`r_valid` par `response_manager` — troisième site, corrigé
-  par `CTRL[8] RESP_HOLD` (MAGIC v9), validé au banc, PAS ENCORE SYNTHÉTISÉ.** Sur
+  par `CTRL[8] RESP_HOLD` (MAGIC v9), VALIDÉ SUR CARTE le 2026-09-11.** Même bitstream v9,
+  chargement JTAG par `capture_uart.sh -j` : `rhold0` (`results/bench_2026-09-11_151005.log`)
+  SC03 `b-r=54`, `rhold1` (`151516`, `CTRL 0x131`) **`b-r=0`** ; latence légitime inchangée
+  (`tx_sum` SC06/SC07 3710/3766 → 3712/3759), détection inchangée (SC02 25→24, SC04 43→41,
+  SC03 et SC01 50/50), zéro faux positif. Seul écart : ERR de SC03 3 → 7 (retraits AR sans
+  cause, timeouts de l'accélérateur), dans la plage habituelle de 3 à 11 — non attribuable
+  sur un run. Sur
   carte, SC03 : `b-r` = 16 et 11 en v6 `wskid1`, **73** en v7 avec `FRESH` (cause du
   premier retrait : vide → `!verdict`). Les branches de `response_manager` sont des
   fonctions pures de l'état courant : une réponse présentée sans `ready` retombe dès
