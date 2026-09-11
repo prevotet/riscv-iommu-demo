@@ -1,14 +1,38 @@
 # Reprendre le travail ARMOR sur une autre machine
 
-État au 2026-09-11 au soir, branche `testbench`. Ce document existe parce que le
-README amont ne dit rien de la chaîne de bench, et que tout le reste vivait dans
-les messages de commit.
+État au **2026-09-11, 15h30**, branche `testbench`, poussée sur GitHub. Ce document
+existe parce que le README amont ne dit rien de la chaîne de bench, et que tout le
+reste vivait dans les messages de commit.
 
-**Bitstream archivé : v9** (`d98720e` : `W_CAPDEBT` + `RESP_HOLD`), `check bench` À JOUR.
-Images de validation de `RESP_HOLD` : `payloads/fw_payload_v9_fresh1_wskid1_rhold0`
-(témoin) puis `_rhold1`, **sans `W_CAPDEBT`**, qui fait caler le maître jusqu'au
-timeout. Prochain chantier RTL : le suivi par transaction des AW coupés (voir
-« Encore ouvert ») — il rendra de nouveau `check` PÉRIMÉ, normalement.
+## 0. Où reprendre, exactement
+
+**Configuration de référence, validée sur carte : `W_SKID + FRESH + RESP_HOLD`**
+(`CTRL` relu `0x131`). **RTL de l'arbre : v10**, qui ajoute `CTRL[9] W_FATE` (commit
+`1bdc2f6`) — validé au banc, **pas encore validé sur carte**.
+
+- Si `git log --oneline` contient « archive the v10 BENCH bitstream », le v10 est archivé :
+  `tools/bitstream.sh use bench`, puis `check bench` doit dire À JOUR.
+- Sinon le bitstream archivé est le **v9** et `check` dit PÉRIMÉ : resynthétiser (§ 2,
+  ~45 min) avant la campagne v10. Le v9 archivé reste valable pour toute campagne sans
+  `W_FATE`.
+
+**Prochaine action : valider `W_FATE` sur carte**, même bitstream v10, deux images qui ne
+diffèrent que par ce bit. `payloads/` n'est pas versionné : les construire par le § 2,
+étape 2, avec `-DARMOR_WSKID=1 -DARMOR_FRESH=1 -DARMOR_RHOLD=1 -DARMOR_WFATE=0` puis
+`=1`, et copier **`fw_payload.elf` et `fw_payload.bin`** dans `payloads/` sous
+`fw_payload_v10_fresh1_wskid1_rhold1_wfate0` / `_wfate1`.
+
+```sh
+./2_build_HB.sh program
+pkill -x hw_server
+tools/capture_uart.sh -j payloads/fw_payload_v10_fresh1_wskid1_rhold1_wfate0.elf
+tools/capture_uart.sh -j payloads/fw_payload_v10_fresh1_wskid1_rhold1_wfate1.elf
+```
+
+Attendu : MAGIC `...000a` ; `CTRL` relu `0x131` puis `0x331` ; avec `wfate1`, plus d'ERR
+ni de latence `SUMMARY-TX` p99 ≈ 65 7xx sur SC02 et SC04, plus de `W V- last` en aval du
+wrapper 2 ; SC03 `b-r=0` dans les deux cas. Ensuite : le B manquant des AW coupés
+(« Encore ouvert »).
 
 ## 1. Mise en route
 
@@ -25,9 +49,19 @@ tools/bitstream.sh check bench   # doit dire « À JOUR »
 `.bit` qui ne correspond pas au RTL produit des logs qu'on peut passer des
 heures à réinterpréter. C'est arrivé le 2026-09-08.
 
-Toolchain attendue : Vivado 2022.2, et
-`/home/jc/Work/Software/riscv-imac/bin/riscv64-unknown-elf-` — à adapter dans
-les commandes ci-dessous si le chemin diffère.
+Outils attendus sur la machine :
+
+- **Vivado 2022.2** (synthèse, programmation, et `xsim` pour le banc) ;
+- la toolchain **`/home/jc/Work/Software/riscv-imac/bin/riscv64-unknown-elf-`** — à
+  adapter dans les commandes si le chemin diffère ; `tools/load_jtag.sh` accepte
+  `READELF=<chemin>` ;
+- **OpenOCD ≥ 0.12** pour le chargement JTAG : `load_jtag.sh` appelle `/usr/bin/openocd`,
+  `OPENOCD=<chemin>` sinon. Celui de Quartus (0.11) ne comprend pas la config ;
+- **`dtc`** (paquet `device-tree-compiler`), pour le DTB chargé par JTAG.
+
+Même carte, même câblage : la **console** passe par l'adaptateur **FT232R séparé**
+(`0403:6001`, en général `/dev/ttyUSB0`), le **JTAG** par l'USB de la Genesys2
+(`0403:6010`). `capture_uart.sh` trouve le premier tout seul.
 
 ## 2. Chaîne complète
 
@@ -47,10 +81,12 @@ make clean                              # obligatoire : sources.mk change de fic
 make PLATFORM=cva6 \
      CROSS_COMPILE=/home/jc/Work/Software/riscv-imac/bin/riscv64-unknown-elf- \
      BENCH=1 ARCH_CPPFLAGS="-DBENCH_QUICK -DBENCH_TRACE_MMIO -DBENCH_NO_LHA_BG \
-                            -DARMOR_WSKID=1 -DARMOR_FRESH=1" \
+                            -DARMOR_WSKID=1 -DARMOR_FRESH=1 -DARMOR_RHOLD=1" \
      -j$(nproc)
-# Les deux ARMOR_* donnent la configuration de référence (section 5 bis).
-# Les retirer donne le témoin historique, sur le même bitstream.
+# Les trois ARMOR_* donnent la configuration de référence, validée sur carte
+# (CTRL relu 0x131). Sur un bitstream v10, -DARMOR_WFATE=1 ajoute W_FATE (0x331).
+# Ne PAS mettre -DARMOR_WCAP=1 : il fait caler le maître jusqu'au timeout.
+# Retirer les ARMOR_* donne le témoin historique, sur le même bitstream.
 cd .. && cp bao-baremetal-guest/build/cva6/baremetal.bin build/guests/baremetal.bin
 
 # 3. hyperviseur et firmware
