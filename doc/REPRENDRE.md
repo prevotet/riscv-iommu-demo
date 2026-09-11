@@ -1,6 +1,6 @@
 # Reprendre le travail ARMOR sur une autre machine
 
-État au **2026-09-11, 15h30**, branche `testbench`, poussée sur GitHub. Ce document
+État au **2026-09-11, 22h55**, branche `testbench`, poussée sur GitHub. Ce document
 existe parce que le README amont ne dit rien de la chaîne de bench, et que tout le
 reste vivait dans les messages de commit.
 
@@ -25,8 +25,30 @@ bench`, puis `check bench` doit dire À JOUR.
 | FIFO débordée (`STATUS[22]`) | — | 0 sur 21 instantanés |
 
 Détection SC02 18 → 34, SC04 41 → 45, SC03 et SC01 50/50, zéro faux positif — sans
-aucune ERR, donc sans l'artefact de timeout de `W_CAPDEBT` ; mais un seul run, et SC02 a
-déjà varié de 16 à 34 : ne pas l'attribuer au correctif sans runs répétés.
+aucune ERR, donc sans l'artefact de timeout de `W_CAPDEBT`.
+
+**Runs répétés, A/B, 2026-09-11 22:45–22:54** — même bitstream v10, même chargement
+`capture_uart.sh -j`, sur une seconde machine : 7 campagnes `wfate1` (`170253`, `224519`,
+`224645`, `224731`, `224757`, `224823`, `224849`) et 6 `wfate0` (`170057`, `225208`, `225234`,
+`225301`, `225328`, `225354`). Toutes vont jusqu'à `END` avec le `CTRL` attendu, sans
+`ATTENTION` ; partout zéro faux positif, SC03 et SC01 50/50, SC03 `b-r=0`, zéro ERR sur
+SC02 et SC04.
+
+| | `wfate0` ×6 | `wfate1` ×7 |
+|---|---|---|
+| SC02 TP / 50 | 18 à 30, moy. 23,3 | **34 à 48, moy. 39,3** |
+| SC04 TP / 50 | 38 à 43, moy. 41,0 | **44 à 48, moy. 46,4** |
+| `SUMMARY-TX` max SC02 / SC04 | timeout (65 6xx) sur 5 runs / sur 6 | ≤ 565 / ≤ 1241 |
+| `W V- last` en aval de w2 | 9 à 11 / 21, dans chaque run | 0, dans chaque run |
+| latence moyenne exacte SC06 / SC07 | 37,12–37,22 / 37,11–37,65 | 37,12–37,16 / 37,10–37,65 |
+
+**Les plages sont disjointes** (SC02 30 < 34, SC04 43 < 44) : le gain de détection est
+attribuable à `W_FATE`, pas au bruit d'un run. Coût en latence légitime : nul, sous le bruit.
+Le lien avec les timeouts de `wfate0` est plausible mais **non vérifié itération par
+itération**. `224849` a perdu sur l'UART des lignes de trace de SC01 (blocs `pre-ctrl`
+incomplets, d'où `W V- last` 0/19) ; ses lignes `SUMMARY` et `STATUS_final` sont intactes.
+`224519` a été lancé depuis un autre terminal que la série : ne jamais lancer deux captures
+ou deux chargements JTAG à la fois, ils se partagent le câble et `/dev/ttyUSB0`.
 
 Images (`payloads/` n'est pas versionné) : § 2, étape 2, avec
 `-DARMOR_WSKID=1 -DARMOR_FRESH=1 -DARMOR_RHOLD=1 -DARMOR_WFATE=1`, en copiant
@@ -39,8 +61,8 @@ tools/capture_uart.sh -j payloads/fw_payload_v10_fresh1_wskid1_rhold1_wfate1.elf
 ```
 
 **Prochaine action** : le B manquant des AW coupés (« Encore ouvert ») — un timeout en état
-DRAIN, vu une seule fois au banc ; puis des runs répétés de la configuration de référence
-pour chiffrer la détection.
+DRAIN, vu une seule fois au banc. Les runs répétés de la configuration de référence sont
+faits (tableau ci-dessus).
 
 ## 1. Mise en route
 
