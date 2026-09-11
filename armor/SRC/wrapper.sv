@@ -147,6 +147,7 @@ logic                   csr_fresh_q;      // CTRL[5] : verdict FRAIS exige
 logic                   csr_txblk_q;      // CTRL[6] : blocage transactionnel
 logic                   csr_wcap_q;       // CTRL[7] : dette W comptee a la capture
 logic                   csr_rhold_q;      // CTRL[8] : reponses B/R tenues jusqu'au ready
+logic                   csr_wfate_q;      // CTRL[9] : sort de chaque AW, W des AW coupes absorbe
 logic [63:0]            csr_sticky_q;
 logic [31:0]            cnt_banned_q, cnt_storm_q, cnt_outs_q, cnt_msi_q;
 logic [DevIDWidth-1:0]  dev_id_last_q;
@@ -589,8 +590,87 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
     end
 end
 
-assign w_pending_sel = (csr_wskid_q & csr_wcap_q) ? (w_cap_owed_q != 4'h0)
-                                                  : w_pending;
+// -----------------------------------------------------------------------------
+//  SORT DE CHAQUE AW  (CTRL[9] W_FATE, 2026-09-11)
+//
+//  CE QUE W_CAPDEBT NE SAVAIT PAS FAIRE. Pendant un blocage, response_manager
+//  fabrique aw_ready : le maitre croit son ecriture acceptee et presente son W.
+//  Si le blocage retombe avant ce W, plus rien ne l'absorbe -- aucune dette W ne
+//  l'attend, et la branche passe-plat rend w_ready = 0. Le maitre attend jusqu'a
+//  son timeout. Mesure sur carte sous W_CAPDEBT : SC02 finit 17 fois sur 50 au
+//  timeout de l'accelerateur (SUMMARY-TX Lp50 = 65 676). Au banc, 24 photos au
+//  cycle du timeout, toutes : etat W, beat 0, blocage retombe, dettes a zero --
+//  et la MEME cause sans W_CAPDEBT, masquee par la capture a tort du beat.
+//
+//  Une dette est un COMPTE ; il faut un SORT PAR TRANSACTION. Pour chaque AW
+//  acquitte au maitre, on empile 1 s'il a ete admis en aval DANS LE MEME CYCLE,
+//  0 sinon (acquittement fabrique). Le meme cycle suffit : en passe-plat le ready
+//  amont EST le ready aval ; en blocage aw_valid est coupe en aval ; en attente de
+//  verdict aw_ready vaut 0 en amont. On depile au W-last accepte COTE MAITRE.
+//
+//  La tete decide du beat W presente : 1 -> capture dans l'etage ; 0 -> ABSORBE
+//  (w_valid coupe en aval, w_ready = 1 au maitre), QUEL QUE SOIT L'ETAT DU
+//  BLOCAGE ; FIFO vide -> le maitre attend.
+//
+//  Limites connues : pas de contournement -- un maitre qui presenterait son W
+//  dans le cycle meme de son AW attendrait un cycle (accel_wrap ne le fait pas) ;
+//  profondeur 4, et accel_wrap n'a jamais plus d'un AW sans W en attente. Une
+//  poussee sur FIFO pleine est perdue et leve fate_ovf_q (echo STATUS[22]) : ce
+//  bit doit rester a 0.
+//
+//  Actif seulement avec CTRL[4] W_SKID ; supplante CTRL[7] W_CAPDEBT. A 0 au
+//  reset : comportement precedent, pour mesurer sur le meme bitstream.
+// -----------------------------------------------------------------------------
+logic [3:0] fate_q;          // fate_q[0] = tete
+logic [2:0] fate_n_q;        // 0..4 entrees
+logic       fate_ovf_q;      // poussee perdue sur FIFO pleine (collant)
+//  fate_aw_hs est le MEME signal que up_aw_hs du bloc d'observabilite, declare
+//  plus bas (vers la ligne 1280) : on ne peut pas s'en servir avant sa
+//  declaration, d'ou ce nom propre.
+logic       fate_aw_hs, fate_w_last_hs, fate_empty, fate_head;
+
+assign fate_aw_hs     = req_IP_wrapper_i.aw_valid & resp_IP_wrapper_o.aw_ready;
+assign fate_w_last_hs = req_IP_wrapper_i.w_valid  & resp_IP_wrapper_o.w_ready
+                                                  & req_IP_wrapper_i.w.last;
+assign fate_empty   = (fate_n_q == 3'd0);
+assign fate_head    = fate_q[0];
+
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        fate_q     <= '0;
+        fate_n_q   <= '0;
+        fate_ovf_q <= 1'b0;
+    end else if (!csr_wskid_q) begin
+        //  Etage en derivation : rien a suivre, et W_SKID repart d'un etat vide.
+        fate_q   <= '0;
+        fate_n_q <= '0;
+    end else begin
+        automatic logic [3:0] q = fate_q;
+        automatic logic [2:0] n = fate_n_q;
+        //  Depiler d'abord : un W-last et un nouvel AW peuvent tomber le meme cycle.
+        if (fate_w_last_hs && n != 3'd0) begin
+            q = {1'b0, q[3:1]};
+            n = n - 3'd1;
+        end
+        if (fate_aw_hs) begin
+            if (n != 3'd4) begin
+                q[n] = dn_aw_hs;
+                n    = n + 3'd1;
+            end else begin
+                fate_ovf_q <= 1'b1;
+            end
+        end
+        fate_q   <= q;
+        fate_n_q <= n;
+    end
+end
+
+logic w_absorb;
+assign w_absorb = csr_wskid_q & csr_wfate_q & ~fate_empty & ~fate_head;
+
+assign w_pending_sel = (csr_wskid_q & csr_wfate_q) ? (~fate_empty & fate_head)
+                     : (csr_wskid_q & csr_wcap_q)  ? (w_cap_owed_q != 4'h0)
+                     :                               w_pending;
 always_comb begin
     req_wrapper_iommu_o = req_rm;
     if (csr_wskid_q) begin
@@ -612,6 +692,7 @@ response_manager #(
     .w_pending_i(w_pending_sel),    // meme dette que request_manager (W_CAPDEBT)
     .wskid_en_i(csr_wskid_q),
     .wskid_ready_i(wskid_ready),
+    .w_absorb_i(w_absorb),          // W_FATE : W d'un AW coupe, acquitte sans envoi
     .txblock_en_i(csr_txblk_q),
     .resp_hold_en_i(csr_rhold_q),
     .b_ready_i(req_IP_wrapper_i.b_ready),
@@ -747,6 +828,13 @@ response_delayer #(
 //                          banc). Laisse aussi passer les reponses de l'aval
 //                          pendant l'attente : risque de perte lu au RTL, jamais
 //                          observe. Echo STATUS[20].
+//                          b9 W_FATE -- sort de chaque AW acquitte au maitre
+//                          (admis en aval ou coupe), dans une FIFO de 4 bits ; le
+//                          W d'un AW coupe est absorbe meme hors blocage. Correctif
+//                          des timeouts de l'accelerateur (SC02 17/50 sur carte
+//                          sous b7). N'agit qu'avec b4 ; supplante b7. Echo
+//                          STATUS[21] ; STATUS[22] = poussee perdue sur FIFO pleine,
+//                          doit rester a 0.
 //                          b4 W_SKID -- etage d'un emplacement sur le canal W.
 //                          Correctif du retrait de VALID mesure le 2026-09-10 :
 //                          la coupure est decidee A LA CAPTURE, un beat entre
@@ -788,7 +876,7 @@ response_delayer #(
 //   0x40  CNT_OUTS     RO  nombre d'episodes de saturation outstanding
 //   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
 //   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
-//   0x58  MAGIC        RO  0x41524D4F52000009 ("ARMOR" + version)
+//   0x58  MAGIC        RO  0x41524D4F5200000A ("ARMOR" + version)
 //
 // Bloc d'observabilite, ajoute le 2026-09-10 (d'ou MAGIC ...0002 : le logiciel
 // distingue ainsi un bitstream qui porte ces registres d'un qui n'en a pas).
@@ -932,6 +1020,8 @@ always_comb begin
     armor_status[18]  = csr_txblk_q;   // echo du blocage transactionnel
     armor_status[19]  = csr_wcap_q;    // echo de la dette W a la capture
     armor_status[20]  = csr_rhold_q;   // echo du maintien des reponses
+    armor_status[21]  = csr_wfate_q;   // echo du sort de chaque AW
+    armor_status[22]  = fate_ovf_q;    // FIFO W_FATE debordee : doit rester a 0
 end
 
 // -----------------------------------------------------------------------------
@@ -1019,6 +1109,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         csr_txblk_q    <= 1'b0;   // reset : comportement historique
         csr_wcap_q     <= 1'b0;   // reset : comportement historique
         csr_rhold_q    <= 1'b0;   // reset : comportement historique
+        csr_wfate_q    <= 1'b0;   // reset : comportement historique
         csr_sticky_clr <= 1'b0;
         csr_cnt_clr    <= 1'b0;
     end else begin
@@ -1049,6 +1140,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
                             csr_txblk_q    <= req_CPU_Wrapper__i.w.data[6];
                             csr_wcap_q     <= req_CPU_Wrapper__i.w.data[7];
                             csr_rhold_q    <= req_CPU_Wrapper__i.w.data[8];
+                            csr_wfate_q    <= req_CPU_Wrapper__i.w.data[9];
                         end
                         default: ; // registres en lecture seule
                     endcase
@@ -1745,7 +1837,7 @@ always_comb begin
     case (r_idx_q)
         5'd0:    csr_rdata = csr_id_cfg_q;
         5'd1:    csr_rdata = csr_msi_addr_q;
-        5'd2:    csr_rdata = {55'h0, csr_rhold_q, csr_wcap_q, csr_txblk_q, csr_fresh_q, csr_wskid_q,
+        5'd2:    csr_rdata = {54'h0, csr_wfate_q, csr_rhold_q, csr_wcap_q, csr_txblk_q, csr_fresh_q, csr_wskid_q,
                               csr_awfix_q, 2'b00, csr_enforce_q};
         5'd3:    csr_rdata = armor_status;
         5'd4:    csr_rdata = csr_sticky_q;
@@ -1755,7 +1847,7 @@ always_comb begin
         5'd8:    csr_rdata = {32'h0, cnt_outs_q};
         5'd9:    csr_rdata = {32'h0, cnt_msi_q};
         5'd10:   csr_rdata = {{(64-DevIDWidth){1'b0}}, dev_id_last_q};
-        5'd11:   csr_rdata = 64'h41524D4F52000009;
+        5'd11:   csr_rdata = 64'h41524D4F5200000A;
         // Observabilite (version 2 du MAGIC). Voir la carte des registres.
         5'd12:   csr_rdata = {52'h0, dbg_up};
         5'd13:   csr_rdata = {52'h0, dbg_dn};
