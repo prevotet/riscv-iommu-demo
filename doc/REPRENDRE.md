@@ -4,11 +4,11 @@
 README amont ne dit rien de la chaîne de bench, et que tout le reste vivait dans
 les messages de commit.
 
-**Bitstream archivé : v8** (`W_CAPDEBT`). **RTL de l'arbre : v9** (+ `RESP_HOLD`,
-validé au banc, jamais synthétisé). `tools/bitstream.sh check bench` dit donc
-PÉRIMÉ, et c'est normal : resynthétiser avant toute campagne qui a besoin de
-`CTRL[8]`. Les campagnes v8 se jouent sur le bitstream archivé
-(`tools/bitstream.sh use bench`).
+**Bitstream archivé : v9** (`d98720e` : `W_CAPDEBT` + `RESP_HOLD`), `check bench` À JOUR.
+Images de validation de `RESP_HOLD` : `payloads/fw_payload_v9_fresh1_wskid1_rhold0`
+(témoin) puis `_rhold1`, **sans `W_CAPDEBT`**, qui fait caler le maître jusqu'au
+timeout. Prochain chantier RTL : le suivi par transaction des AW coupés (voir
+« Encore ouvert ») — il rendra de nouveau `check` PÉRIMÉ, normalement.
 
 ## 1. Mise en route
 
