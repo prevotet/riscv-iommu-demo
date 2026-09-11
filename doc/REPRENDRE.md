@@ -164,11 +164,25 @@ première fois sous `ENFORCE=1`.
 n'atteint l'aval. Il gelait à la première itération les 08 et 09/09. SC02, SC04 et
 SC03 restent dans la plage des deux runs v6 `wskid1`.
 
-Latence exacte sur trafic légitime (`tx_sum`, imprimé depuis ce run) : **37,12**
-cycles (SC06) et **37,53** (SC07). Les runs v6 tronquaient à 37 : le surcoût moyen
-de W_SKID + FRESH est donc **au plus 0,12 et 0,53 cycle**. Ce sont des bornes, pas
-des valeurs. Le +2 cycles se voit sur le minimum (26 → 28) : l'attente du canal W
-en aval, ~40 cycles, absorbe l'essentiel du retard d'AW.
+**Témoin `fresh0_wskid1`** (`results/bench_2026-09-11_124113.log`, `CTRL` relu
+`0x11`) : même bitstream, même firmware, **seul FRESH diffère**.
+
+| mesure | sans FRESH | avec FRESH |
+|---|---|---|
+| SC01 | **gèle à la 1re itération** | 50/50, aucun gel |
+| SC06, latence moyenne exacte | 37,03 | 37,12 (+0,09) |
+| SC07, latence moyenne exacte | 37,54 | 37,53 (−0,01) |
+| latence minimale | 26 | 28 (+2) |
+| SC03, retraits B/R (cause du 1er) | 16 (vide) | 73 (`!verdict`) |
+
+Trois conclusions, par A/B et non par raisonnement :
+
+- **C'est FRESH qui corrige le gel de SC01.**
+- **Son coût moyen est sous le bruit d'un run (~0,1 cycle) ; +2 cycles au pire**, sur
+  les transactions les plus rapides. Ailleurs, le retard d'AW se superpose à
+  l'attente du canal W en aval (~40 cycles).
+- **Il multiplie par ~4 les retraits B/R de SC03**, un défaut qui préexistait (voir
+  « Encore ouvert »).
 
 SC01 tourne encore **en dernier**, derrière l'OUTS parasite de SC03 : le replacer
 avant SC02 pour des verdicts propres.
@@ -200,8 +214,8 @@ verdict passe à **2 cycles par transaction** (`cyc_hold` 2 → 200 sur 100, mes
 carte). Mais la **latence moyenne** ne prend qu'**au plus 0,12 à 0,53 cycle** : sur
 carte, le retard d'AW se superpose en grande partie à l'attente du canal W en aval.
 Le banc, dont l'aval est rapide, donnait +2 cycles partout. L'article publie les
-valeurs de la carte, et la valeur exacte du surcoût demande un témoin `FRESH=0`
-avec les sommes.
+valeurs de la carte, mesurées par A/B contre le témoin `FRESH=0` (tableau
+ci-dessus) : ~0,1 cycle en moyenne, +2 au pire.
 
 `CTRL[6] TX_BLOCK` est **câblé mais nuisible seul** (retraits AW de SC04 : 1 → 4).
 Il ne redevient nécessaire qu'avec un futur étage sur AW. **Ne pas l'activer.**
@@ -219,6 +233,19 @@ référence).
 
 **Encore ouvert :**
 
+- **l'étage W décale le canal d'un cran — mécanisme confirmé au RTL, conséquence
+  NON démontrée.** Dans les trois runs `W_SKID=1` (v6 ×2, v7 ×2), un beat W reste
+  présenté en aval dès SC02 et jusqu'à la fin, avec `w_owed=0` et `w_pending=0`
+  (`ARMORHS,pre-ctrl,w2,dn` : `W V- last`). Il n'est pas la cause du gel de SC01
+  (présent aussi avant le SC01 qui passe). Cause : `request_manager` laisse passer le
+  W tant que `w_owed != 0`, or `w_owed` ne décroît qu'au W-last pris **en aval**, à la
+  sortie de l'étage ; au cycle où ce beat sort, l'étage capture le beat suivant, d'une
+  adresse non admise. Conséquence probable : chaque écriture suivante reçoit les
+  données de la précédente, y compris celles d'une écriture d'attaque coupée.
+  **Aucun compteur ne le voit** (le solde AW/W-last reste juste) **et le banc non
+  plus** (il n'apparie pas adresse et données). À faire d'abord : un contrôle
+  d'appariement au banc qui reproduit le cran ; puis compter la dette W à la
+  **capture** (AW admis − W-last entrés dans l'étage) ;
 - retrait de VALID résiduel sur **AW** (cause `block_req` : verdict frais et bon,
   puis verdict volumétrique qui arrive après). Demanderait un étage sur AW de la
   même forme que celui de W — **pas** `TX_BLOCK` ;
