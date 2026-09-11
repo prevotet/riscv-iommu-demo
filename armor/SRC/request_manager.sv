@@ -104,6 +104,14 @@ module request_manager #(
     input  logic        hold_b_i,
     input  logic        hold_r_i,
 
+    //  SORT DE CHAQUE ECRITURE COTE B (CTRL[10] B_FATE). Le ready B de l'aval
+    //  n'est plus celui du maitre ni un 1 de drainage : un B reel n'est pris en
+    //  aval que si la tete de la file du wrapper est une ecriture ADMISE, et il
+    //  va alors au maitre. Plus de drainage B : sous B_FATE, tout B de l'aval
+    //  appartient a une ecriture que le maitre attend, un B avale serait perdu.
+    input  logic        bfate_en_i,
+    input  logic        bfate_take_i,
+
     input  req_iommu_t  req_IP_wrapper_i,
     output req_iommu_t  req_wrapper_iommu_o
 );
@@ -148,6 +156,10 @@ module request_manager #(
             if (hold_b_i) req_wrapper_iommu_o.b_ready = 1'b0;
             if (hold_r_i) req_wrapper_iommu_o.r_ready = 1'b0;
         end
+
+        //  B_FATE : le canal B ne suit plus le blocage. R reste traite ci-dessus.
+        if (bfate_en_i)
+            req_wrapper_iommu_o.b_ready = bfate_take_i & req_IP_wrapper_i.b_ready;
     end
 
 endmodule

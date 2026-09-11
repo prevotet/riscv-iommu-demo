@@ -66,6 +66,7 @@
 #define WRAP_CTRL_WCAP          (1ULL << 7)   /* dette W comptee a la capture (v8) */
 #define WRAP_CTRL_RHOLD         (1ULL << 8)   /* reponses B/R tenues jusqu'au ready (v9) */
 #define WRAP_CTRL_WFATE         (1ULL << 9)   /* sort de chaque AW, W des AW coupes absorbe (v10) */
+#define WRAP_CTRL_BFATE         (1ULL << 10)  /* un B par ecriture, dans l'ordre (v11) */
 /* CTRL[6] TX_BLOCK n'a volontairement AUCUNE option ici : nuisible seul
  * (retraits AW de SC04 : 1 -> 4 au banc). Voir wrapper.sv. */
 
@@ -138,6 +139,21 @@
  * l'absorbait. Sur carte sous ARMOR_WCAP : SC02 17 fois sur 50 au timeout. */
 #ifndef ARMOR_WFATE
 #define ARMOR_WFATE 0
+#endif
+
+/* Compiler avec -DARMOR_BFATE=1 pour rendre au maitre exactement un B par
+ * ecriture, dans l'ordre (CTRL[10], MAGIC v11) : SLVERR fabrique pour un AW
+ * coupe, une fois son W-last passe ; B de l'aval pour un AW admis. N'a d'effet
+ * qu'avec ARMOR_WSKID=1 et ARMOR_WFATE=1.
+ *
+ * Correctif du canal B : pendant un blocage ARMOR presentait un SLVERR en
+ * continu, que l'accelerateur (b_ready a 1) comptait une fois par cycle, et
+ * apres le blocage le B d'un AW coupe ne venait jamais. Au banc, configuration
+ * de reference : 2674 B en trop, 14 W-last sans reponse ; sans RESP_HOLD, un
+ * timeout en DRAIN. Consequence sur la mesure : une iteration d'attaque ne se
+ * termine plus sur le compte de B fabriques, mais sur un B par requete. */
+#ifndef ARMOR_BFATE
+#define ARMOR_BFATE 0
 #endif
 /* CONTROLE DE VERSION PAR SEUIL, ET NON PAR EGALITE.
  *
@@ -430,6 +446,12 @@ static void armor_wrap_init(int enforce) {
         if (ARMOR_WFATE && !ARMOR_WSKID)
             printf("# ATTENTION : ARMOR_WFATE=1 sans ARMOR_WSKID -- CTRL[9] "
                    "n'agit que sur l'etage W, il est ici sans effet\r\n");
+        if (ARMOR_BFATE && v < 11)
+            printf("# ATTENTION : ARMOR_BFATE=1 mais bitstream v%u -- CTRL[10] "
+                   "SANS EFFET, le canal B reste fabrique en continu\r\n", v);
+        if (ARMOR_BFATE && !(ARMOR_WSKID && ARMOR_WFATE))
+            printf("# ATTENTION : ARMOR_BFATE=1 sans ARMOR_WSKID et ARMOR_WFATE -- "
+                   "CTRL[10] n'agit qu'avec les deux, il est ici sans effet\r\n");
     }
 
     w1[WRAP_ID_CFG_OFF   / 8] = 1ULL;         /* LHA : STREAM_ID = 1 */
@@ -443,14 +465,16 @@ static void armor_wrap_init(int enforce) {
                   | (ARMOR_WCAP  ? WRAP_CTRL_WCAP  : 0ULL)
                   | (ARMOR_RHOLD ? WRAP_CTRL_RHOLD : 0ULL)
                   | (ARMOR_WFATE ? WRAP_CTRL_WFATE : 0ULL)
+                  | (ARMOR_BFATE ? WRAP_CTRL_BFATE : 0ULL)
                   | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
     w1[WRAP_CTRL_OFF / 8] = ctrl;
     w2[WRAP_CTRL_OFF / 8] = ctrl;
     fence();
 
     printf("# ARMOR arme : ENFORCE=%d, W_SKID=%d, FRESH=%d, WCAP=%d, RHOLD=%d, WFATE=%d, "
-           "ID_CFG w1=1 w2=2, MSI_ADDR=0x%08x\r\n",
+           "BFATE=%d, ID_CFG w1=1 w2=2, MSI_ADDR=0x%08x\r\n",
            enforce, ARMOR_WSKID, ARMOR_FRESH, ARMOR_WCAP, ARMOR_RHOLD, ARMOR_WFATE,
+           ARMOR_BFATE,
            (unsigned)MSI_TARGET_DST);
 
     /* Ce que le MATERIEL a retenu, et non ce qu'on lui a demande. Un bit que le

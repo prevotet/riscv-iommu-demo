@@ -35,6 +35,8 @@ Réglages, tous par variable d'environnement :
 | `TXBLOCK=1` | `CTRL[6]`, blocage transactionnel — **jamais sans `FRESH`, nuisible seul** | 0 |
 | `WCAP=1` | `CTRL[7]`, dette W comptée à la capture dans l'étage — n'agit qu'avec `WSKID` | 0 |
 | `RHOLD=1` | `CTRL[8]`, réponse B/R présentée tenue jusqu'à son `ready` | 0 |
+| `WFATE=1` | `CTRL[9]`, sort de chaque AW ; le W d'un AW coupé est absorbé même hors blocage — n'agit qu'avec `WSKID` | 0 |
+| `BFATE=1` | `CTRL[10]`, un B par écriture, dans l'ordre : SLVERR pour un AW coupé, B de l'aval pour un AW admis — n'agit qu'avec `WSKID` et `WFATE` | 0 |
 | `OBS_CHECK=1` | contrôle croisé des compteurs matériels. **Perturbe SC03 et SC04** : run de vérification, pas de mesure | 0 |
 | `AWFIX=1` | `CTRL[3]`, inerte depuis la réfutation | 0 |
 
@@ -233,6 +235,55 @@ reste une précaution, pas un correctif mesuré.
 Les `ar=8` de SC03 qui subsistent sous `RHOLD=1` ont une cause vide et tombent à
 2031 cycles : c'est l'accélérateur qui retire son `ar_valid` sur son propre
 timeout (2000 cycles), pas ARMOR.
+
+## Canal B : un B par écriture (2026-09-11)
+
+Tous les contrôles portaient sur W et sur les réponses **perdues** ; aucun ne
+vérifiait qu'un maître reçoit **un B par écriture**, ni plus ni moins. Le banc
+le vérifie désormais côté maître : chaque W-last accepté ouvre droit à un B ; un
+B pris sans W-last en attente est **en trop**, un W-last encore ouvert quand
+l'accélérateur passe en FINISH est **manquant**. La ligne `canal B` s'imprime
+aussi quand tout est juste.
+
+Ce qu'il a trouvé, configuration de référence (`WSKID=1 FRESH=1 RHOLD=1 WFATE=1`) :
+
+| aval | B appariés | en trop | manquants | B perdus |
+|---|---|---|---|---|
+| historique (`DN_LAT=4`) | 1958 | **2674** | **14** | 0 |
+| réaliste (`DN_WGATE=1 DN_WLAT=40`) | 1971 | **782** | **1** | 0 |
+| historique, **sans `RHOLD`** | 1808 | 2005 | **164** | **815** |
+
+Deux défauts, un seul mécanisme. Pendant un blocage, `response_manager` présente
+un SLVERR fabriqué **en continu**, et `accel_wrap`, qui tient `b_ready` à 1, en
+compte **un par cycle** — jusqu'à 26 B pour 16 requêtes. Hors blocage, seul le
+B de l'aval passe, et l'aval ne répond pas à un AW coupé qu'il n'a jamais vu.
+L'accélérateur compte ses B sans les apparier : les B en trop **masquaient** les
+manquants. Sans `RHOLD` s'y ajoutent des B réels perdus pendant l'attente de
+verdict, les B en trop ne suffisent plus, et SC02 finit en timeout en état DRAIN
+(14 B reçus sur 16) — le point laissé ouvert par `W_FATE`. L'hypothèse d'alors,
+« le B d'un AW coupé ne vient jamais », était juste mais incomplète : les
+manquants existent **aussi** sous `RHOLD`, où rien n'est perdu.
+
+**`CTRL[10] B_FATE`** (MAGIC v11) : file du sort de chaque AW acquitté au maître,
+avec son ID, dépilée au B. Tête coupée : un SLVERR, un seul, après son W-last.
+Tête admise : le B de l'aval, seul cas où l'aval reçoit `b_ready`. File vide :
+aucun B.
+
+| aval | `RHOLD` | B appariés | en trop | manquants | perdus | campagne |
+|---|---|---|---|---|---|---|
+| historique | 1 | 1972 | **0** | **0** | 0 | 10 OK / 1 ÉCHEC |
+| historique | 0 | 1972 | **0** | **0** | **0** | 10 OK / 1 ÉCHEC, plus de DRAIN |
+| réaliste | 1 | 1972 | **0** | **0** | 0 | 8 OK / 3 ÉCHEC |
+
+Verdicts, ERR et appariement W inchangés pas par pas. Seules les itérations
+d'attaque s'allongent, puisque le maître attend désormais un B par requête au
+lieu de sortir sur des B fabriqués : SC02 111 → 114 cycles, SC04 232 → 238
+(aval réaliste : 1396 → 1414). Bit à 0 : chiffres identiques à ceux d'avant.
+
+Vérifications : `OBS_CHECK=1`, 0 défaut sur l'aval historique et sur l'aval
+réaliste ; `DN_WGATE=1 DN_WLAT=8`, l'aval où `W_FATE` avait été mesuré, 0 en
+trop et 0 manquant contre 2773 et 52 bit à 0. Les seuls timeouts restants sont
+ceux de SC03 en état AR, le timeout propre de l'accélérateur. **Non synthétisé.**
 
 ## Structure
 
