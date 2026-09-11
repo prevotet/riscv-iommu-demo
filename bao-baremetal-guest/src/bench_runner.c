@@ -62,6 +62,9 @@
 #define WRAP_CTRL_CNT_CLR       (1ULL << 2)
 #define WRAP_CTRL_AWFIX         (1ULL << 3)   /* INERTE : tentative refutee */
 #define WRAP_CTRL_WSKID         (1ULL << 4)   /* etage d'un emplacement sur W */
+#define WRAP_CTRL_FRESH         (1ULL << 5)   /* verdict d'identite frais exige (v7) */
+/* CTRL[6] TX_BLOCK n'a volontairement AUCUNE option ici : nuisible seul
+ * (retraits AW de SC04 : 1 -> 4 au banc). Voir wrapper.sv. */
 
 /* Compiler avec -DARMOR_WSKID=1 pour activer l'etage W (CTRL[4]).
  *
@@ -79,6 +82,19 @@
  * n'y chevauche pas ses ecritures). La carte est le seul juge. */
 #ifndef ARMOR_WSKID
 #define ARMOR_WSKID 0
+#endif
+
+/* Compiler avec -DARMOR_FRESH=1 pour exiger un verdict d'identite FRAIS
+ * (CTRL[5], MAGIC v7).
+ *
+ * Ferme la fenetre de deux cycles ou une adresse etait jugee sur le verdict de
+ * la requete PRECEDENTE (Device_ID_write_enable_o est registre). Supprime au
+ * banc le retrait d'AW de SC01, le dernier scenario qui gele. Cout mesure au
+ * banc : +2 cycles par transaction legitime.
+ *
+ * Independant de ARMOR_WSKID : valider FRESH seul d'abord, puis FRESH+WSKID. */
+#ifndef ARMOR_FRESH
+#define ARMOR_FRESH 0
 #endif
 /* CONTROLE DE VERSION PAR SEUIL, ET NON PAR EGALITE.
  *
@@ -351,6 +367,11 @@ static void armor_wrap_init(int enforce) {
             if (v < 5) printf("#   -> 0xF0/0xF8 liront zero : AUCUNE mesure de retrait de VALID (pas « aucun retrait »)\r\n");
             if (v < 6) printf("#   -> CTRL[4] sans effet : l'etage W ne peut pas etre active\r\n");
         }
+        /* Hors du seuil : v7 n'est exige QUE si l'image demande FRESH. Sur un v6
+         * le bit 5 est ignore sans rien dire, et le log se croirait protege. */
+        if (ARMOR_FRESH && v < 7)
+            printf("# ATTENTION : ARMOR_FRESH=1 mais bitstream v%u -- CTRL[5] "
+                   "SANS EFFET, ce run mesure le comportement historique\r\n", v);
     }
 
     w1[WRAP_ID_CFG_OFF   / 8] = 1ULL;         /* LHA : STREAM_ID = 1 */
@@ -360,14 +381,27 @@ static void armor_wrap_init(int enforce) {
 
     uint64_t ctrl = (enforce ? WRAP_CTRL_ENFORCE : 0ULL)
                   | (ARMOR_WSKID ? WRAP_CTRL_WSKID : 0ULL)
+                  | (ARMOR_FRESH ? WRAP_CTRL_FRESH : 0ULL)
                   | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
     w1[WRAP_CTRL_OFF / 8] = ctrl;
     w2[WRAP_CTRL_OFF / 8] = ctrl;
     fence();
 
-    printf("# ARMOR arme : ENFORCE=%d, W_SKID=%d, ID_CFG w1=1 w2=2, "
+    printf("# ARMOR arme : ENFORCE=%d, W_SKID=%d, FRESH=%d, ID_CFG w1=1 w2=2, "
            "MSI_ADDR=0x%08x\r\n",
-           enforce, ARMOR_WSKID, (unsigned)MSI_TARGET_DST);
+           enforce, ARMOR_WSKID, ARMOR_FRESH, (unsigned)MSI_TARGET_DST);
+
+    /* Ce que le MATERIEL a retenu, et non ce qu'on lui a demande. Un bit que le
+     * bitstream ne porte pas relit zero : deux images qui ne different que par
+     * un bit se confondent vite, la relecture tranche. Les impulsions (b1, b2)
+     * s'auto-effacent et sont hors du masque. */
+    uint64_t want = ctrl & ~(WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR);
+    uint64_t got1 = w1[WRAP_CTRL_OFF / 8], got2 = w2[WRAP_CTRL_OFF / 8];
+    printf("# ARMOR CTRL relu : w1=0x%02x w2=0x%02x (attendu 0x%02x)\r\n",
+           (unsigned)got1, (unsigned)got2, (unsigned)want);
+    if (got1 != want || got2 != want)
+        printf("# ATTENTION : CTRL relu differe de CTRL ecrit -- la configuration "
+               "annoncee ci-dessus N'EST PAS celle du materiel\r\n");
     printf("# ARMOR devid_last : w1=%lu w2=%lu\r\n",
            (unsigned long)w1[WRAP_DEVID_LAST_OFF / 8],
            (unsigned long)w2[WRAP_DEVID_LAST_OFF / 8]);
@@ -375,7 +409,7 @@ static void armor_wrap_init(int enforce) {
 
 /* Vide les compteurs d'evenements ARMOR entre deux scenarios. */
 /* NB : ce clear RELIT CTRL et n'ecrit que les bits d'impulsion par-dessus. Il
- * preserve donc ENFORCE et W_SKID. Ne pas le "simplifier" en ecrivant une
+ * preserve donc ENFORCE, W_SKID et FRESH. Ne pas le "simplifier" en ecrivant une
  * constante : on desarmerait l'etage W au premier scenario, et le correctif
  * serait teste sur un wrapper qui ne l'a plus. */
 static void armor_wrap_clear(void) {
@@ -464,8 +498,13 @@ static void armor_wrap_perf_one(const char *tag, const char *who, uint64_t base)
         printf("# ARMORLAT,%s,%s,n=0 (aucune transaction echantillonnee)\r\n",
                tag, who);
     } else {
+    /* det_sum et tx_sum en fin de ligne : les moyennes ci-dessus sont TRONQUEES
+     * (division entiere), et un surcout d'un cycle -- celui de FRESH_VERDICT sur
+     * carte, 2026-09-11 -- disparait dedans (37 -> 37). La somme donne la
+     * moyenne exacte ; c'est elle qu'on publie. */
     printf("# ARMORLAT,%s,%s,n=%lu,n_verdict=%lu,det_avg=%lu,tx_avg=%lu,"
-           "det_last=%lu,tx_last=%lu,det_min=%lu,det_max=%lu,tx_min=%lu,tx_max=%lu\r\n",
+           "det_last=%lu,tx_last=%lu,det_min=%lu,det_max=%lu,tx_min=%lu,tx_max=%lu,"
+           "det_sum=%lu,tx_sum=%lu\r\n",
            tag, who,
            (unsigned long)n, (unsigned long)n_blk,
            (unsigned long)det_avg, (unsigned long)tx_avg,
@@ -474,7 +513,8 @@ static void armor_wrap_perf_one(const char *tag, const char *who, uint64_t base)
            (unsigned long)(lat_mm        & 0xFFFF),
            (unsigned long)((lat_mm >> 16) & 0xFFFF),
            (unsigned long)((lat_mm >> 32) & 0xFFFF),
-           (unsigned long)((lat_mm >> 48) & 0xFFFF));
+           (unsigned long)((lat_mm >> 48) & 0xFFFF),
+           (unsigned long)det_sum, (unsigned long)tx_sum);
     }
 
     printf("# ARMORHW,%s,%s,cyc_block=%lu,cyc_hold=%lu,req_up=%lu,req_dn=%lu,"
