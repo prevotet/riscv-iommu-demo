@@ -34,6 +34,7 @@ Réglages, tous par variable d'environnement :
 | `FRESH=1` | `CTRL[5]`, verdict d'identité frais | 0 |
 | `TXBLOCK=1` | `CTRL[6]`, blocage transactionnel — **jamais sans `FRESH`, nuisible seul** | 0 |
 | `WCAP=1` | `CTRL[7]`, dette W comptée à la capture dans l'étage — n'agit qu'avec `WSKID` | 0 |
+| `RHOLD=1` | `CTRL[8]`, réponse B/R présentée tenue jusqu'à son `ready` | 0 |
 | `OBS_CHECK=1` | contrôle croisé des compteurs matériels. **Perturbe SC03 et SC04** : run de vérification, pas de mesure | 0 |
 | `AWFIX=1` | `CTRL[3]`, inerte depuis la réfutation | 0 |
 
@@ -206,6 +207,32 @@ handshake aval et celui du maître sont découplés par construction, et le read
 du maître baisse à juste titre pendant que l'aval vide l'étage. Le détecteur —
 et le compteur matériel `cnt_w_ghost_q`, même définition — est désormais
 inhibé quand l'étage est actif. L'appariement fait foi.
+
+## Réponses tenues et réponses perdues (2026-09-11)
+
+`response_manager` produisait ses réponses comme fonctions **pures** de l'état
+courant : une réponse B/R présentée au maître sans son `ready` retombait dès que
+la branche changeait — SLVERR fabriqué à la fin d'un blocage, ou R réelle à
+l'ouverture d'une attente de verdict. C'est le troisième site de retrait de
+VALID (`b-r` sur carte : 16 sans `FRESH`, 73 avec). `CTRL[8] RESP_HOLD`
+verrouille toute réponse présentée jusqu'à son `ready` :
+
+| aval | `RHOLD` | retraits B/R SC03 | réponses perdues | campagne |
+|---|---|---|---|---|
+| réaliste | 0 | **8** | 0 | 8 OK / 3 ÉCHEC |
+| réaliste | 1 | **0** | 0 | 8 OK / 3 ÉCHEC |
+| historique | 1 | **0** | 0 | 10 OK / 1 ÉCHEC |
+
+Le banc compte aussi les **réponses perdues** : une réponse prise en aval alors
+que le maître ne voyait aucun valid, hors drainage anti-wedge (qui en avale à
+dessein). La branche d'attente en faisait craindre, en masquant les réponses de
+l'aval sans masquer le `ready` du maître. **Le détecteur n'en a jamais compté une
+seule**, avec ou sans le correctif : faire passer les réponses pendant l'attente
+reste une précaution, pas un correctif mesuré.
+
+Les `ar=8` de SC03 qui subsistent sous `RHOLD=1` ont une cause vide et tombent à
+2031 cycles : c'est l'accélérateur qui retire son `ar_valid` sur son propre
+timeout (2000 cycles), pas ARMOR.
 
 ## Structure
 

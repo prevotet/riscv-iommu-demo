@@ -64,6 +64,7 @@
 #define WRAP_CTRL_WSKID         (1ULL << 4)   /* etage d'un emplacement sur W */
 #define WRAP_CTRL_FRESH         (1ULL << 5)   /* verdict d'identite frais exige (v7) */
 #define WRAP_CTRL_WCAP          (1ULL << 7)   /* dette W comptee a la capture (v8) */
+#define WRAP_CTRL_RHOLD         (1ULL << 8)   /* reponses B/R tenues jusqu'au ready (v9) */
 /* CTRL[6] TX_BLOCK n'a volontairement AUCUNE option ici : nuisible seul
  * (retraits AW de SC04 : 1 -> 4 au banc). Voir wrapper.sv. */
 
@@ -111,6 +112,19 @@
  * carte W_SKID=1 comme un beat `W V- last` bloque en aval avec w_owed=0. */
 #ifndef ARMOR_WCAP
 #define ARMOR_WCAP 0
+#endif
+
+/* Compiler avec -DARMOR_RHOLD=1 pour tenir toute reponse B/R presentee au maitre
+ * a l'identique jusqu'a son ready (CTRL[8], MAGIC v9).
+ *
+ * Correctif du troisieme site de retrait de VALID : response_manager retirait
+ * ses reponses des que sa branche changait -- SLVERR fabrique a la fin d'un
+ * blocage, ou R reelle a l'ouverture d'une attente de verdict. SC03 sur carte :
+ * b-r = 16 sans FRESH, 73 avec ; au banc, 8 -> 0 sur SC03. L'attente laisse
+ * aussi passer les reponses de l'aval : risque de perte lu au RTL, jamais
+ * observe au banc. */
+#ifndef ARMOR_RHOLD
+#define ARMOR_RHOLD 0
 #endif
 /* CONTROLE DE VERSION PAR SEUIL, ET NON PAR EGALITE.
  *
@@ -394,6 +408,9 @@ static void armor_wrap_init(int enforce) {
         if (ARMOR_WCAP && !ARMOR_WSKID)
             printf("# ATTENTION : ARMOR_WCAP=1 sans ARMOR_WSKID -- CTRL[7] "
                    "n'agit que sur l'etage W, il est ici sans effet\r\n");
+        if (ARMOR_RHOLD && v < 9)
+            printf("# ATTENTION : ARMOR_RHOLD=1 mais bitstream v%u -- CTRL[8] "
+                   "SANS EFFET, les reponses B/R peuvent etre retirees\r\n", v);
     }
 
     w1[WRAP_ID_CFG_OFF   / 8] = 1ULL;         /* LHA : STREAM_ID = 1 */
@@ -405,14 +422,16 @@ static void armor_wrap_init(int enforce) {
                   | (ARMOR_WSKID ? WRAP_CTRL_WSKID : 0ULL)
                   | (ARMOR_FRESH ? WRAP_CTRL_FRESH : 0ULL)
                   | (ARMOR_WCAP  ? WRAP_CTRL_WCAP  : 0ULL)
+                  | (ARMOR_RHOLD ? WRAP_CTRL_RHOLD : 0ULL)
                   | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
     w1[WRAP_CTRL_OFF / 8] = ctrl;
     w2[WRAP_CTRL_OFF / 8] = ctrl;
     fence();
 
-    printf("# ARMOR arme : ENFORCE=%d, W_SKID=%d, FRESH=%d, WCAP=%d, ID_CFG w1=1 w2=2, "
+    printf("# ARMOR arme : ENFORCE=%d, W_SKID=%d, FRESH=%d, WCAP=%d, RHOLD=%d, ID_CFG w1=1 w2=2, "
            "MSI_ADDR=0x%08x\r\n",
-           enforce, ARMOR_WSKID, ARMOR_FRESH, ARMOR_WCAP, (unsigned)MSI_TARGET_DST);
+           enforce, ARMOR_WSKID, ARMOR_FRESH, ARMOR_WCAP, ARMOR_RHOLD,
+           (unsigned)MSI_TARGET_DST);
 
     /* Ce que le MATERIEL a retenu, et non ce qu'on lui a demande. Un bit que le
      * bitstream ne porte pas relit zero : deux images qui ne different que par
@@ -432,7 +451,7 @@ static void armor_wrap_init(int enforce) {
 
 /* Vide les compteurs d'evenements ARMOR entre deux scenarios. */
 /* NB : ce clear RELIT CTRL et n'ecrit que les bits d'impulsion par-dessus. Il
- * preserve donc ENFORCE, W_SKID, FRESH et WCAP. Ne pas le "simplifier" en ecrivant une
+ * preserve donc ENFORCE, W_SKID, FRESH, WCAP et RHOLD. Ne pas le "simplifier" en ecrivant une
  * constante : on desarmerait l'etage W au premier scenario, et le correctif
  * serait teste sur un wrapper qui ne l'a plus. */
 static void armor_wrap_clear(void) {

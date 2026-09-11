@@ -151,6 +151,12 @@ fi
 # ecriture). N'a d'effet qu'avec WSKID=1.
 [[ "${WCAP:-0}" == "1" ]]    && DEFINES+=("-d" "WCAP")
 
+# RHOLD=1 : CTRL[8], une reponse B/R presentee au maitre est tenue a l'identique
+# jusqu'a son ready, et l'attente de verdict laisse passer les reponses de
+# l'aval. Correctif du troisieme site de retrait de VALID (SC03 : b-r = 16 sans
+# FRESH, 73 avec, sur carte).
+[[ "${RHOLD:-0}" == "1" ]]   && DEFINES+=("-d" "RHOLD")
+
 echo "=== xvlog ==="
 xvlog -sv --nolog \
       "${DEFINES[@]+"${DEFINES[@]}"}" \

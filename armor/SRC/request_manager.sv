@@ -96,6 +96,14 @@ module request_manager #(
     //  attend une reponse que personne ne lui rendra.
     input  logic        txblock_en_i,
 
+    //  MAINTIEN DES REPONSES FABRIQUEES (CTRL[8] RESP_HOLD). Tant que
+    //  response_manager tient un B/R FABRIQUE vers le maitre, le ready du maitre
+    //  appartient a cette reponse-la : le transmettre a l'aval y ferait prendre
+    //  en meme temps une reponse reelle, perdue. Sans effet pendant le drainage
+    //  anti-wedge, qui avale deja les reponses de l'aval.
+    input  logic        hold_b_i,
+    input  logic        hold_r_i,
+
     input  req_iommu_t  req_IP_wrapper_i,
     output req_iommu_t  req_wrapper_iommu_o
 );
@@ -133,6 +141,12 @@ module request_manager #(
         if ((block_req_i || bad_id_i) && !(txblock_en_i && w_pending_i)) begin
             req_wrapper_iommu_o.b_ready = 1'b1;
             req_wrapper_iommu_o.r_ready = 1'b1;
+        end else begin
+            //  RESP_HOLD : une reponse fabriquee est tenue vers le maitre, son
+            //  ready lui appartient. Aucune reponse reelle n'est prise en aval
+            //  pendant ce temps -- elle y reste presentee, et passera ensuite.
+            if (hold_b_i) req_wrapper_iommu_o.b_ready = 1'b0;
+            if (hold_r_i) req_wrapper_iommu_o.r_ready = 1'b0;
         end
     end
 
