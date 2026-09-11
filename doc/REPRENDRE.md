@@ -60,7 +60,8 @@ pkill -x hw_server
 tools/capture_uart.sh -j payloads/fw_payload_v10_fresh1_wskid1_rhold1_wfate1.elf
 ```
 
-**Prochaine action** : synthétiser le bitstream v11 — `CTRL[10] B_FATE`, un B par écriture
+**Prochaine action** : synthétiser le bitstream v11 **sur la machine d'origine** (la seconde
+n'a pas de licence de synthèse, § 1) — `CTRL[10] B_FATE`, un B par écriture
 (§ 5, « Encore ouvert », et `armor/tb/README.md`, « Canal B ») —, puis l'A/B sur carte
 `bfate0` / `bfate1` sur la configuration de référence (`CTRL` relu `0x331` / `0x731`).
 **Validé au banc seulement.** Les runs répétés de la configuration de référence sont faits
@@ -83,13 +84,29 @@ heures à réinterpréter. C'est arrivé le 2026-09-08.
 
 Outils attendus sur la machine :
 
-- **Vivado 2022.2** (synthèse, programmation, et `xsim` pour le banc) ;
+- **Vivado 2022.2** (synthèse, programmation, et `xsim` pour le banc). La **synthèse exige
+  une licence** couvrant le `xc7k325t`, absent de l'édition gratuite : sans elle,
+  `2_build_HB.sh fpga` échoue après les premières IP sur `ERROR: [Common 17-345] A valid
+  license was not found for feature 'Synthesis'`. La licence est **nodelocked sur
+  l'adresse MAC** : son `HOSTID` doit être celle de la machine, sans les deux-points
+  (`cat /sys/class/net/<iface>/address`). Sur une VM, une licence émise pour une autre
+  VM échoue — rencontré le 2026-09-11, le fichier portait le HOSTID de la machine
+  d'origine ; il a fallu le régénérer sur le portail AMD pour cette MAC. Fichier hors
+  des chemins par défaut : `XILINXD_LICENSE_FILE=<chemin>/Xilinx.lic`, sinon Vivado ne
+  le voit pas ;
 - la toolchain **`/home/jc/Work/Software/riscv-imac/bin/riscv64-unknown-elf-`** — à
   adapter dans les commandes si le chemin diffère ; `tools/load_jtag.sh` accepte
   `READELF=<chemin>` ;
 - **OpenOCD ≥ 0.12** pour le chargement JTAG : `load_jtag.sh` appelle `/usr/bin/openocd`,
   `OPENOCD=<chemin>` sinon. Celui de Quartus (0.11) ne comprend pas la config ;
-- **`dtc`** (paquet `device-tree-compiler`), pour le DTB chargé par JTAG.
+- **`dtc`** (paquet `device-tree-compiler`), pour le DTB chargé par JTAG ;
+- les **fichiers de carte Digilent**, pour la synthèse seulement
+  (`digilentinc.com:genesys2:part0:1.1`). Sans eux, `2_build_HB.sh fpga` s'arrête en
+  6 s sur `ERROR: [Board 49-71]`, dès la première IP. Sans droits sur l'installation
+  Vivado : `git clone https://github.com/Digilent/vivado-boards`, puis dans
+  `~/.Xilinx/Vivado/Vivado_init.tcl` :
+  `set_param board.repoPaths [list <clone>/new/board_files]`. Rencontré le 2026-09-11
+  sur la seconde machine.
 
 Même carte, même câblage : la **console** passe par l'adaptateur **FT232R séparé**
 (`0403:6001`, en général `/dev/ttyUSB0`), le **JTAG** par l'USB de la Genesys2
