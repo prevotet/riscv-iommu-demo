@@ -3,8 +3,9 @@
 #  Capture de l'UART de la Genesys2, avec le log gardé.
 #
 #    tools/capture_uart.sh                 # détecte le port, écrit dans results/
+#    tools/capture_uart.sh -j img.elf      # ouvre le port PUIS charge img par JTAG
 #    tools/capture_uart.sh -o mon.log      # nom de fichier imposé
-#    tools/capture_uart.sh -t 120          # silence toléré, en secondes (défaut 300)
+#    tools/capture_uart.sh -t 120          # silence toléré, en secondes (défaut 120)
 #    tools/capture_uart.sh -d /dev/ttyUSB1 # port imposé
 #
 #  Pourquoi ce script plutôt qu'un picocom à la main :
@@ -16,13 +17,24 @@
 #
 #  2. LE PORT QUI DISPARAÎT. Vivado prend le câble par libusb pour le JTAG et
 #     détache ftdi_sio des DEUX canaux du FT2232 ; au départ de hw_server les
-#     ttyUSB ne reviennent pas tout seuls. On le détecte et on rebinde.
+#     ttyUSB ne reviennent pas tout seuls. On le détecte et on rebinde -- mais
+#     SEULEMENT si aucun FT232R n'expose de tty : avec l'adaptateur console
+#     branché, le rebind n'a jamais lieu.
 #     Corollaire : programmer le FPGA AVANT d'ouvrir la capture, jamais après.
 #
 #  3. LE GEL. Une campagne qui se fige n'émet plus rien et un picocom attendrait
 #     indéfiniment. Ici un silence prolongé arrête la capture en le disant, et
 #     le log contient tout ce qui a précédé -- c'est justement ce qu'on veut
 #     lire quand ça gèle.
+#
+#  4. LE JTAG (-j, 2026-09-11). Avec tools/load_jtag.sh il n'y a PAS de reset de
+#     carte à faire : OpenOCD fait reset halt, charge, puis resume. Mais lancé
+#     depuis un second terminal, le chargement faisait la course avec la
+#     capture, et un run a perdu tout son en-tête (bench_2026-09-11_143200.log,
+#     capture ouverte trop tard). Avec -j, c'est la capture qui lance le
+#     chargement, UNE FOIS le port ouvert et la lecture démarrée : l'en-tête ne
+#     peut plus être perdu, et un seul terminal suffit. La sortie d'OpenOCD va
+#     dans <journal>.openocd -- pas .log, pour ne pas passer pour une campagne.
 # =============================================================================
 set -uo pipefail
 
@@ -33,16 +45,23 @@ BAUD=115200
 IDLE=120
 DEV=""
 LOG=""
+JTAG_IMG=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -d) DEV="$2";  shift 2 ;;
-        -o) LOG="$2";  shift 2 ;;
-        -t) IDLE="$2"; shift 2 ;;
-        -h|--help) sed -n '2,30p' "${BASH_SOURCE[0]}"; exit 0 ;;
+        -d) DEV="$2";      shift 2 ;;
+        -o) LOG="$2";      shift 2 ;;
+        -t) IDLE="$2";     shift 2 ;;
+        -j) JTAG_IMG="$2"; shift 2 ;;
+        -h|--help) sed -n '2,38p' "${BASH_SOURCE[0]}"; exit 0 ;;
         *)  echo "Option inconnue : $1" >&2; exit 1 ;;
     esac
 done
+
+if [[ -n "$JTAG_IMG" ]]; then
+    [[ -f "$JTAG_IMG" ]] || { echo "Image JTAG introuvable : $JTAG_IMG" >&2; exit 1; }
+    [[ -x "$ROOT/tools/load_jtag.sh" ]] || { echo "tools/load_jtag.sh absent ou non exécutable." >&2; exit 1; }
+fi
 
 # -----------------------------------------------------------------------------
 #  Trouver l'UART.
@@ -160,14 +179,21 @@ fi
 #  fichier, et le récapitulatif final échoue sur son propre journal.
 : > "$LOG" || { echo "Impossible d'écrire $LOG." >&2; exit 1; }
 
+#  Journal d'OpenOCD : .openocd et pas .log, pour qu'aucun outil cherchant les
+#  campagnes (bench_*.log) ne le prenne pour l'une d'elles.
+JTAG_LOG="${LOG%.log}.openocd"
+
 stty -F "$DEV" "$BAUD" raw -echo -echoe -echok -crtscts
 
 echo "Port    : $DEV à $BAUD bauds"
 echo "Journal : $LOG"
 echo "Arrêt   : fin de campagne, ${IDLE}s de silence, ou Ctrl-C."
 echo
-echo ">>> RESET LA CARTE MAINTENANT <<<   (la capture est ouverte, l'en-tête sera pris)"
-echo
+if [[ -z "$JTAG_IMG" ]]; then
+    echo ">>> RESET LA CARTE MAINTENANT <<<   (la capture est ouverte, l'en-tête sera pris)"
+    echo "    (chargement par JTAG : relancer avec -j <image.elf>, sans reset)"
+    echo
+fi
 
 # -----------------------------------------------------------------------------
 #  Boucle de lecture, mesurée en OCTETS et non en lignes.
@@ -191,6 +217,26 @@ echo
 dd if="$DEV" bs=1 status=none >> "$LOG" &
 CATPID=$!
 trap 'kill "$CATPID" 2>/dev/null' EXIT INT TERM
+
+# -----------------------------------------------------------------------------
+#  Chargement JTAG, APRÈS le démarrage de la lecture : c'est tout l'objet de -j.
+#  Synchrone (~8 s pour un ELF, ~2 min pour un BIN) : rien de la console n'est
+#  perdu pendant ce temps, dd écrit déjà dans le journal, et la boucle ci-dessous
+#  affichera d'un bloc ce qui est arrivé.
+# -----------------------------------------------------------------------------
+if [[ -n "$JTAG_IMG" ]]; then
+    sleep 1
+    kill -0 "$CATPID" 2>/dev/null || { echo "La lecture du port n'a pas démarré." >&2; exit 1; }
+    echo "Chargement JTAG : $JTAG_IMG  (sortie OpenOCD : $JTAG_LOG)"
+    if "$ROOT/tools/load_jtag.sh" "$JTAG_IMG" > "$JTAG_LOG" 2>&1; then
+        echo "Chargement JTAG terminé : firmware lancé, pas de reset à faire."
+        echo
+    else
+        echo "ÉCHEC du chargement JTAG — fin de $JTAG_LOG :" >&2
+        tail -n 15 "$JTAG_LOG" >&2
+        exit 1
+    fi
+fi
 
 off=0
 idle=0
@@ -235,7 +281,11 @@ if (( lines == 0 )); then
     alt="$(other_uart || true)"
     echo
     echo "Aucun octet reçu. Dans l'ordre de vraisemblance :"
-    echo "  1. la carte n'a pas été resetée après l'ouverture de la capture ;"
+    if [[ -n "$JTAG_IMG" ]]; then
+        echo "  1. le firmware n'a pas démarré après le chargement (voir $JTAG_LOG) ;"
+    else
+        echo "  1. la carte n'a pas été resetée après l'ouverture de la capture ;"
+    fi
     [[ -n "$alt" ]] && \
     echo "  2. mauvais canal — essayer l'autre : $0 -d $alt"
     echo "  3. le FPGA n'est pas programmé, ou le firmware n'a pas démarré."
