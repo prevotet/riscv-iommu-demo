@@ -63,6 +63,7 @@
 #define WRAP_CTRL_AWFIX         (1ULL << 3)   /* INERTE : tentative refutee */
 #define WRAP_CTRL_WSKID         (1ULL << 4)   /* etage d'un emplacement sur W */
 #define WRAP_CTRL_FRESH         (1ULL << 5)   /* verdict d'identite frais exige (v7) */
+#define WRAP_CTRL_WCAP          (1ULL << 7)   /* dette W comptee a la capture (v8) */
 /* CTRL[6] TX_BLOCK n'a volontairement AUCUNE option ici : nuisible seul
  * (retraits AW de SC04 : 1 -> 4 au banc). Voir wrapper.sv. */
 
@@ -95,6 +96,21 @@
  * Independant de ARMOR_WSKID : valider FRESH seul d'abord, puis FRESH+WSKID. */
 #ifndef ARMOR_FRESH
 #define ARMOR_FRESH 0
+#endif
+
+/* Compiler avec -DARMOR_WCAP=1 pour compter la dette W A LA CAPTURE dans
+ * l'etage W (CTRL[7], MAGIC v8). N'a d'effet qu'avec ARMOR_WSKID=1.
+ *
+ * Correctif d'un defaut de l'etage W invisible a tous les compteurs : sa
+ * capture etait autorisee par la dette W comptee EN AVAL, qui ignore un dernier
+ * beat deja entre dans l'etage. Pendant une tempete d'ecritures bloquee, le beat
+ * d'une ecriture COUPEE y etait capture, restait presente en aval, et partait
+ * avec l'adresse legitime suivante -- chaque ecriture decalee d'un cran ensuite.
+ * Demontre au banc le 2026-09-11 (aval a W conditionne, latence W de 40 cycles :
+ * 147 beats avec la donnee d'une autre ecriture) ; releve sur les trois runs
+ * carte W_SKID=1 comme un beat `W V- last` bloque en aval avec w_owed=0. */
+#ifndef ARMOR_WCAP
+#define ARMOR_WCAP 0
 #endif
 /* CONTROLE DE VERSION PAR SEUIL, ET NON PAR EGALITE.
  *
@@ -372,6 +388,12 @@ static void armor_wrap_init(int enforce) {
         if (ARMOR_FRESH && v < 7)
             printf("# ATTENTION : ARMOR_FRESH=1 mais bitstream v%u -- CTRL[5] "
                    "SANS EFFET, ce run mesure le comportement historique\r\n", v);
+        if (ARMOR_WCAP && v < 8)
+            printf("# ATTENTION : ARMOR_WCAP=1 mais bitstream v%u -- CTRL[7] "
+                   "SANS EFFET, le canal W peut rester decale\r\n", v);
+        if (ARMOR_WCAP && !ARMOR_WSKID)
+            printf("# ATTENTION : ARMOR_WCAP=1 sans ARMOR_WSKID -- CTRL[7] "
+                   "n'agit que sur l'etage W, il est ici sans effet\r\n");
     }
 
     w1[WRAP_ID_CFG_OFF   / 8] = 1ULL;         /* LHA : STREAM_ID = 1 */
@@ -382,14 +404,15 @@ static void armor_wrap_init(int enforce) {
     uint64_t ctrl = (enforce ? WRAP_CTRL_ENFORCE : 0ULL)
                   | (ARMOR_WSKID ? WRAP_CTRL_WSKID : 0ULL)
                   | (ARMOR_FRESH ? WRAP_CTRL_FRESH : 0ULL)
+                  | (ARMOR_WCAP  ? WRAP_CTRL_WCAP  : 0ULL)
                   | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
     w1[WRAP_CTRL_OFF / 8] = ctrl;
     w2[WRAP_CTRL_OFF / 8] = ctrl;
     fence();
 
-    printf("# ARMOR arme : ENFORCE=%d, W_SKID=%d, FRESH=%d, ID_CFG w1=1 w2=2, "
+    printf("# ARMOR arme : ENFORCE=%d, W_SKID=%d, FRESH=%d, WCAP=%d, ID_CFG w1=1 w2=2, "
            "MSI_ADDR=0x%08x\r\n",
-           enforce, ARMOR_WSKID, ARMOR_FRESH, (unsigned)MSI_TARGET_DST);
+           enforce, ARMOR_WSKID, ARMOR_FRESH, ARMOR_WCAP, (unsigned)MSI_TARGET_DST);
 
     /* Ce que le MATERIEL a retenu, et non ce qu'on lui a demande. Un bit que le
      * bitstream ne porte pas relit zero : deux images qui ne different que par
@@ -409,7 +432,7 @@ static void armor_wrap_init(int enforce) {
 
 /* Vide les compteurs d'evenements ARMOR entre deux scenarios. */
 /* NB : ce clear RELIT CTRL et n'ecrit que les bits d'impulsion par-dessus. Il
- * preserve donc ENFORCE, W_SKID et FRESH. Ne pas le "simplifier" en ecrivant une
+ * preserve donc ENFORCE, W_SKID, FRESH et WCAP. Ne pas le "simplifier" en ecrivant une
  * constante : on desarmerait l'etage W au premier scenario, et le correctif
  * serait teste sur un wrapper qui ne l'a plus. */
 static void armor_wrap_clear(void) {

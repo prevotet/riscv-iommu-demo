@@ -233,19 +233,29 @@ référence).
 
 **Encore ouvert :**
 
-- **l'étage W décale le canal d'un cran — mécanisme confirmé au RTL, conséquence
-  NON démontrée.** Dans les trois runs `W_SKID=1` (v6 ×2, v7 ×2), un beat W reste
-  présenté en aval dès SC02 et jusqu'à la fin, avec `w_owed=0` et `w_pending=0`
-  (`ARMORHS,pre-ctrl,w2,dn` : `W V- last`). Il n'est pas la cause du gel de SC01
-  (présent aussi avant le SC01 qui passe). Cause : `request_manager` laisse passer le
-  W tant que `w_owed != 0`, or `w_owed` ne décroît qu'au W-last pris **en aval**, à la
-  sortie de l'étage ; au cycle où ce beat sort, l'étage capture le beat suivant, d'une
-  adresse non admise. Conséquence probable : chaque écriture suivante reçoit les
-  données de la précédente, y compris celles d'une écriture d'attaque coupée.
-  **Aucun compteur ne le voit** (le solde AW/W-last reste juste) **et le banc non
-  plus** (il n'apparie pas adresse et données). À faire d'abord : un contrôle
-  d'appariement au banc qui reproduit le cran ; puis compter la dette W à la
-  **capture** (AW admis − W-last entrés dans l'étage) ;
+- **l'étage W décale le canal W — DÉMONTRÉ au banc, corrigé par `CTRL[7]
+  W_CAPDEBT` (MAGIC v8), validé en simulation, PAS ENCORE SYNTHÉTISÉ.** Sur carte,
+  dans les quatre runs `W_SKID=1` (v6 ×2, v7 ×2), un beat W reste présenté en aval
+  dès SC02 et jusqu'à la fin, avec `w_owed=0` et `w_pending=0`
+  (`ARMORHS,pre-ctrl,w2,dn` : `W V- last`) ; il n'est pas la cause du gel de SC01.
+  Mécanisme : pendant un blocage, `response_manager` fabrique `aw_ready`, l'écriture
+  suivante coupée envoie son W pendant que le dernier beat de la précédente attend
+  encore dans l'étage (40 à 45 cycles en aval), et la dette W, comptée **en aval**,
+  autorise sa capture. Ce beat part ensuite avec l'adresse légitime suivante.
+  **Aucun compteur matériel ne le voit.** Il a fallu deux ajouts au banc : un aval
+  réaliste pour W (`DN_WGATE=1 DN_WLAT=40`, cinquième angle mort) et un contrôle
+  d'appariement adresse/donnée — voir `armor/tb/README.md`.
+
+  | aval banc | `WCAP` | beats d'une autre écriture | fantômes | `OBS_CHECK` |
+  |---|---|---|---|---|
+  | réaliste | 0 | **147** (1er : 63 beats plus vieux) | 0 | — |
+  | réaliste | 1 | **0** / 2408 | 0 | 0 défaut |
+  | historique | 1 | **0** / 1586 | 0 | — |
+
+  Verdicts de campagne inchangés (8/3 aval réaliste, 10/1 historique). Au passage,
+  le détecteur de fantômes — banc ET `cnt_w_ghost_q` — donnait 187 fausses alarmes
+  sous `WCAP=1` : handshakes aval et maître sont découplés par l'étage. Il est
+  désormais inhibé quand `W_SKID=1`. **À valider sur carte après synthèse** ;
 - retrait de VALID résiduel sur **AW** (cause `block_req` : verdict frais et bon,
   puis verdict volumétrique qui arrive après). Demanderait un étage sur AW de la
   même forme que celui de W — **pas** `TX_BLOCK` ;

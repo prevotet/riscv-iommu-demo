@@ -145,6 +145,7 @@ logic                   csr_awfix_q;      // CTRL[3] : ne pas retirer un VALID
 logic                   csr_wskid_q;      // CTRL[4] : etage W (skid buffer)
 logic                   csr_fresh_q;      // CTRL[5] : verdict FRAIS exige
 logic                   csr_txblk_q;      // CTRL[6] : blocage transactionnel
+logic                   csr_wcap_q;       // CTRL[7] : dette W comptee a la capture
 logic [63:0]            csr_sticky_q;
 logic [31:0]            cnt_banned_q, cnt_storm_q, cnt_outs_q, cnt_msi_q;
 logic [DevIDWidth-1:0]  dev_id_last_q;
@@ -407,6 +408,12 @@ assign no_cut_ar = 1'b0;
 logic w_pending;
 assign w_pending = (w_owed_q != 4'h0);
 
+//  w_pending_sel : la dette W effectivement presentee a request_manager et a
+//  response_manager. Sous CTRL[4] W_SKID + CTRL[7] W_CAPDEBT, c'est la dette
+//  comptee a la CAPTURE dans l'etage (calculee apres son instanciation) ;
+//  sinon w_pending, inchange.
+logic w_pending_sel;
+
 
 
 ID_extractor#(
@@ -477,7 +484,7 @@ request_manager #(
     .block_req_i(block_req_i),      // signal combiné
     .bad_id_i(bad_id),
     .verdict_known_i(verdict_known_eff),
-    .w_pending_i(w_pending),
+    .w_pending_i(w_pending_sel),    // dette W : voir W_CAPDEBT apres l'etage
     .no_cut_aw_i(no_cut_aw),
     .no_cut_ar_i(no_cut_ar),
     .txblock_en_i(csr_txblk_q),
@@ -512,21 +519,71 @@ w_skid_buffer #(
     .w_ready_i (resp_wrapper_iommu_i.w_ready)
 );
 
-//  RISQUE LATENT, non atteignable par CET accelerateur mais a connaitre.
+// -----------------------------------------------------------------------------
+//  DETTE W COMPTEE A LA CAPTURE  (CTRL[7] W_CAPDEBT, 2026-09-11)
 //
-//  La capture est autorisee par `w_pending`, qui est un COMPTE d'AW dus en aval,
-//  pas un suivi par transaction. Au cycle exact ou le dernier beat d'une rafale
-//  est accepte en aval, `w_owed` vaut encore 1 : un beat presente par le maitre
-//  dans ce meme cycle serait donc capture, puis emis alors que plus aucun AW
-//  n'attend de donnees -- un orphelin W.
+//  CE COMMENTAIRE REMPLACE UN « RISQUE LATENT, NON ATTEIGNABLE » QUI ETAIT FAUX.
+//  Il raisonnait sur le seul cycle de vidange de l'etage, et concluait que la
+//  FSM de l'accelerateur (G_NEXT puis G_AW) ne presentait jamais de W a temps.
+//  Il oubliait deux choses mesurees :
 //
-//  Pas atteignable ici : la FSM de l'accelerateur passe par G_NEXT puis G_AW
-//  apres son dernier beat, elle ne presente jamais de W dans ce cycle
-//  (`w_owed max = 1`, mesure au banc ET sur carte). Un maitre qui pipelinerait
-//  ses ecritures le rendrait atteignable.
+//    - l'aval met 40 a 45 cycles a prendre un beat W (ARMORSTALL sur carte) :
+//      le dernier beat d'une ecriture reste dans l'etage bien plus d'un cycle ;
+//    - pendant un blocage, response_manager FABRIQUE aw_ready vers le maitre :
+//      l'ecriture suivante, pourtant coupee, est acquittee, et son W arrive
+//      pendant que le beat precedent attend encore dans l'etage.
 //
-//  Deux compteurs le surveillent deja et doivent rester a zero :
-//  `cnt_w_orphan_q` cote materiel (0xE0[63:32]) et `w_excess_tot` au banc.
+//  `w_pending`, compte en AVAL, vaut encore 1 a ce moment : le W de l'ecriture
+//  coupee est capture, reste presente en aval avec w_owed = 0, puis part avec
+//  l'adresse legitime suivante. Le vrai beat de celle-ci se fait coincer a son
+//  tour : tout le canal W est decale d'un cran, et le solde AW / W-last reste
+//  JUSTE. Ni `cnt_w_orphan_q` ni `w_excess_tot` ne le voient -- ils attendaient
+//  un beat sans adresse, pas un beat qui attend la prochaine.
+//
+//  Preuve : banc a aval realiste (DN_WGATE=1 DN_WLAT=40), controle d'appariement
+//  adresse/donnee -- 147 beats partis avec la donnee d'une AUTRE ecriture, le
+//  premier 63 beats plus vieux que prevu. Sur carte, dans les trois runs
+//  W_SKID=1 : un beat `W V- last` bloque en aval avec w_owed = 0, des SC02.
+//
+//  LE CORRECTIF. La dette qui autorise la capture doit etre comptee la ou la
+//  decision est prise : AW admis en aval MOINS W-last ENTRES dans l'etage. Un
+//  beat de plus ne peut alors plus etre capture pour une adresse dont le dernier
+//  beat est deja dans l'etage. Le meme signal pilote response_manager, pour que
+//  le ready rendu au maitre reste coherent avec ce que request_manager laisse
+//  passer.
+//
+//  VIVACITE, inchangee par ce correctif : si ARMOR a fabrique l'acquittement
+//  d'une adresse et que le blocage retombe avant que son W ne soit presente, le
+//  maitre attend son w_ready jusqu'a son propre timeout -- c'est deja le cas
+//  aujourd'hui quand l'etage est vide.
+//
+//  A CTRL[7] = 0 (reset) : comportement historique, pour mesurer le decalage
+//  puis sa disparition sur le meme bitstream.
+// -----------------------------------------------------------------------------
+logic [3:0] w_cap_owed_q;
+logic       cap_w_last;
+
+//  Un dernier beat ENTRE dans l'etage : le handshake cote maitre de l'etage.
+assign cap_w_last = req_rm.w_valid & wskid_ready & req_rm.w.last;
+
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        w_cap_owed_q <= '0;
+    end else if (!csr_wskid_q) begin
+        //  Etage en derivation, donc vide : dette a la capture = dette en aval.
+        //  Basculer W_SKID a 1 part ainsi d'un etat coherent.
+        w_cap_owed_q <= w_owed_q;
+    end else begin
+        case ({dn_aw_hs, cap_w_last})
+            2'b10:   if (w_cap_owed_q != 4'hF) w_cap_owed_q <= w_cap_owed_q + 4'd1;
+            2'b01:   if (w_cap_owed_q != 4'h0) w_cap_owed_q <= w_cap_owed_q - 4'd1;
+            default: w_cap_owed_q <= w_cap_owed_q;   // 00 et 11 : inchange
+        endcase
+    end
+end
+
+assign w_pending_sel = (csr_wskid_q & csr_wcap_q) ? (w_cap_owed_q != 4'h0)
+                                                  : w_pending;
 always_comb begin
     req_wrapper_iommu_o = req_rm;
     if (csr_wskid_q) begin
@@ -545,7 +602,7 @@ response_manager #(
     .bad_id_i(bad_id),
     .verdict_known_i(verdict_known_eff),
     .legit_hit(legit_hit_eff),
-    .w_pending_i(w_pending),
+    .w_pending_i(w_pending_sel),    // meme dette que request_manager (W_CAPDEBT)
     .wskid_en_i(csr_wskid_q),
     .wskid_ready_i(wskid_ready),
     .txblock_en_i(csr_txblk_q),
@@ -663,6 +720,13 @@ response_delayer #(
 //                          AW orphelin. NE PAS ACTIVER SANS b5 : sans verdict
 //                          frais, « ce qui est presente est engage » revient a
 //                          admettre une ecriture usurpee. Echo STATUS[18].
+//                          b7 W_CAPDEBT -- la dette W qui autorise la capture
+//                          dans l'etage W est comptee A LA CAPTURE (AW admis -
+//                          W-last entres dans l'etage) et non en aval. Sans lui,
+//                          le W d'une ecriture coupee pouvait etre capture, rester
+//                          presente en aval et partir avec l'adresse legitime
+//                          suivante (demontre au banc le 2026-09-11). N'agit
+//                          qu'avec b4. Echo STATUS[19].
 //                          b4 W_SKID -- etage d'un emplacement sur le canal W.
 //                          Correctif du retrait de VALID mesure le 2026-09-10 :
 //                          la coupure est decidee A LA CAPTURE, un beat entre
@@ -704,7 +768,7 @@ response_delayer #(
 //   0x40  CNT_OUTS     RO  nombre d'episodes de saturation outstanding
 //   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
 //   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
-//   0x58  MAGIC        RO  0x41524D4F52000007 ("ARMOR" + version)
+//   0x58  MAGIC        RO  0x41524D4F52000008 ("ARMOR" + version)
 //
 // Bloc d'observabilite, ajoute le 2026-09-10 (d'ou MAGIC ...0002 : le logiciel
 // distingue ainsi un bitstream qui porte ces registres d'un qui n'en a pas).
@@ -846,6 +910,7 @@ always_comb begin
     armor_status[16]  = csr_wskid_q;   // echo de l'etage W
     armor_status[17]  = csr_fresh_q;   // echo du verdict frais exige
     armor_status[18]  = csr_txblk_q;   // echo du blocage transactionnel
+    armor_status[19]  = csr_wcap_q;    // echo de la dette W a la capture
 end
 
 // -----------------------------------------------------------------------------
@@ -931,6 +996,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         csr_wskid_q    <= 1'b0;   // reset : etage W en derivation
         csr_fresh_q    <= 1'b0;   // reset : comportement historique
         csr_txblk_q    <= 1'b0;   // reset : comportement historique
+        csr_wcap_q     <= 1'b0;   // reset : comportement historique
         csr_sticky_clr <= 1'b0;
         csr_cnt_clr    <= 1'b0;
     end else begin
@@ -959,6 +1025,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
                             csr_wskid_q    <= req_CPU_Wrapper__i.w.data[4];
                             csr_fresh_q    <= req_CPU_Wrapper__i.w.data[5];
                             csr_txblk_q    <= req_CPU_Wrapper__i.w.data[6];
+                            csr_wcap_q     <= req_CPU_Wrapper__i.w.data[7];
                         end
                         default: ; // registres en lecture seule
                     endcase
@@ -1349,9 +1416,20 @@ logic        bad_id_d_q;
 logic dn_w_ghost, dn_w_orphan;
 
 //  Le beat part en aval et y est pris, mais le maitre ne recoit pas son ready.
+//
+//  SANS OBJET QUAND L'ETAGE W EST ACTIF (correctif 2026-09-11). Avec CTRL[4],
+//  le handshake aval et celui du maitre sont DECOUPLES par construction : un
+//  beat pris en aval sort de l'etage, ou il n'est entre que par un handshake
+//  cote maitre. Le ready du maitre y est celui de l'etage, et W_CAPDEBT le
+//  baisse A JUSTE TITRE pendant que l'aval vide le dernier beat d'une ecriture.
+//  Compter ce cas faisait accuser l'etage d'un defaut qu'il n'a pas : 25 puis
+//  187 « fantomes » au banc sous WSKID=1 WCAP=1, pour ZERO anomalie
+//  d'appariement -- or un vrai fantome ferait recevoir deux fois la meme
+//  donnee a l'aval, et l'appariement le verrait.
 assign dn_w_ghost  = req_wrapper_iommu_o.w_valid
                    & resp_wrapper_iommu_i.w_ready
-                   & ~resp_IP_wrapper_o.w_ready;
+                   & ~resp_IP_wrapper_o.w_ready
+                   & ~csr_wskid_q;
 
 //  Un W-last accepte en aval alors qu'aucun AW n'y attend de donnees, et
 //  qu'aucun n'arrive dans le meme cycle : le solde ne peut pas le montrer.
@@ -1644,7 +1722,7 @@ always_comb begin
     case (r_idx_q)
         5'd0:    csr_rdata = csr_id_cfg_q;
         5'd1:    csr_rdata = csr_msi_addr_q;
-        5'd2:    csr_rdata = {57'h0, csr_txblk_q, csr_fresh_q, csr_wskid_q,
+        5'd2:    csr_rdata = {56'h0, csr_wcap_q, csr_txblk_q, csr_fresh_q, csr_wskid_q,
                               csr_awfix_q, 2'b00, csr_enforce_q};
         5'd3:    csr_rdata = armor_status;
         5'd4:    csr_rdata = csr_sticky_q;
@@ -1654,7 +1732,7 @@ always_comb begin
         5'd8:    csr_rdata = {32'h0, cnt_outs_q};
         5'd9:    csr_rdata = {32'h0, cnt_msi_q};
         5'd10:   csr_rdata = {{(64-DevIDWidth){1'b0}}, dev_id_last_q};
-        5'd11:   csr_rdata = 64'h41524D4F52000007;
+        5'd11:   csr_rdata = 64'h41524D4F52000008;
         // Observabilite (version 2 du MAGIC). Voir la carte des registres.
         5'd12:   csr_rdata = {52'h0, dbg_up};
         5'd13:   csr_rdata = {52'h0, dbg_dn};

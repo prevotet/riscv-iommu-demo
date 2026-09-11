@@ -17,7 +17,25 @@ signaux sont visibles en quelques secondes.
 BUG=1   ./run_sim.sh 0        # rejoue le défaut resp_t/resp_slv_t (non-régression)
 PROFILE=demo ./run_sim.sh 3   # profil DEMO au lieu de BENCH
 WAVES=1 ./run_sim.sh 1        # produit en plus work/tb_accel_armor.vcd
+
+# Aval réaliste : À UTILISER pour tout ce qui touche au canal W ou à l'étage W
+WSKID=1 FRESH=1 DN_LAT=4 DN_WGATE=1 DN_WLAT=40 GUARD_MS=20 ./run_sim.sh 3
 ```
+
+Réglages, tous par variable d'environnement :
+
+| variable | effet | défaut |
+|---|---|---|
+| `DN_LAT=<n>` | latence d'acceptation AW/AR de l'aval. **≥ 2 obligatoire** : à 0 le banc validait ce sur quoi la carte gelait | 0 |
+| `DN_WGATE=1` | l'aval ne prend un W que si un AW l'y attend, comme l'IOMMU et le crossbar | aval historique, `w_ready` toujours haut |
+| `DN_WLAT=<n>` | latence d'acceptation d'un beat W. Carte : **40 à 45** (`ARMORSTALL`) | 0 |
+| `GUARD_MS=<n>` | garde-fou global. À relever avec `DN_WLAT`, sinon la campagne s'arrête avant la fin | 2 |
+| `WSKID=1` | `CTRL[4]`, étage W | 0 |
+| `FRESH=1` | `CTRL[5]`, verdict d'identité frais | 0 |
+| `TXBLOCK=1` | `CTRL[6]`, blocage transactionnel — **jamais sans `FRESH`, nuisible seul** | 0 |
+| `WCAP=1` | `CTRL[7]`, dette W comptée à la capture dans l'étage — n'agit qu'avec `WSKID` | 0 |
+| `OBS_CHECK=1` | contrôle croisé des compteurs matériels. **Perturbe SC03 et SC04** : run de vérification, pas de mesure | 0 |
+| `AWFIX=1` | `CTRL[3]`, inerte depuis la réfutation | 0 |
 
 Le banc compile avec `BENCH_PROFILE` par défaut, comme le bitstream de
 campagne. Ce n'est pas un détail : voir plus bas.
@@ -148,6 +166,47 @@ légitimes en moins d'une milliseconde suffisent alors à déclencher STORM.
 un bitstream DEMO produira des faux positifs de tempête sur le trafic normal,
 quel que soit l'état des détecteurs.
 
+## Appariement du canal W (2026-09-11)
+
+Tous les compteurs du banc et du matériel vérifient un **équilibre** : autant de
+W-last que d'AW en aval, pas de beat sans adresse, pas de beat dupliqué. Aucun
+ne vérifiait qu'un beat arrive avec **sa propre** adresse. Le banc le fait
+désormais, sans lire le moindre CSR, donc sans perturber la campagne : chaque
+AW admis en aval est rattaché à l'AW du maître dont il provient, et chaque beat
+pris en aval doit porter la valeur que le maître a émise pour lui
+(`accel_wrap` incrémente `wdata_q` à chaque beat, chaque beat est donc unique).
+La ligne `appariement W` s'imprime **aussi** quand tout est juste, avec le
+nombre de beats vérifiés : un contrôle muet ne se distingue pas d'un contrôle
+aveugle.
+
+**Cinquième angle mort.** L'aval historique tenait `w_ready` haut et prenait
+chaque beat au cycle suivant. Sur carte, un W n'est routé qu'après son AW, et
+l'aval met **40 à 45 cycles** à le prendre. Avec l'aval historique, l'étage W
+ne montrait rien ; avec `DN_WGATE=1 DN_WLAT=40` :
+
+| aval | `WSKID` | `WCAP` | beats justes | beats d'une **autre** écriture |
+|---|---|---|---|---|
+| historique | 1 | 0 | 1586 | 0 |
+| réaliste | 1 | 0 | 2273 | **147** |
+| réaliste | 0 | — | 2312 | **273** (+ 7 AW sans donnée) |
+| réaliste | 1 | **1** | 2408 | **0** |
+| historique | 1 | **1** | 1586 | **0** |
+
+Le mécanisme : pendant un blocage, `response_manager` fabrique `aw_ready` ;
+l'écriture suivante, coupée, est acquittée, et son W arrive pendant que le
+dernier beat de la précédente attend encore dans l'étage. La dette W, comptée
+**en aval**, vaut encore 1 : ce W est capturé, reste présenté avec `w_owed = 0`,
+puis part avec l'adresse légitime suivante — tout le canal est décalé d'un cran
+et le solde AW/W-last reste juste. Première rupture : un beat **63 beats plus
+vieux** que prévu. `CTRL[7] W_CAPDEBT` compte la dette **à la capture**.
+
+**Piège du détecteur de fantômes.** Sous `WSKID=1 WCAP=1`, il comptait 25 puis
+187 « beats fantômes » pour zéro anomalie d'appariement : avec l'étage, le
+handshake aval et celui du maître sont découplés par construction, et le ready
+du maître baisse à juste titre pendant que l'aval vide l'étage. Le détecteur —
+et le compteur matériel `cnt_w_ghost_q`, même définition — est désormais
+inhibé quand l'étage est actif. L'appariement fait foi.
+
 ## Structure
 
 Le banc instancie la chaîne réelle, pas un modèle :
@@ -172,10 +231,14 @@ d'instanciation, sinon la simulation dure inutilement longtemps.
 
 ## Limites
 
-L'aval ne modélise pas la latence de l'IOMMU ni le multiplexeur 2:1 partagé
-entre LHA et MHA : le banc répond à « qui cale et pourquoi », pas à « combien
-de cycles coûte l'IOMMU ». Les latences ci-dessus sont donc celles d'ARMOR seul,
-non comparables telles quelles au coût mesuré sur carte.
+L'aval ne modélise l'IOMMU que par trois réglages grossiers — `DN_LAT` (adresse),
+`DN_WGATE` et `DN_WLAT` (données) — et pas du tout le multiplexeur 2:1 partagé
+entre LHA et MHA : le banc répond à « qui cale et pourquoi », pas à « combien de
+cycles coûte l'IOMMU ». **Par défaut ces réglages valent 0, c'est-à-dire un aval
+irréaliste** : tout ce qui touche au canal W doit être rejoué avec
+`DN_WGATE=1 DN_WLAT=40`, sous peine de valider du vide une cinquième fois. Les
+latences des tableaux plus haut sont celles d'ARMOR seul, non comparables telles
+quelles au coût mesuré sur carte.
 
 Un seul accélérateur est instancié : le banc ne peut donc pas distinguer le
 baseline LHA (SC06) du baseline MHA (SC07), et ses deux pas légitimes sont
