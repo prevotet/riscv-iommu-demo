@@ -253,9 +253,29 @@ référence).
 
 **Encore ouvert :**
 
-- **l'étage W décale le canal W — DÉMONTRÉ au banc, corrigé par `CTRL[7]
-  W_CAPDEBT` (MAGIC v8), validé en simulation, SYNTHÉTISÉ en v8 (`d172928`), À
-  VALIDER SUR CARTE** avec `payloads/fw_payload_v8_fresh1_wskid1_wcap0` puis `_wcap1`. Sur carte,
+- **l'étage W décale le canal W — DÉMONTRÉ au banc, `CTRL[7] W_CAPDEBT` (MAGIC v8,
+  `d172928`) le corrige mais INTRODUIT DES BLOCAGES JUSQU'AU TIMEOUT.** Sur carte, même
+  bitstream, chargement JTAG :
+
+  | | `wcap0` (`141906`) | `wcap1` (`143242`) |
+  |---|---|---|
+  | `W V- last` bloqué en aval w2 | **11 / 21** instantanés | **0 / 21** |
+  | SC06 / SC07 `tx_sum` | 3710 / 3754 | 3712 / 3766 |
+  | écart / fantômes / orphelins W | 0 / 0 / 0 | 0 / 0 / 0 |
+  | SC02 : DONE / ERR, `SUMMARY-TX` Lp50 | 30 / 0, 514 | **0 / 17, 65 676** |
+  | SC04 : DONE / ERR | 8 / 0 | 0 / 2 |
+
+  **Le « SC02 détecté 50/50 » sous `wcap1` est un ARTEFACT, à ne pas publier** : la moitié
+  des transactions finissent sur le timeout de l'accélérateur (`TIMEOUT_CYCLES` = 65 536),
+  et le firmware compte `ST_ERROR` comme une attaque observée. Mécanisme : pendant un
+  blocage, ARMOR fabrique `aw_ready` ; si le blocage retombe avant que le maître présente
+  le W de cette adresse coupée, `W_CAPDEBT` refuse — à raison — de le capturer, mais rien
+  ne l'absorbe, et le maître attend jusqu'à son timeout. Sans le correctif ce W était
+  capturé et partait avec l'adresse suivante : pas de blocage, mais une donnée mal
+  adressée. **Correctif complet à concevoir** : suivre CHAQUE transaction — pour chaque
+  AW acquitté au maître, retenir s'il a été admis en aval ou coupé (petite FIFO de bits,
+  dans l'ordre AXI) — et absorber les W des AW coupés même après la fin du blocage. Le
+  banc ne reproduit pas encore ces timeouts : à `DN_WLAT=40`, SC02 n'y est jamais détecté ; Sur carte,
   dans les quatre runs `W_SKID=1` (v6 ×2, v7 ×2), un beat W reste présenté en aval
   dès SC02 et jusqu'à la fin, avec `w_owed=0` et `w_pending=0`
   (`ARMORHS,pre-ctrl,w2,dn` : `W V- last`) ; il n'est pas la cause du gel de SC01.
