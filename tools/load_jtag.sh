@@ -61,7 +61,11 @@ lsusb 2>/dev/null | grep -q "0403:6010" \
 
 case "$IMG" in
     *.elf)
-        entry="$("$READELF" -h "$IMG" | awk '/Entry point/ {print $NF}')"
+        #  LC_ALL=C : readelf est traduit sur cette machine (« Adresse du point
+        #  d'entree »). Sans lui, la recherche ne trouve rien et le script
+        #  refusait TOUS les ELF -- vu le 2026-09-11, avant tout essai sur carte.
+        entry="$(LC_ALL=C "$READELF" -h "$IMG" | awk '/Entry point/ {print $NF}')"
+        [[ -n "$entry" ]] || die "point d'entree illisible dans $IMG ($READELF)"
         [[ "$(( entry ))" == "$(( ENTRY ))" ]] \
             || die "point d'entree $entry, attendu $ENTRY : ce n'est pas un fw_payload OpenSBI"
         LOAD="load_image {$IMG} 0x0 elf"
