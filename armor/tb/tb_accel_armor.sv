@@ -1201,10 +1201,21 @@ module tb_accel_armor;
     //  rien a signaler ne se distingue pas d'un controle qui ne voit rien passer.
     int unsigned pair_ok_0, pair_bad_0, pair_noaw_0, pair_nodata_0, pair_orph_0, pair_dup_0;
     int unsigned lost_b_0, lost_r_0;
+    int unsigned acc_to_0;          // timeouts de l'accelerateur au rapport precedent
 
     task automatic pair_step_report(input string name);
         int unsigned d_ok, d_bad, d_noaw, d_nodata, d_orph, d_dup;
         begin
+            //  TIMEOUTS DE L'ACCELERATEUR (2026-09-11). Sur carte, W_CAPDEBT a fait
+            //  finir la moitie des transactions SC02 sur le timeout du maitre
+            //  (SUMMARY-TX Lp50 = 65 676), comptees ensuite comme « detectees » car
+            //  ST_ERROR. Le banc ne le lisait qu'indirectement (2007 cy moy, err).
+            //  reg_blkcnt_q s'incremente a chaque timeout : on l'imprime par pas.
+            if (i_accel.reg_blkcnt_q != acc_to_0)
+                $display("  %-12s  !! TIMEOUT ACCELERATEUR : %0d iteration(s) terminee(s) sur le timeout du maitre",
+                         name, i_accel.reg_blkcnt_q - acc_to_0);
+            acc_to_0 = i_accel.reg_blkcnt_q;
+
             d_ok     = pair_ok        - pair_ok_0;
             d_bad    = pair_bad       - pair_bad_0;
             d_noaw   = pair_noaw      - pair_noaw_0;
