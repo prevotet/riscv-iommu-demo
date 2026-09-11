@@ -1128,6 +1128,48 @@ module tb_accel_armor;
     end
 
     // -------------------------------------------------------------------------
+    //  DIAGNOSTIC DES TIMEOUTS DE L'ACCELERATEUR  (2026-09-11)
+    //
+    //  Sur carte, W_CAPDEBT fait finir la moitie des transactions SC02 sur le
+    //  timeout du maitre. Hypothese : ARMOR a fabrique l'acquittement d'un AW
+    //  coupe, le blocage est retombe, et le W de cet AW n'est ni capture ni
+    //  absorbe -- le maitre attend son w_ready. Mais au banc, a DN_WLAT=8, des
+    //  timeouts existent AUSSI sans W_CAPDEBT. Pour separer les mecanismes, on
+    //  photographie le cycle ou timeout_hit monte, AVANT que la FSM ne quitte
+    //  l'etat ou elle etait coincee.
+    // -------------------------------------------------------------------------
+    function automatic string g_state_name(input int s);
+        case (s)
+            0: return "IDLE";  1: return "AW";    2: return "W";  3: return "AR";
+            4: return "NEXT";  5: return "DRAIN"; 6: return "FINISH";
+            default: return "?";
+        endcase
+    endfunction
+
+    logic        acc_to_q;
+    int unsigned acc_to_shown;
+
+    always @(posedge clk_i) begin
+        if (!rst_ni) begin
+            acc_to_q = 1'b0;
+        end else begin
+            if (i_accel.timeout_hit && !acc_to_q && acc_to_shown < 6) begin
+                acc_to_shown++;
+                $display("[%0t] *** TIMEOUT ACCELERATEUR #%0d : etat %s, beat %0d, requete %0d, B recus %0d, R recus %0d",
+                         $time, acc_to_shown, g_state_name(int'(i_accel.g_state_q)),
+                         i_accel.beat_q, i_accel.req_idx_q, i_accel.b_cnt_q, i_accel.r_cnt_q);
+                $display("           amont : aw v/r=%0b/%0b  w v/r=%0b/%0b  b v/r=%0b/%0b | wrapper : w_owed=%0d cap_owed=%0d pending_sel=%0b etage_plein=%0b block_req=%0b block_ip=%0b vk=%0b",
+                         req_in.aw_valid, resp_in.aw_ready, req_in.w_valid, resp_in.w_ready,
+                         resp_in.b_valid, req_in.b_ready,
+                         i_sec_wrap.w_owed_q, i_sec_wrap.w_cap_owed_q, i_sec_wrap.w_pending_sel,
+                         i_sec_wrap.i_w_skid.full_q, i_sec_wrap.block_req_i,
+                         i_sec_wrap.block_ip_eff, i_sec_wrap.verdict_known_eff);
+            end
+            acc_to_q = i_accel.timeout_hit;
+        end
+    end
+
+    // -------------------------------------------------------------------------
     //  INSTRUMENTATION SC02 — la forme reelle de block_req en profil BENCH.
     //
     //  FLOW_BLOCK_CYCLES_C vaut 4 en BENCH contre 750_000_000 en DEMO. Or
@@ -1411,7 +1453,14 @@ module tb_accel_armor;
         logic [4:0]  acc_bits;
         bit          ok;
         begin
-            csr_write(CSR_CTRL, 64'b011);   // ENFORCE=1, STICKY_CLR=1
+            //  CTRL_OPTS : SIXIEME ANGLE MORT (2026-09-11). Ce pas ecrivait 0b011 en
+            //  dur -- ENFORCE et STICKY_CLR seuls. Tout SC08 tournait donc SANS
+            //  etage W, SANS verdict frais, SANS aucun correctif, quelles que soient
+            //  les options de la campagne. Des que SC08-mode4 bloquait (aval rapide,
+            //  DN_WLAT=4), le canal W s'y decalait et contaminait tout le reste :
+            //  WCAP=0 et WCAP=1 donnaient la meme rupture au cycle pres. Le firmware
+            //  n'a pas ce defaut, il preserve CTRL.
+            csr_write(CSR_CTRL, CTRL_OPTS | 64'b011);   // ENFORCE=1, STICKY_CLR=1
             if (cfg_timeout) return;
 
             acc_write(ACC_BASE,   LEGIT_DST);
