@@ -40,8 +40,11 @@ cd bao-baremetal-guest
 make clean                              # obligatoire : sources.mk change de fichier
 make PLATFORM=cva6 \
      CROSS_COMPILE=/home/jc/Work/Software/riscv-imac/bin/riscv64-unknown-elf- \
-     BENCH=1 ARCH_CPPFLAGS="-DBENCH_QUICK -DBENCH_TRACE_MMIO -DBENCH_NO_LHA_BG" \
+     BENCH=1 ARCH_CPPFLAGS="-DBENCH_QUICK -DBENCH_TRACE_MMIO -DBENCH_NO_LHA_BG \
+                            -DARMOR_WSKID=1 -DARMOR_FRESH=1" \
      -j$(nproc)
+# Les deux ARMOR_* donnent la configuration de référence (section 5 bis).
+# Les retirer donne le témoin historique, sur le même bitstream.
 cd .. && cp bao-baremetal-guest/build/cva6/baremetal.bin build/guests/baremetal.bin
 
 # 3. hyperviseur et firmware
@@ -143,10 +146,34 @@ SC03 n'avaient jamais été atteints sous `ENFORCE=1`. Coût : +1 cycle sur une
 écriture légitime, +75 LUT, +134 bascules, marge de timing inchangée.
 `w_owed_max` passe de 1 à 2 — preuve que l'étage est bien dans le chemin.
 
-## 5 bis. Prêt à synthétiser, décision en attente
+## 5 bis. `FRESH_VERDICT` adopté, VALIDÉ SUR CARTE
 
-`CTRL[5] FRESH_VERDICT` supprime le retrait d'AW de **SC01**, le seul scénario qui
-gèle encore. Le défaut : `Device_ID_write_enable_o` est registré, donc
+**2026-09-11, `results/bench_2026-09-11_105615.log`** — bitstream v7, `CTRL` relu
+`0x31` (ENFORCE + W_SKID + FRESH). **La campagne va jusqu'à `###### END`**, pour la
+première fois sous `ENFORCE=1`.
+
+| scénario | TP / N | FP | retraits de VALID |
+|---|---|---|---|
+| SC06, SC07 (légitime) | — | 0 | aucun |
+| SC02-STORM | 21 / 50 | 0 | aucun |
+| SC04-MSI | 41 / 50 | 0 | aucun |
+| SC03-OUTS | 50 / 50 | 0 | `ar=11`, `b-r=73` (voir « Encore ouvert ») |
+| **SC01-SPOOF** | **50 / 50** | 0 | **aucun** |
+
+**SC01 ne gèle plus** : 50 itérations, `req_up=50 req_dn=0`, aucune requête usurpée
+n'atteint l'aval. Il gelait à la première itération les 08 et 09/09. SC02, SC04 et
+SC03 restent dans la plage des deux runs v6 `wskid1`.
+
+Latence exacte sur trafic légitime (`tx_sum`, imprimé depuis ce run) : **37,12**
+cycles (SC06) et **37,53** (SC07). Les runs v6 tronquaient à 37 : le surcoût moyen
+de W_SKID + FRESH est donc **au plus 0,12 et 0,53 cycle**. Ce sont des bornes, pas
+des valeurs. Le +2 cycles se voit sur le minimum (26 → 28) : l'attente du canal W
+en aval, ~40 cycles, absorbe l'essentiel du retard d'AW.
+
+SC01 tourne encore **en dernier**, derrière l'OUTS parasite de SC03 : le replacer
+avant SC02 pour des verdicts propres.
+
+`CTRL[5] FRESH_VERDICT` supprime le retrait d'AW de **SC01**. Le défaut : `Device_ID_write_enable_o` est registré, donc
 `verdict_known_q` ne retombe qu'à T+2 — pendant T et T+1 l'adresse est jugée sur
 le verdict de la requête **précédente**. Aujourd'hui rien ne passe (`req up=8
 dn=0` sur SC01), mais c'est la **lenteur de l'IOMMU** qui referme la fenêtre, pas
@@ -161,26 +188,48 @@ Matrice mesurée au banc, `DN_LAT=4`, campagne 10 OK / 1 ÉCHEC partout :
 | `FRESH`+`WSKID` | 0 | 1 | +2 cy |
 | `FRESH`+`WSKID`+`TXBLOCK` | 0 | **4** | +2 cy |
 
-**Décision en attente** : accepter **+2 cycles par transaction légitime** contre une
-garantie d'identité qui ne dépend plus d'un accident de timing. Le « 0 cycle »
-actuel s'explique par le fait qu'ARMOR laisse l'adresse sortir avant de savoir si
-elle est légitime.
+**Décision prise le 2026-09-11 : `FRESH` est adopté**, sans condition de seuil. On
+accepte le surcoût sur chaque transaction légitime en échange d'une garantie
+d'identité qui ne dépend plus d'un accident de timing. C'est aussi le seul
+correctif prêt pour le gel de SC01. Le « 0 cycle » d'avant venait de ce qu'ARMOR
+laissait l'adresse sortir avant de savoir si elle était légitime.
+
+**Deux chiffres à ne pas confondre.** Le « 2 cycles d'attente pour 100
+transactions » de la section 5 a été mesuré **sans** `FRESH`. Avec, l'attente de
+verdict passe à **2 cycles par transaction** (`cyc_hold` 2 → 200 sur 100, mesuré sur
+carte). Mais la **latence moyenne** ne prend qu'**au plus 0,12 à 0,53 cycle** : sur
+carte, le retard d'AW se superpose en grande partie à l'attente du canal W en aval.
+Le banc, dont l'aval est rapide, donnait +2 cycles partout. L'article publie les
+valeurs de la carte, et la valeur exacte du surcoût demande un témoin `FRESH=0`
+avec les sommes.
 
 `CTRL[6] TX_BLOCK` est **câblé mais nuisible seul** (retraits AW de SC04 : 1 → 4).
 Il ne redevient nécessaire qu'avec un futur étage sur AW. **Ne pas l'activer.**
 
-Configuration recommandée : **`W_SKID` + `FRESH_VERDICT`, sans `TX_BLOCK`.**
+Configuration de référence : **`W_SKID` + `FRESH_VERDICT`, sans `TX_BLOCK`**, soit
+`-DARMOR_WSKID=1 -DARMOR_FRESH=1` à la compilation du guest. Les deux valent 0 par
+défaut, exprès : un témoin se construit sans eux. Au boot, la ligne
+`# ARMOR CTRL relu` donne la configuration réellement retenue par le matériel.
 
-**Le bitstream archivé est le v6, le RTL est en v7** : `tools/bitstream.sh check
-bench` dit donc PÉRIMÉ, et c'est normal — resynthétiser avant toute campagne.
+**Bitstream v7 synthétisé et archivé le 2026-09-11** : WNS +0,177 ns (inchangé),
+107 287 LUT et 73 231 bascules, soit +4 et +2 par rapport au v6. `check bench` dit
+À JOUR. Images de boot : `payloads/fw_payload_v7_fresh1_wskid0.bin` (FRESH seul,
+à passer en premier pour isoler son coût) puis `_wskid1.bin` (configuration de
+référence).
 
 **Encore ouvert :**
 
 - retrait de VALID résiduel sur **AW** (cause `block_req` : verdict frais et bon,
   puis verdict volumétrique qui arrive après). Demanderait un étage sur AW de la
   même forme que celui de W — **pas** `TX_BLOCK` ;
-- retrait de `b_valid`/`r_valid` dans la branche HOLD de `response_manager` :
-  troisième site, jamais examiné ;
+- retrait de `b_valid`/`r_valid` par `response_manager` : troisième site, **mesuré
+  sur carte le 2026-09-11**. La branche de blocage fabrique les réponses SLVERR comme
+  fonction pure du niveau de blocage courant ; quand le blocage retombe avant le
+  `ready` du maître, elles retombent. SC03 : `b-r` = 16 et 11 en v6 `wskid1`, **73**
+  en v7 avec `FRESH`, et la cause du premier retrait passe de vide à `!verdict` —
+  `FRESH` ouvre plus de fenêtres d'attente juste après un blocage. Le défaut
+  préexistait ; n'a jamais gelé. Correctif de la forme de l'étage W : tenir chaque
+  réponse fabriquée jusqu'à son `ready` ;
 - `MAX_REQ_PER_WINDOW = 8` sur une fenêtre de 100 cycles est hors d'atteinte à
   la latence réelle de l'aval (37 cycles par transaction) : SC02 n'est détecté
   que par intermittence ;
