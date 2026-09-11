@@ -66,16 +66,21 @@ tools/capture_uart.sh
 #        2026-09-11 14:19 (recette KERONEv2) : du lancement de la capture au
 #        « ###### END » en moins d'une minute, contre le dd + la carte à déplacer
 ./2_build_HB.sh program
-pkill -x hw_server                       # program en laisse un, qui tient le câble
-tools/capture_uart.sh                    # autre terminal : attendre qu'il écoute
-tools/load_jtag.sh payloads/<image>.elf  # ELF : ~8 s ; un .bin prend ~2 min
+pkill -x hw_server                              # program en laisse un, qui tient le câble
+tools/capture_uart.sh -j payloads/<image>.elf   # ouvre le port, PUIS charge ; pas de reset
 ```
 
+**Pas de reset de carte en JTAG** : `load_jtag.sh` fait `reset halt`, charge, puis
+`resume`. Avec `-j`, c'est la capture qui lance le chargement une fois la lecture
+démarrée : l'en-tête ne peut plus être perdu. Avec deux terminaux il l'a été
+(`results/bench_2026-09-11_143200.log`, capture ouverte trop tard). La sortie
+d'OpenOCD va dans `<journal>.openocd`. `tools/load_jtag.sh` seul reste utilisable.
+
 `load_jtag.sh` appelle `/usr/bin/openocd` (0.12) : celui de Quartus, souvent
-premier dans le `PATH`, est en 0.11 et ne comprend pas la config. L'ordre compte :
-`capture_uart.sh` peut recharger `ftdi_sio`, et lancé après OpenOCD il lui
-arracherait le câble. Pour avoir un ELF, copier
-`opensbi/build/platform/fpga/ariane/firmware/fw_payload.elf` à côté du `.bin`.
+premier dans le `PATH`, est en 0.11 et ne comprend pas la config. Le rebind de
+`ftdi_sio` de `capture_uart.sh` n'a lieu que si **aucun** FT232R n'expose de tty :
+avec l'adaptateur console branché, il ne gêne pas OpenOCD. Pour avoir un ELF,
+copier `opensbi/build/platform/fpga/ariane/firmware/fw_payload.elf` à côté du `.bin`.
 
 **Pièges de cette chaîne, tous rencontrés :**
 
