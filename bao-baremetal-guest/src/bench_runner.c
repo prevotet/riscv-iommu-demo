@@ -16,6 +16,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#ifdef BENCH_ASOS_IRQ
+#include <irq.h>
+#include <plic.h>
+#endif
 #include <cpu.h>
 #include <wfi.h>
 #include <uart.h>
@@ -1572,7 +1576,31 @@ static void run_asos(void) {
         printf("# ASOS-DECOMP,classification_TLC,%lu,%lu\r\n",
                (unsigned long)(t1 - t0), (unsigned long)((t1 - t0) / 100));
 
-        /* f. la boucle de mesure a vide : deux lectures de compteur */
+        /* f. ACCES AU vPLIC : le prix d'une sortie de VM.
+         *
+         * C'est LE terme que le niveau 0 ne voit pas, et la reponse a « ASOS
+         * tourne dans une VM, ca doit couter plus cher ». Les CSR du wrapper
+         * sont en passthrough dans la config Bao (vm-configs/cva6-baremetal),
+         * donc non trappes -- d'ou les 17 cycles du point (a). Le PLIC, lui,
+         * est EMULE : bao-hypervisor/src/arch/riscv/vplic.c enregistre ses
+         * handlers par vm_emul_add_mem, et le `claim` comme le `complete`
+         * passent par vplic_hart_emul_handler. Chaque acces est donc un trap
+         * vers l'hyperviseur et retour.
+         *
+         * On lit le registre de seuil, pas `claim` : la lecture de claim
+         * acquitte une interruption et aurait un effet de bord. Le chemin de
+         * trap est le meme. */
+        {
+            volatile uint32_t *vplic_threshold =
+                (volatile uint32_t *)(0x0c000000UL + 0x200000UL);
+            t0 = read_counter();
+            for (unsigned i = 0; i < 100; i++) asos_sink = *vplic_threshold;
+            t1 = read_counter();
+            printf("# ASOS-DECOMP,lecture_vPLIC_emule,%lu,%lu\r\n",
+                   (unsigned long)(t1 - t0), (unsigned long)((t1 - t0) / 100));
+        }
+
+        /* g. la boucle de mesure a vide : deux lectures de compteur */
         t0 = read_counter();
         for (unsigned i = 0; i < 100; i++) asos_sink = i;
         t1 = read_counter();
@@ -1593,6 +1621,175 @@ static void run_asos(void) {
            "(voir `# CALIB`) pour comparer a un chiffre publie.\r\n");
 }
 #endif /* BENCH_ASOS */
+
+/* ============================================================
+ * ASOS, NIVEAU 1 : la boucle complete, INTERRUPTION COMPRISE
+ *
+ * Le niveau 0 mesurait le calcul et l'actuation, pas la notification. Or ASOS
+ * tourne dans une VM sous Bao, et c'est la que se trouve le cout : les CSR du
+ * wrapper sont en passthrough (17 cycles, non trappes), mais le PLIC du guest
+ * est EMULE -- `bao-hypervisor/src/arch/riscv/vplic.c` enregistre ses handlers
+ * par `vm_emul_add_mem`. Mesure du 2026-09-12 : une lecture du vPLIC coute
+ * 813 cycles contre 17 pour un CSR passthrough, soit un facteur 48. Le `claim`
+ * et le `complete` d'une interruption sont deux de ces acces.
+ *
+ * Ce bloc decoupe donc la reaction en quatre, la ou la Table 8 n'en voit que
+ * deux :
+ *
+ *   L_notify  declenchement -> entree dans le gestionnaire. Contient la
+ *             detection ARMOR, la livraison de l'interruption physique, son
+ *             injection par Bao, et le `claim` sur le vPLIC.
+ *   L_proc    evaluation de la menace et classification TLC.
+ *   L_mmio    ecriture de la politique. Le STICKY_CLR y fait retomber irq_o.
+ *   L_exit    sortie du gestionnaire -> reprise du fil principal, `complete`
+ *             sur le vPLIC compris.
+ *
+ * Exige le bitstream v13 (CTRL[11] = IRQ_EN, irq_o cable sur les sources PLIC
+ * 12 et 13) et les entrees `.interrupts` de vm-configs/cva6-baremetal.
+ * ============================================================ */
+#ifdef BENCH_ASOS_IRQ
+
+#define WRAP_CTRL_IRQEN   (1ULL << 11)
+#define ASOS_IRQ_W1       12
+#define ASOS_IRQ_W2       13
+#define ASOS_IRQ_TRIALS   16
+
+static volatile uint64_t asos_t_entry, asos_t_assessed, asos_t_actuated;
+static volatile unsigned asos_irq_seen, asos_irq_k, asos_irq_tlc, asos_irq_nw;
+static volatile uint64_t asos_irq_score;
+static uint64_t          asos_ctrl_saved;
+
+static void asos_irq_handler(unsigned id) {
+    asos_t_entry = read_counter();
+
+    volatile uint64_t *w = (id == ASOS_IRQ_W1)
+                         ? (volatile uint64_t *)WRAP1_BASE_ADDR
+                         : (volatile uint64_t *)WRAP2_BASE_ADDR;
+
+    uint64_t st = w[WRAP_STICKY_OFF / 8];
+    uint64_t sc = (asos_irq_score * ASOS_GAMMA_NUM) >> ASOS_GAMMA_SH;
+    unsigned k  = 0;
+    for (unsigned i = 0; i < ASOS_NEV; i++)
+        if (st & asos_ev[i].bit) { sc += asos_ev[i].w; k++; }
+    unsigned tlc = asos_tlc(sc);
+    asos_sink = sc + tlc + (uint64_t)(uintptr_t)asos_state(tlc);
+
+    asos_t_assessed = read_counter();
+
+    /* Ecrit STICKY_CLR : c'est l'acquittement, irq_o retombe dans la foulee. */
+    unsigned nw = asos_actuate(w, tlc, asos_ctrl_saved);
+
+    asos_t_actuated = read_counter();
+
+    asos_irq_score = sc; asos_irq_k = k; asos_irq_tlc = tlc; asos_irq_nw = nw;
+    asos_irq_seen++;
+}
+
+static void run_asos_irq(void) {
+    volatile uint64_t *w1 = (volatile uint64_t *)WRAP1_BASE_ADDR;
+    volatile uint64_t *w2 = (volatile uint64_t *)WRAP2_BASE_ADDR;
+
+    asos_ctrl_saved = w2[WRAP_CTRL_OFF / 8]
+                    & ~(WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR);
+
+    printf("\r\n###### ASOS NIVEAU 1 (interruption, VM sous Bao) ######\r\n");
+
+    /* Arme l'interruption cote materiel, puis verifie que le bitstream la
+     * porte : un bit absent du RTL relit zero, et on mesurerait un timeout. */
+    w1[WRAP_CTRL_OFF / 8] = asos_ctrl_saved | WRAP_CTRL_IRQEN;
+    w2[WRAP_CTRL_OFF / 8] = asos_ctrl_saved | WRAP_CTRL_IRQEN;
+    fence();
+    if (!(w2[WRAP_CTRL_OFF / 8] & WRAP_CTRL_IRQEN)) {
+        printf("# ASOS-IRQ : ATTENTION -- CTRL[11] relit zero, ce bitstream "
+               "n'a pas irq_o. Mesure impossible, bloc ignore.\r\n");
+        w1[WRAP_CTRL_OFF / 8] = asos_ctrl_saved;
+        w2[WRAP_CTRL_OFF / 8] = asos_ctrl_saved;
+        return;
+    }
+    asos_ctrl_saved |= WRAP_CTRL_IRQEN;   /* l'actuation doit la garder armee */
+
+    irq_set_handler(ASOS_IRQ_W1, asos_irq_handler);
+    irq_set_handler(ASOS_IRQ_W2, asos_irq_handler);
+    irq_set_prio(ASOS_IRQ_W1, 1);
+    irq_set_prio(ASOS_IRQ_W2, 1);
+    irq_enable(ASOS_IRQ_W1);
+    irq_enable(ASOS_IRQ_W2);
+
+    /* Ce que le vPLIC a REELLEMENT retenu de notre configuration. Le guest de
+     * ce banc n'avait jamais utilise d'interruption : rien ne garantit que le
+     * chemin complet fonctionne, et il faut savoir ou il casse avant d'accuser
+     * le RTL. Bao emule ces registres, ces lectures passent donc par lui. */
+    {
+        extern volatile plic_global_t *plic_global;
+        extern volatile plic_hart_t   *plic_hart;
+        printf("# ASOS-IRQ-CFG,prio12=%lu,prio13=%lu,enbl0=0x%lx,thresh=%lu\r\n",
+               (unsigned long)plic_global->prio[ASOS_IRQ_W1],
+               (unsigned long)plic_global->prio[ASOS_IRQ_W2],
+               (unsigned long)plic_global->enbl[1][0],
+               (unsigned long)plic_hart[1].threshold);
+    }
+
+    printf("# ASOS-IRQ,essai,k,tlc,ecritures,L_notify,L_proc,L_mmio,L_exit,L_total\r\n");
+
+    unsigned done = 0, timeouts = 0;
+    for (unsigned i = 0; i < ASOS_IRQ_TRIALS; i++) {
+        /* Part d'un collant vide : sinon irq_o est deja haut et le
+         * declenchement ne mesurerait pas une notification. */
+        w2[WRAP_CTRL_OFF / 8] = asos_ctrl_saved | WRAP_CTRL_STICKY_CLR;
+        w2[WRAP_CTRL_OFF / 8] = asos_ctrl_saved;
+        fence();
+
+        unsigned before = asos_irq_seen;
+        asos_irq_score  = 0;
+
+        uint64_t det = 0, tx = 0;
+        uint64_t t_trigger = read_counter();
+        (void)fire_one('M', 1 /* usurpation d'identite */, LEGIT_DST, 0, &det, &tx);
+
+        /* Attente bornee de la remontee. */
+        uint32_t guard = 2000000;
+        while (asos_irq_seen == before && --guard) { }
+        uint64_t t_return = read_counter();
+
+        if (!guard) {
+            /* Diagnostic : distinguer « aucun evenement » de « evenement mais
+             * pas d'interruption ». Sans ca on ne sait pas quoi corriger. */
+            if (timeouts == 0) {
+                volatile uint32_t *vplic_pending =
+                    (volatile uint32_t *)(0x0c000000UL + 0x1000UL);
+                printf("# ASOS-IRQ-DIAG,sticky_w2=0x%lx,status_w2=0x%lx,"
+                       "ctrl_w2=0x%lx,vplic_pending0=0x%lx,det=%lu\r\n",
+                       (unsigned long)w2[WRAP_STICKY_OFF / 8],
+                       (unsigned long)w2[WRAP_STATUS_OFF / 8],
+                       (unsigned long)w2[WRAP_CTRL_OFF / 8],
+                       (unsigned long)vplic_pending[0],
+                       (unsigned long)det);
+            }
+            timeouts++; continue;
+        }
+
+        printf("# ASOS-IRQ,%u,%u,TLC-%u,%u,%lu,%lu,%lu,%lu,%lu\r\n",
+               i, asos_irq_k, asos_irq_tlc, asos_irq_nw,
+               (unsigned long)(asos_t_entry    - t_trigger),
+               (unsigned long)(asos_t_assessed - asos_t_entry),
+               (unsigned long)(asos_t_actuated - asos_t_assessed),
+               (unsigned long)(t_return        - asos_t_actuated),
+               (unsigned long)(t_return        - t_trigger));
+        done++;
+    }
+
+    printf("# ASOS-IRQ : %u reactions mesurees, %u sans remontee\r\n",
+           done, timeouts);
+
+    /* Desarme et remet en etat. */
+    asos_ctrl_saved &= ~WRAP_CTRL_IRQEN;
+    w1[WRAP_ID_CFG_OFF / 8] = 1ULL;
+    w2[WRAP_ID_CFG_OFF / 8] = 2ULL;
+    w1[WRAP_CTRL_OFF / 8]   = asos_ctrl_saved;
+    w2[WRAP_CTRL_OFF / 8]   = asos_ctrl_saved;
+    fence();
+}
+#endif /* BENCH_ASOS_IRQ */
 
 /* ============================================================
  * Récap final
@@ -1977,6 +2174,9 @@ void main(void) {
 
 #ifdef BENCH_ASOS
     run_asos();
+#endif
+#ifdef BENCH_ASOS_IRQ
+    run_asos_irq();
 #endif
 
     printf("\r\n###### RESUME ######\r\n");
