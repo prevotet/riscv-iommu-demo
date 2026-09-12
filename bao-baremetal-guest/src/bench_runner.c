@@ -1310,6 +1310,30 @@ static void dump_acc(const char *tag, const stats_t *s, lat_acc_t *a) {
      * lat[], sature a LAT_CAP) : sans les deux, on ne peut pas savoir si une
      * moyenne et un percentile portent sur la meme population. Sur SC08,
      * n = 700 et n_lat = 512. */
+#ifdef BENCH_DUMP_LAT
+    /* Les n_lat echantillons DANS L'ORDRE D'ACQUISITION, avant que pctl_int()
+     * ne trie lat[] en place -- apres le tri, l'ordre est perdu et on ne peut
+     * plus voir si un scenario bascule en cours de route.
+     *
+     * A quoi ca sert. Le 2026-09-12, une campagne sur dix-sept a mesure SC06 a
+     * 206 cycles au lieu de 220, alors que TOUS les compteurs du wrapper etaient
+     * identiques au bit pres et que la duree du scenario n'avait pas bouge (36
+     * cycles d'ecart sur 71 millions). L'ecart vaut une passe de la boucle de
+     * sondage (tx - det = 38 = 26 de read_counter + 12). Reste a savoir si les
+     * valeurs se rangent sur DEUX PALIERS separes de ~12 cycles -- alors c'est
+     * la quantification du sondage MMIO, et l'affaire est close -- ou si elles
+     * s'etalent en continu, auquel cas c'est autre chose. Les agregats
+     * min/moy/p50/p99/max ne permettent pas de trancher.
+     *
+     * Emis en fin de campagne, avec les SUMMARY : aucune mesure n'est en cours,
+     * le cout UART de ces lignes ne peut pas deplacer la phase d'un scenario. */
+    for (int i = 0; i < a->n_lat; i += 16) {
+        printf("# LATDUMP,%s,%s,%d", tag, s->name, i);
+        for (int j = i; j < i + 16 && j < a->n_lat; j++)
+            printf(",%lu", (unsigned long)a->lat[j]);
+        printf("\r\n");
+    }
+#endif
     uint64_t avg  = a->n ? (a->L_sum / (uint64_t)a->n) : 0;
     uint64_t lmin = a->n ? a->L_min : 0;
     uint64_t p50  = pctl_int(a, 50);
