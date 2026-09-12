@@ -7,9 +7,12 @@ reste vivait dans les messages de commit.
 ## 0. Où reprendre, exactement
 
 **Configuration de référence, VALIDÉE SUR CARTE : `W_SKID + FRESH + RESP_HOLD + W_FATE`**
-(`CTRL` relu `0x331`). **Bitstream archivé : v12** (`9e23f97`) — `tools/bitstream.sh use
+(`CTRL` relu `0x331`). **Bitstream archivé : v13** (`d4836ae`) — `tools/bitstream.sh use
 bench`, puis `check bench` doit dire À JOUR. `B_FATE` (`CTRL[10]`, `0x731`) y est **sûr mais
-sans gain mesurable** : à activer ou non, la détection est la même (voir plus bas).
+sans gain mesurable** : à activer ou non, la détection est la même (voir plus bas). Le v13
+ajoute `CTRL[11] IRQ_EN` et la sortie `irq_o` (§ 5 ter) ; à son reset le bit vaut 0, `irq_o`
+est constamment bas et **le v13 se comporte exactement comme le v12**, donc toutes les
+campagnes archivées restent comparables.
 
 **Validation de `W_FATE` sur carte, 2026-09-11 17:00**, même bitstream v10, chargement par
 `capture_uart.sh -j` :
@@ -185,8 +188,11 @@ par bras, soit une heure de carte.
 et rien de plus. Le témoin `bfate0` du v12 reproduit le v10, donc **le v12 ne change rien
 tant que le bit est à 0** et la configuration de référence `0x331` reste justifiée.
 
-**Prochaine action** : rien n'est en attente sur `B_FATE`. Le point (2) de § 5, « Encore
-ouvert » — SC04 à 1396 cycles en moyenne sous `DN_WLAT=40` sans timeout — n'a pas bougé.
+**Prochaine action** : rien n'est en attente sur `B_FATE`, et la chaîne
+ARMOR → interruption → logiciel est mesurée (§ 5 ter). Restent ouverts : le point (2) de
+§ 5, « Encore ouvert » — SC04 à 1396 cycles en moyenne sous `DN_WLAT=40` sans timeout —
+et la notification **inter-VM** vers une VM de service distincte, avec sa copie de 8 Kio,
+que § 5 ter ne mesure pas (la configuration y est à VM unique).
 
 ## 1. Mise en route
 
@@ -254,6 +260,11 @@ make PLATFORM=cva6 \
                             -DARMOR_WSKID=1 -DARMOR_FRESH=1 -DARMOR_RHOLD=1 \
                             -DARMOR_WFATE=1" \
      -j$(nproc)
+# Drapeaux optionnels : -DBENCH_DUMP_LAT (échantillons bruts, § 3),
+# -DBENCH_ASOS (coût logiciel de la boucle de décision) et -DBENCH_ASOS_IRQ
+# (la même, interruption comprise — exige le v13). Voir § 5 ter.
+# OPT_LEVEL=2 : à annoncer avec tout chiffre. Par défaut le banc est en -O0, où
+# une lecture de compteur coûte 26 cycles contre 2, et le calcul cinq fois plus.
 # Les quatre ARMOR_* donnent la configuration de référence, validée sur carte le
 # 2026-09-11 sur le bitstream v10 (CTRL relu 0x331). -DARMOR_WFATE=0 donne le témoin
 # de W_FATE (0x131). Ne PAS mettre -DARMOR_WCAP=1 : il fait caler le maître jusqu'au
@@ -318,6 +329,12 @@ Dans l'ordre, avant toute interprétation :
 3. `# IT,<k>,…` — un digest par itération, imprimé **après** la fin de
    l'itération. La dernière ligne date donc le gel : c'est l'état d'entrée du
    lancement qui n'est jamais revenu.
+
+Lignes ASOS, quand `-DBENCH_ASOS` / `-DBENCH_ASOS_IRQ` sont compilés (§ 5 ter) :
+`ASOS` (coût par réaction, sans interruption), `ASOS-K` (coût en fonction du nombre
+d'alertes simultanées), `ASOS-DECOMP` (décomposition par terme, dont le vPLIC),
+`ASOS-IRQ` (réaction complète, interruption comprise) et `ASOS-IRQ-CFG` / `ASOS-IRQ-ARM`
+(ce que le vPLIC a retenu de la configuration, à lire d'abord si rien ne remonte).
 
 Lignes produites : `ARMORLAT` (latences matérielles), `ARMORHW` (cycles,
 transferts), `ARMORSTALL` (attentes par canal), `ARMORW` / `ARMORRETR`
@@ -605,6 +622,82 @@ référence).
 - SC03-OUTS échoue en simulation dès `DN_LAT = 2` : `req_fire` compte des
   **fronts** de handshake et non des transferts, et apparie le `valid` du maître
   au `ready` de l'aval.
+
+## 5 ter. Interruption ARMOR → logiciel, et coût réel d'ASOS
+
+**Bitstream v13, 2026-09-12.** `wrapper.sv` expose `irq_o`, de **niveau**, haut tant
+qu'une alerte collante non acquittée subsiste et que `CTRL[11] IRQ_EN` est armé.
+L'acquittement réutilise le `STICKY_CLR` existant (`CTRL[1]`) : le gestionnaire lit le
+collant, évalue, écrit sa politique avec `STICKY_CLR`, et la ligne retombe dans la même
+écriture. Aucun registre nouveau, aucun chemin d'acquittement séparé à désynchroniser.
+
+**De niveau et pas une impulsion** : les verdicts de flux ne durent que `BLOCK_CYCLES`,
+4 à 10 cycles en profil BENCH. Une impulsion aussi étroite serait ratée par un PLIC
+échantillonné, et le gestionnaire ne trouverait rien à lire — c'est le piège qui a fait
+mesurer `k = 0` partout au niveau 0.
+
+Câblage : `irq_sources[12]` et `[13]`, routage vers la VM par `vm-configs`. Coût **+142 LUT
+et +8 bascules** sur le design complet pour deux wrappers, WNS **+0,177 ns inchangé**.
+
+### Ce que ça mesure
+
+| Phase | cycles | contenu |
+|---|---:|---|
+| `L_notify` | ≈ 45 760 | montée de `irq_o` → entrée dans le gestionnaire : PLIC physique, injection par Bao, `claim` sur le vPLIC émulé |
+| `L_processing` | 177 (k=0) / 224 (k=2) | évaluation de la menace + classification TLC |
+| `L_mmio` | 56 (1 écriture) / 67 (2) | écriture de la politique |
+| `L_exit` | ≈ 15 710 | retour du gestionnaire, `complete` sur le vPLIC compris |
+| **`L_total`** | **≈ 61 700** | dispersion ±0,7 % sur 16 essais |
+
+**Le résultat : la décision logicielle pèse 0,4 % de sa propre réaction** — 233 cycles sur
+61 700. Tout le reste est la livraison et le retour d'interruption à travers l'hyperviseur.
+
+La décomposition qui l'explique, mesurée séparément (100 opérations chacune, `-O2`) :
+
+| Terme | cycles / opération |
+|---|---:|
+| Lecture CSR du wrapper, **passthrough** | **17** |
+| Écriture CSR + relecture | 43 |
+| Classification TLC seule (9 seuils) | 106 |
+| Évaluation complète, forme O(NEV) | 155 |
+| Évaluation complète, forme O(k), k=2 | 122 |
+| Lecture d'un registre du **vPLIC émulé** | **813** |
+
+**Bao passe les devices en direct mais émule le PLIC** (`src/arch/riscv/vplic.c`,
+`vm_emul_add_mem`) : un accès CSR au wrapper coûte 17 cycles, un accès vPLIC 813, soit un
+facteur 48. C'est là qu'est tout le surcoût de virtualisation, pas dans l'accès aux
+registres d'ARMOR.
+
+Journaux : `results/asos_O0.log`, `results/asos_O2.log` (sans interruption),
+`results/asos_irq_002.log` (avec). Code derrière `-DBENCH_ASOS` et `-DBENCH_ASOS_IRQ`.
+
+### Quatre pièges, tous rencontrés
+
+1. **L'identifiant PLIC vaut l'index matériel PLUS UN**, l'ID 0 étant réservé par la
+   spécification RISC-V. La table de `vm-configs` le faisait déjà : UART câblé sur
+   `irq_sources[0]` et déclaré `{1}`, timer sur `[6:3]` et déclaré `{4,5,6,7}`. Les
+   wrappers, câblés sur `[12]` et `[13]`, portent donc **13 et 14**. Les déclarer 12 et 13
+   arme le voisin — l'ID 13 désigne le wrapper 1, dont le collant reste vide, et rien ne
+   remonte jamais. **Trois campagnes perdues dessus.**
+2. **`plic_handle()` contenait deux `printf` de débogage** sur le chemin du `claim`. Dans
+   un gestionnaire d'interruption ils rendent toute mesure de latence absurde, et sous une
+   source de niveau non acquittée ils ont produit 560 000 lignes et 11 Mo d'UART en une
+   campagne. Retirés.
+3. **Une source de niveau se re-lève tant que l'attaque dure.** C'est correct, et c'est ce
+   qui justifie le traitement groupé des notifications — mais pour chronométrer UNE
+   réaction il faut la borner : le gestionnaire désarme `IRQ_EN`, l'appelant le ré-arme.
+4. **Le bit 14 du collant, `BAD_ID`, est un écho d'état et non un événement.** Après SC01
+   il est ré-armé en permanence : armer `IRQ_EN` sur un collant plein fait monter `irq_o`
+   immédiatement, le gestionnaire s'exécute avant la boucle et désarme. La mesure déclenche
+   donc **par l'armement** et non par l'attaque — ce qui isole proprement la livraison, la
+   latence de détection d'ARMOR étant déjà mesurée par ailleurs (37 cycles, `ARMORLAT`).
+
+### Sondes Bao
+
+`bao-overlay/src/core/interrupts.c` et `bao-overlay/src/arch/riscv/vplic.c` impriment
+l'assignation et la voie d'activation. **Dans l'overlay et pas dans le sous-module** :
+`init_submodules` y fait `git reset --hard`. Ce sont elles qui ont prouvé que Bao prend la
+voie matérielle et programme bien le PLIC physique — donc que le défaut était ailleurs.
 
 ## 6. Ce qui n'est pas dans le dépôt
 
