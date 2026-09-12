@@ -6,7 +6,8 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 ## 0. Où reprendre, exactement
 
 > **Le RTL est en avance sur le bitstream depuis le 2026-09-13.** `armor/SRC` porte le v14
-> (§ 5 quater : compteur de fenêtre saturant, `CTRL[12]`, occupation de fenêtre en `0x38`),
+> (§ 5 quater : compteur de fenêtre saturant, `CTRL[12]`, occupation de fenêtre en `0x38`,
+> file de sort à 64, `w_owed` à 8 bits) et `accel_wrap` son mode 7 (tempête pipelinée),
 > validé au banc et **pas encore synthétisé**. `check bench` dit donc PÉRIMÉ : ne lancer
 > aucune campagne avant `BENCH_PROFILE=1 ./2_build_HB.sh fpga --force`. Pour rejouer une
 > campagne v13 en attendant, revenir au RTL de `a80e162`.
@@ -774,6 +775,55 @@ de 65 à 77 transactions avec verdict sur 128 — le rebouclage en moins. Le con
 `OBS_CHECK=1` confirme que `REQ_MAX`/`WIN_ACT` disent la même chose que les compteurs
 indépendants du banc : 0 défaut.
 
+### Le mode 7 : la tempête que le mode 4 n'est pas
+
+Ajouté le même jour, pour la même raison. Puisque le débit de SC02 est fixé par la vitesse
+de l'aval et non par `STORM_REQS`, la seule façon de relever la détection sans toucher au
+seuil est d'émettre une vraie tempête. Le **mode 7** de `accel_wrap` présente ses seize
+adresses à la volée puis leurs seize beats — ce que fait tout DMA réel, et ce que la Table 5
+du papier annonce déjà (« 16 requêtes par salve, 2 × MAX_REQ »). Le mode 4 est conservé tel
+quel : mêmes seize écritures, une à la fois. **Seule leur forme diffère**, et c'est toute la
+comparaison.
+
+Au banc, 8 itérations × 16 écritures = 128 transactions :
+
+| aval rapide (`DN_LAT=4`) | `req_fire` vu | occ. max | verdict | coupées |
+|---|---|---|---|---|
+| SC02 séquentiel | 75 | 8 | `STORM` | 53 / 128 |
+| SC09 pipeliné, `RFMCNT=0` | **8** | **3** | **aucun** | **0 / 128** |
+| SC09 pipeliné, `RFMCNT=1` | — | 9 | `STORM` | **92 / 128** |
+
+| aval réaliste (`DN_WLAT=40`) | occ. max | fenêtres au seuil | verdict | coupées |
+|---|---|---|---|---|
+| SC02 séquentiel | 3 | 0 / 54 | aucun | 0 / 128 |
+| SC09 pipeliné, `RFMCNT=1` | 9 | 8 / 10 | `STORM` | 50 / 128 |
+
+Deux lectures. **Huit fronts pour 128 adresses transférées** : sans `CTRL[12]`, la tempête
+la plus dense que cette plateforme sache produire est invisible, et elle le reste quelle que
+soit la vitesse de l'aval — c'est la forme du trafic qui la cache, pas son débit. Et avec
+`CTRL[12]`, **le débit du mode 7 ne dépend plus de l'aval** : il est détecté là même où SC02
+passe intégralement.
+
+**Ce que le mode 7 a coûté au wrapper.** Seize AW en vol sans leurs données, c'est
+l'hypothèse exacte sur laquelle trois mécanismes reposaient :
+
+- la file de sort de `W_FATE` faisait **quatre** entrées (« accel_wrap n'a jamais plus d'un
+  AW sans W en attente ») : la cinquième poussée était perdue, `fate_ovf_q` levé, le sort
+  d'une écriture inconnu. Portée à **64**, comme la file B ;
+- `w_owed_q` faisait **quatre bits** et saturait à 15 : avec seize AW il perdait une
+  incrémentation puis encaissait seize décrémentations, atteignait zéro alors qu'une écriture
+  était encore due, et rouvrait la coupure de W au pire moment — le Bug #16. Porté à
+  **8 bits** ; `0xE8` porte désormais deux champs de 8 bits au lieu de deux de 4, et le
+  firmware a été ajusté ;
+- **`B_FATE` cesse d'être facultatif.** Sans lui, le mode 7 sous aval réaliste donne 488 B
+  en trop, 50 manquants et un AW resté dû en aval — la condition du gel carte. Avec lui :
+  128 B appariés, aucun en trop ni manquant, `aw_owed = 0`. Après 31 campagnes qui ne lui
+  trouvaient aucun gain mesurable, **c'est le premier scénario qui en a besoin**, et la
+  configuration de référence d'une campagne SC09 est donc `0x1731`, pas `0x331`.
+
+Aucune de ces trois modifications ne change rien tant que le maître n'a qu'un AW en vol :
+campagne par défaut identique ligne pour ligne, aval rapide comme aval réaliste.
+
 ### À faire sur carte
 
 ```sh
@@ -781,13 +831,34 @@ BENCH_PROFILE=1 ./2_build_HB.sh fpga --force      # ~45 min, licence requise
 tools/bitstream.sh save bench                     # puis committer bitstreams/
 ```
 
-Puis une campagne de référence (`0x331`, § 2) : la détection de SC02 doit être **inchangée**
-— la correction de largeur n'agit pas sous `ENFORCE=1` — et les lignes `ARMORCNT` doivent
-porter un `reqmax` proche de 8 sur SC02 et nettement plus bas sur les salves non détectées.
-C'est ce chiffre-là qui permettra enfin de dire, dans le papier, de combien un faux négatif
-passe sous le seuil. Un A/B `-DARMOR_RFMCNT=1` ne devrait rien changer ; une différence
-voudrait dire qu'un maître pipeline ses adresses sur la carte, ce que le banc ne modélise
-pas.
+Puis, dans cet ordre :
+
+**1. Campagne de référence (`0x331`, § 2), sans rien de neuf.** La détection de SC02 doit
+être **inchangée** — la correction de largeur n'agit pas sous `ENFORCE=1` — et les lignes
+`ARMORCNT` doivent porter un `reqmax` proche de 8 sur les salves détectées, nettement plus
+bas sur les autres. C'est ce chiffre-là qui permettra de dire dans le papier de combien un
+faux négatif passe sous le seuil. Un A/B `-DARMOR_RFMCNT=1` ne devrait rien changer ; une
+différence voudrait dire qu'un maître pipeline ses adresses sur la carte, ce que le banc ne
+modélise pas.
+
+**2. Campagne SC09**, à compiler à part et à ne pas mélanger aux archives :
+
+```sh
+make ... BENCH=1 ARCH_CPPFLAGS="-DBENCH_QUICK -DBENCH_NO_LHA_BG -DBENCH_SC09 \
+    -DARMOR_WSKID=1 -DARMOR_FRESH=1 -DARMOR_RHOLD=1 -DARMOR_WFATE=1 \
+    -DARMOR_BFATE=1 -DARMOR_RFMCNT=1"      # CTRL relu attendu : 0x1731
+```
+
+Et son témoin, le même sans `-DARMOR_RFMCNT=1` (`0x731`), qui doit donner **zéro détection
+sur SC09** : c'est le bras qui démontre l'angle mort, il vaut autant que l'autre. Attention,
+`-DBENCH_SC09` ajoute 50 × 16 transactions avant SC04 : une campagne avec SC09 ne se compare
+pas aux campagnes archivées, seulement à son propre témoin.
+
+**3. Ce qu'il faudra surveiller dans le log**, et qui n'est pas vérifié sur carte : `STATUS`
+final avec `[22]` (file `W_FATE`) et `[24]` (file `B_FATE`) à zéro, `w_owed` revenu à zéro
+en fin de scénario, et aucun timeout (`SUMMARY-TX` à 65 6xx). Le banc dit que tout est propre
+avec `B_FATE`, mais le banc ne modélise ni l'IOMMU ni le crossbar partagé — et c'est
+exactement le genre de régime où il a déjà validé du vide quatre fois.
 
 ## 6. Ce qui n'est pas dans le dépôt
 

@@ -1111,10 +1111,19 @@ module tb_accel_armor;
     //
     //  Ce controle n'a besoin d'aucun CSR, donc ne perturbe pas la campagne
     //  (contrairement a OBS_CHECK). Il repose sur deux faits de accel_wrap :
-    //    - le maitre emet ses beats W juste APRES l'acquittement de son AW
-    //      (G_AW -> G_W), donc un beat appartient au dernier AW acquitte ;
+    //    - les beats W appartiennent aux AW acquittes DANS L'ORDRE : c'est la
+    //      regle AXI4, et elle vaut aussi bien pour un maitre sequentiel que
+    //      pipeline ;
     //    - wdata_q s'incremente a chaque beat acquitte : chaque beat a une
     //      valeur unique, et le k-ieme beat d'une adresse vaut premier + k.
+    //
+    //  CORRECTIF DU 2026-09-13. Le cote maitre suivait « le DERNIER AW
+    //  acquitte », ce qui n'est vrai que d'une FSM qui fait G_AW -> G_W. Le
+    //  mode 7 emet seize adresses avant le premier beat : les quinze premieres
+    //  n'avaient alors jamais de donnee enregistree et le controle sortait
+    //  « 120 beats pour un AW sans donnee » sur un trafic parfaitement
+    //  conforme. Une file remplace le scalaire ; pour un maitre sequentiel elle
+    //  n'a jamais plus d'une entree et le comportement est inchange.
     //
     //  Chaque AW admis en aval est rattache a l'AW du maitre dont il provient ;
     //  chaque beat pris en aval doit alors porter la valeur que le maitre a
@@ -1126,7 +1135,7 @@ module tb_accel_armor;
     bit          sb_adm   [SB_N];   // l'AW n a ete admis en aval
     int          sb_dn_q  [$];      // AW admis en aval, dans l'ordre, par index maitre
     int unsigned sb_up_n;           // AW acquittes au maitre
-    int          sb_cur_up = -1;    // AW dont le maitre emet les beats
+    int          sb_up_q  [$];      // AW acquittes au maitre attendant leurs beats
     int unsigned sb_up_beat, sb_dn_beat;
 
     int unsigned pair_ok;           // beats pris en aval avec la bonne donnee
@@ -1167,16 +1176,21 @@ module tb_accel_armor;
             //     Traite AVANT l'aval : sans etage W, un beat traverse dans le
             //     meme cycle.
             if (up_aw) begin
-                sb_cur_up  = sb_up_n;
+                sb_up_q.push_back(sb_up_n);
                 sb_up_n++;
-                sb_up_beat = 0;
             end
-            if (up_w && sb_cur_up >= 0 && sb_cur_up < SB_N) begin
-                if (sb_up_beat == 0) begin
-                    sb_first[sb_cur_up] = req_in.w.data;
-                    sb_seen[sb_cur_up]  = 1'b1;
+            if (up_w && sb_up_q.size() != 0) begin
+                automatic int cu = sb_up_q[0];
+                if (cu >= 0 && cu < SB_N && sb_up_beat == 0) begin
+                    sb_first[cu]  = req_in.w.data;
+                    sb_seen[cu]   = 1'b1;
                 end
-                sb_up_beat = req_in.w.last ? 0 : sb_up_beat + 1;
+                if (req_in.w.last) begin
+                    void'(sb_up_q.pop_front());
+                    sb_up_beat = 0;
+                end else begin
+                    sb_up_beat = sb_up_beat + 1;
+                end
             end
 
             //  3. Cote aval : le beat doit etre celui de l'AW admis le plus ancien.
@@ -1469,6 +1483,15 @@ module tb_accel_armor;
     wire [31:0] fwin_now = tb_accel_armor.i_sec_wrap.flow_window_cnt;
     wire        occ_clr  = tb_accel_armor.i_sec_wrap.csr_cnt_clr;
 
+    //  Debordements des deux files de sort, lus sur les nets internes plutot que
+    //  par CSR. Ils sont COLLANTS : une fois leves ils le restent, et leur
+    //  apparition en cours de campagne est une information de meme nature qu'un
+    //  W orphelin -- le suivi d'une ecriture est perdu, tout ce qui suit est
+    //  suspect. Le mode 7 est precisement ce qui peut les lever : seize AW en
+    //  vol sans leurs donnees.
+    wire        fate_ovf_now = tb_accel_armor.i_sec_wrap.fate_ovf_q;
+    wire        bq_ovf_now   = tb_accel_armor.i_sec_wrap.bq_ovf_q;
+
     logic [7:0]  fcnt_q;
     logic [31:0] fwin_q;
     int unsigned occ_max, win_act, win_trip, occ_sum, occ_wrap;
@@ -1689,6 +1712,12 @@ module tb_accel_armor;
                          (occ_wrap != 0)
                            ? $sformatf(" | !! COMPTEUR REBOUCLE %0d fois", occ_wrap)
                            : "");
+            if (fate_ovf_now)
+                $display("  %-12s  !! FILE DE SORT W_FATE DEBORDEE (STATUS[22]) -- le sort d'au moins une ecriture est perdu",
+                         name);
+            if (bq_ovf_now)
+                $display("  %-12s  !! FILE DE SORT B_FATE DEBORDEE (STATUS[24]) -- un B a ete perdu, le compte est desynchronise",
+                         name);
             if (w_excess_tot != w_excess_0)
                 $display("  %-12s  !! W ORPHELIN EN AVAL : %0d beat(s) avale(s) sans AW -- canal W decale",
                          name, w_excess_tot - w_excess_0);
@@ -1995,6 +2024,31 @@ module tb_accel_armor;
             campaign_step("SC02-STORM/off", 3'd4, 1'b0, BIT_STORM[4:0], 1'b0, 8, 1'b0);
 `endif
             campaign_step("SC02-STORM", 3'd4, 1'b0, BIT_STORM[4:0],  1'b0, 8, 1'b1);
+            //  ---- SC09 : la tempete PIPELINEE (mode 7, optionnel) --------
+            //
+            //  Meme salve que SC02 -- seize ecritures -- mais les seize adresses
+            //  partent a la volee avant le premier beat de donnees. Le debit
+            //  cesse alors de dependre de la vitesse de l'aval, et c'est ce que
+            //  la Table 5 du papier decrit depuis le debut.
+            //
+            //  L'ATTENTE DEPEND DE L'ARME, et c'est tout le resultat :
+            //    RFMCNT=0 : AUCUN verdict. Seize adresses transferees sur seize
+            //               cycles consecutifs ne font qu'un front, donc UNE
+            //               requete comptee. La tempete la plus dense que cette
+            //               plateforme sache produire est invisible au moniteur
+            //               historique.
+            //    RFMCNT=1 : STORM. Le meme trafic, compte par transferts,
+            //               franchit le seuil des le premier cycle utile.
+            //
+            //  Hors campagne par defaut (`+define+PIPE`) : ses transactions
+            //  supplementaires decalent SC04, comme le pas ENFORCE=0.
+`ifdef PIPE
+  `ifdef RFMCNT
+            campaign_step("SC09-PIPE", 3'd7, 1'b0, BIT_STORM[4:0], 1'b0, 8, 1'b1);
+  `else
+            campaign_step("SC09-PIPE", 3'd7, 1'b0, 5'd0,           1'b1, 8, 1'b1);
+  `endif
+`endif
             campaign_step("SC04-MSI",   3'd6, 1'b0, BIT_MSI[4:0],    1'b0, 8, 1'b1);
             campaign_step("SC03-OUTS",  3'd5, 1'b1, BIT_OUTS[4:0],   1'b0, 8, 1'b1);
             // SC01 en dernier, comme le firmware : son bannissement contamine
