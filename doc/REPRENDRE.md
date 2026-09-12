@@ -428,8 +428,8 @@ référence).
 
   `OBS_CHECK` 0 défaut, verdicts inchangés. **Deux points ouverts** : (1) avec l'aval
   historique, SC02 finit UNE fois en timeout en état **DRAIN** (14 B reçus sur 16) —
-  **cause établie au banc le 2026-09-11, corrigée par `CTRL[10] B_FATE` (MAGIC v11), non
-  synthétisé** : le canal B n'était pas compté par écriture. Pendant un blocage un SLVERR
+  **cause établie au banc le 2026-09-11, corrigée par `CTRL[10] B_FATE` — MAGIC v11, puis
+  v12 après le débordement de file constaté sur carte (§ 0)** : le canal B n'était pas compté par écriture. Pendant un blocage un SLVERR
   est présenté en continu et l'accélérateur en prend un par cycle (2674 B en trop en
   configuration de référence) ; après le blocage, le B d'un AW coupé ne vient jamais (14
   manquants). Les premiers masquaient les seconds, sauf sans `RHOLD`, où s'ajoutaient
