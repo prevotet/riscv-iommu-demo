@@ -495,9 +495,8 @@ référence).
 
 - **`payloads/`** est ignoré : les images de boot se reconstruisent en trois
   minutes avec la section 2.
-- Les **notes de travail** (27 fichiers) vivent dans
-  `~/.claude/projects/<projet>/memory/` sur la machine d'origine. Elles ne
-  suivent pas le clone. Ce document en reprend l'essentiel opérationnel, mais
-  pas le détail des impasses.
+- Les **notes de travail** (27 fichiers) ne sont pas versionnées : elles vivent
+  dans un répertoire local à la machine d'origine et ne suivent pas le clone. Ce
+  document en reprend l'essentiel opérationnel, mais pas le détail des impasses.
 - Les sorties Vivado (`cva6/corev_apu/fpga/work-fpga/`) ne sont pas versionnées ;
   seul le `.bit` l'est, via `tools/bitstream.sh`.
