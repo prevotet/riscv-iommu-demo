@@ -5,12 +5,11 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
-> **Le RTL est en avance sur le bitstream depuis le 2026-09-13.** `armor/SRC` porte le v14
-> (§ 5 quater : compteur de fenêtre saturant, `CTRL[12]`, occupation de fenêtre en `0x38`,
-> file de sort à 64, `w_owed` à 8 bits) et `accel_wrap` son mode 7 (tempête pipelinée),
-> validé au banc et **pas encore synthétisé**. `check bench` dit donc PÉRIMÉ : ne lancer
-> aucune campagne avant `BENCH_PROFILE=1 ./2_build_HB.sh fpga --force`. Pour rejouer une
-> campagne v13 en attendant, revenir au RTL de `a80e162`.
+> **Bitstream v14 synthétisé et archivé le 2026-09-13 à 01h30** (§ 5 quater) : compteur de
+> fenêtre saturant, `CTRL[12]`, occupation de fenêtre en `0x38`, file de sort à 64,
+> `w_owed` à 8 bits, et le mode 7 de `accel_wrap` (tempête pipelinée). `check bench` dit
+> À JOUR. **Aucune campagne carte n'a encore été jouée dessus** : tout ce qui suit sur le
+> v14 vient du banc. Pour rejouer une campagne v13, revenir au RTL de `a80e162`.
 
 **Configuration de référence, VALIDÉE SUR CARTE : `W_SKID + FRESH + RESP_HOLD + W_FATE`**
 (`CTRL` relu `0x331`). **Bitstream archivé : v13** (`d4836ae`) — `tools/bitstream.sh use
@@ -824,14 +823,45 @@ l'hypothèse exacte sur laquelle trois mécanismes reposaient :
 Aucune de ces trois modifications ne change rien tant que le maître n'a qu'un AW en vol :
 campagne par défaut identique ligne pour ligne, aval rapide comme aval réaliste.
 
+### Ce que la synthèse a donné
+
+Synthèse du 2026-09-13, 45 min, Vivado 2022.2, `xc7k325tffg900-2`, profil BENCH :
+
+| | v13 | **v14** |
+|---|---|---|
+| WNS | +0,177 ns | **+0,110 ns**, 0 endpoint en faute |
+| LUT | 107 993 | **108 462** (53,2 % de 203 800) |
+| bascules | 73 495 | **73 721** (18,1 % de 407 600) |
+
+Les +469 LUT et +226 bascules sont le prix des deux files de sort à 64 entrées, de
+`w_owed` à 8 bits et des compteurs d'occupation — l'ordre de grandeur attendu. La marge
+temporelle perd 67 ps et reste positive ; c'est le chiffre à surveiller à la prochaine
+synthèse, pas encore un problème.
+
+**Surface d'un wrapper ARMOR, en contexte** (`reports/ariane.utilization.rpt`, utilisation
+par hiérarchie, sous-modules compris) :
+
+| instance | LUT | bascules |
+|---|---|---|
+| `i_sec_wrap2` (MHA) | **2 663** | **1 919** |
+| `i_sec_wrap1` (LHA) | 2 622 | 1 917 |
+| `i_accel1` / `i_accel2` | 557 / 561 | 535 / 535 |
+
+**Le papier annonce 180 LUT et 157 bascules par wrapper : c'est un ordre de grandeur en
+dessous.** Ces chiffres-ci sont en contexte (optimisation à travers les frontières de
+hiérarchie), donc ils ne remplacent pas la synthèse hors contexte que réclame le § 6.3.4
+du dossier de révision — mais ils en donnent la borne réaliste, et elle est à ~2 600 LUT,
+pas à « quelques centaines ».
+
+**Les rapports Vivado sont écrasés à chaque run.** C'est ce qui a empêché la comparaison
+v13/v14 de se faire proprement : le `*_utilization_placed.rpt` du v13 n'existait plus.
+`tools/bitstream.sh save` recopie désormais timing, surface et surface par wrapper dans le
+`.provenance`, qui lui suit le `.bit` dans git.
+
 ### À faire sur carte
 
-```sh
-BENCH_PROFILE=1 ./2_build_HB.sh fpga --force      # ~45 min, licence requise
-tools/bitstream.sh save bench                     # puis committer bitstreams/
-```
-
-Puis, dans cet ordre :
+Le bitstream est déjà synthétisé et archivé (`tools/bitstream.sh use bench` pour le
+réinstaller dans `build/hw/`). Puis, dans cet ordre :
 
 **1. Campagne de référence (`0x331`, § 2), sans rien de neuf.** La détection de SC02 doit
 être **inchangée** — la correction de largeur n'agit pas sous `ENFORCE=1` — et les lignes
