@@ -1650,8 +1650,10 @@ static void run_asos(void) {
 #ifdef BENCH_ASOS_IRQ
 
 #define WRAP_CTRL_IRQEN   (1ULL << 11)
-#define ASOS_IRQ_W1       12
-#define ASOS_IRQ_W2       13
+/* Identifiants PLIC = index materiel + 1 (ID 0 reserve). Les wrappers sont
+ * cables sur irq_sources[12] et [13], ils portent donc 13 et 14. */
+#define ASOS_IRQ_W1       13
+#define ASOS_IRQ_W2       14
 #define ASOS_IRQ_TRIALS   16
 
 static volatile uint64_t asos_t_entry, asos_t_assessed, asos_t_actuated;
@@ -1676,8 +1678,14 @@ static void asos_irq_handler(unsigned id) {
 
     asos_t_assessed = read_counter();
 
-    /* Ecrit STICKY_CLR : c'est l'acquittement, irq_o retombe dans la foulee. */
-    unsigned nw = asos_actuate(w, tlc, asos_ctrl_saved);
+    /* Ecrit STICKY_CLR : c'est l'acquittement, irq_o retombe dans la foulee.
+     * On DESARME aussi IRQ_EN au passage. Sans ca, l'attaque qui dure re-leve
+     * le collant aussitot et la source de niveau repart : 560 000 entrees dans
+     * le gestionnaire mesurees le 2026-09-12. C'est le comportement correct
+     * d'un niveau, et c'est precisement ce qui justifie le traitement groupe
+     * des notifications decrit au paragraphe 5 du papier -- mais pour
+     * chronometrer UNE reaction il faut la borner. Re-arme par l'appelant. */
+    unsigned nw = asos_actuate(w, tlc, asos_ctrl_saved & ~WRAP_CTRL_IRQEN);
 
     asos_t_actuated = read_counter();
 
@@ -1693,6 +1701,15 @@ static void run_asos_irq(void) {
                     & ~(WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR);
 
     printf("\r\n###### ASOS NIVEAU 1 (interruption, VM sous Bao) ######\r\n");
+
+    /* VIDER LE COLLANT AVANT D'ARMER. La campagne vient de laisser
+     * sticky = 0x4118 sur le wrapper 2 : armer IRQ_EN sur un collant plein fait
+     * monter irq_o immediatement, le gestionnaire s'execute AVANT la boucle et
+     * desarme, et les 16 essais suivants tirent a blanc sur un IRQ_EN eteint.
+     * Symptome exact observe le 2026-09-12 : ctrl relu 0x331 au diagnostic. */
+    w1[WRAP_CTRL_OFF / 8] = asos_ctrl_saved | WRAP_CTRL_STICKY_CLR;
+    w2[WRAP_CTRL_OFF / 8] = asos_ctrl_saved | WRAP_CTRL_STICKY_CLR;
+    fence();
 
     /* Arme l'interruption cote materiel, puis verifie que le bitstream la
      * porte : un bit absent du RTL relit zero, et on mesurerait un timeout. */
@@ -1729,22 +1746,48 @@ static void run_asos_irq(void) {
                (unsigned long)plic_hart[1].threshold);
     }
 
+    printf("# ASOS-IRQ-ARM,seen=%u,ctrl_w2=0x%lx,sticky_w2=0x%lx\r\n",
+           asos_irq_seen, (unsigned long)w2[WRAP_CTRL_OFF / 8],
+           (unsigned long)w2[WRAP_STICKY_OFF / 8]);
+
     printf("# ASOS-IRQ,essai,k,tlc,ecritures,L_notify,L_proc,L_mmio,L_exit,L_total\r\n");
 
     unsigned done = 0, timeouts = 0;
     for (unsigned i = 0; i < ASOS_IRQ_TRIALS; i++) {
         /* Part d'un collant vide : sinon irq_o est deja haut et le
          * declenchement ne mesurerait pas une notification. */
-        w2[WRAP_CTRL_OFF / 8] = asos_ctrl_saved | WRAP_CTRL_STICKY_CLR;
-        w2[WRAP_CTRL_OFF / 8] = asos_ctrl_saved;
+        uint64_t ctrl_off = asos_ctrl_saved & ~WRAP_CTRL_IRQEN;
+        w2[WRAP_CTRL_OFF / 8] = ctrl_off | WRAP_CTRL_STICKY_CLR;
+        w2[WRAP_CTRL_OFF / 8] = ctrl_off;
         fence();
+
+        /* DECLENCHEMENT PAR L'ARMEMENT, ET NON PAR L'ATTAQUE.
+         *
+         * Premiere version : vider le collant, lancer l'attaque, attendre. Elle
+         * ne marche pas, et le journal dit pourquoi -- `sticky = 0x4000` releve
+         * juste apres l'effacement. Le bit 14, BAD_ID, est un ECHO D'ETAT et
+         * non un evenement : apres SC01 il est re-arme en permanence, le
+         * collant se remplit seul, irq_o repart et le gestionnaire se desarme
+         * avant meme que la boucle ne commence (`seen=1` avant le premier
+         * essai). Aucune sequence logicielle ne produit un evenement propre
+         * tant que ce bit compte dans la condition d'interruption.
+         *
+         * On tire donc parti de cet etat plutot que de le combattre : le
+         * collant est deja non nul, il suffit d'ARMER pour faire monter irq_o.
+         * `L_notify` mesure alors exactement ce qu'on cherche -- propagation
+         * materielle, injection par Bao, et `claim` sur le vPLIC emule -- sans
+         * y meler la latence de detection d'ARMOR, qui est deja mesuree par
+         * ailleurs (37 cycles, `ARMORLAT`). C'est un meilleur decoupage que
+         * celui de la Table 8, pas un repli. */
+        uint64_t det = 0, tx = 0;
+        (void)fire_one('M', 1 /* usurpation : garnit le collant */, LEGIT_DST,
+                       0, &det, &tx);
 
         unsigned before = asos_irq_seen;
         asos_irq_score  = 0;
 
-        uint64_t det = 0, tx = 0;
         uint64_t t_trigger = read_counter();
-        (void)fire_one('M', 1 /* usurpation d'identite */, LEGIT_DST, 0, &det, &tx);
+        w2[WRAP_CTRL_OFF / 8] = asos_ctrl_saved;   /* arme -> irq_o monte */
 
         /* Attente bornee de la remontee. */
         uint32_t guard = 2000000;
