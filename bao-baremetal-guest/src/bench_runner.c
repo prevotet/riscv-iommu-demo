@@ -1337,6 +1337,7 @@ static const struct { uint64_t bit; unsigned w; const char *name; } asos_ev[] = 
     { 1ULL << 7, 15, "MSI"     },
 };
 #define ASOS_NEV  (sizeof(asos_ev) / sizeof(asos_ev[0]))
+#define ARMOR_ALERT_MASK  ((1ULL<<3)|(1ULL<<4)|(1ULL<<5)|(1ULL<<6)|(1ULL<<7))
 
 /* Table 2 : neuf seuils, dix classes. */
 static unsigned asos_tlc(uint64_t sc) {
@@ -1499,6 +1500,84 @@ static void run_asos(void) {
         printf("# ASOS-K,%u,%lu,%lu,%lu\r\n", kk,
                (unsigned long)ap.min, (unsigned long)(ap.sum / ap.n),
                (unsigned long)ap.max);
+    }
+
+    /* ------------------------------------------------------------------
+     * DECOMPOSITION. Sans elle on attribue L_processing a ce qu'on croit.
+     * Premiere lecture de ces chiffres, 2026-09-12 : j'avais mis les ~190
+     * cycles sur le dos de la lecture MMIO, alors que L_mmio -- une ecriture
+     * PLUS une relecture -- n'en valait que 44. Les deux ne pouvaient pas etre
+     * vrais en meme temps. On mesure donc chaque terme separement.
+     * ------------------------------------------------------------------ */
+    printf("# ASOS-DECOMP,terme,cycles_pour_100,par_operation\r\n");
+    {
+        uint64_t t0, t1;
+
+        /* a. lecture CSR du wrapper, nue */
+        t0 = read_counter();
+        for (unsigned i = 0; i < 100; i++) asos_sink = w2[WRAP_STICKY_OFF / 8];
+        t1 = read_counter();
+        printf("# ASOS-DECOMP,lecture_CSR_wrapper,%lu,%lu\r\n",
+               (unsigned long)(t1 - t0), (unsigned long)((t1 - t0) / 100));
+
+        /* b. ecriture CSR suivie de sa relecture, comme dans l'actuation */
+        t0 = read_counter();
+        for (unsigned i = 0; i < 100; i++) {
+            w2[WRAP_CTRL_OFF / 8] = ctrl;
+            asos_sink = w2[WRAP_CTRL_OFF / 8];
+        }
+        t1 = read_counter();
+        printf("# ASOS-DECOMP,ecriture+relecture_CSR,%lu,%lu\r\n",
+               (unsigned long)(t1 - t0), (unsigned long)((t1 - t0) / 100));
+
+        /* c. l'evaluation SEULE, sans aucun MMIO : masque deja en main */
+        uint64_t msk = snap2;
+        t0 = read_counter();
+        for (unsigned i = 0; i < 100; i++) {
+            uint64_t sc = (42ULL * ASOS_GAMMA_NUM) >> ASOS_GAMMA_SH;
+            unsigned k = 0;
+            for (unsigned j = 0; j < ASOS_NEV; j++)
+                if (msk & asos_ev[j].bit) { sc += asos_ev[j].w; k++; }
+            asos_sink = sc + asos_tlc(sc) + k;
+        }
+        t1 = read_counter();
+        printf("# ASOS-DECOMP,evaluation_seule_O(NEV),%lu,%lu\r\n",
+               (unsigned long)(t1 - t0), (unsigned long)((t1 - t0) / 100));
+
+        /* d. la MEME evaluation, mais reellement en O(k) : on n'itere que sur
+         *    les bits ACTIFS, par extraction du bit de poids faible. C'est ce
+         *    que le papier decrit ; la version (c) parcourt les 5 types a
+         *    chaque fois et est donc O(NEV), d'ou sa platitude en k. */
+        t0 = read_counter();
+        for (unsigned i = 0; i < 100; i++) {
+            uint64_t sc = (42ULL * ASOS_GAMMA_NUM) >> ASOS_GAMMA_SH;
+            unsigned k = 0;
+            uint64_t rem = msk & ARMOR_ALERT_MASK;
+            while (rem) {
+                uint64_t lsb = rem & (~rem + 1ULL);
+                for (unsigned j = 0; j < ASOS_NEV; j++)
+                    if (asos_ev[j].bit == lsb) { sc += asos_ev[j].w; break; }
+                k++; rem ^= lsb;
+            }
+            asos_sink = sc + asos_tlc(sc) + k;
+        }
+        t1 = read_counter();
+        printf("# ASOS-DECOMP,evaluation_seule_O(k),%lu,%lu\r\n",
+               (unsigned long)(t1 - t0), (unsigned long)((t1 - t0) / 100));
+
+        /* e. la classification TLC seule, 9 seuils */
+        t0 = read_counter();
+        for (unsigned i = 0; i < 100; i++) asos_sink = asos_tlc(40 + i % 70);
+        t1 = read_counter();
+        printf("# ASOS-DECOMP,classification_TLC,%lu,%lu\r\n",
+               (unsigned long)(t1 - t0), (unsigned long)((t1 - t0) / 100));
+
+        /* f. la boucle de mesure a vide : deux lectures de compteur */
+        t0 = read_counter();
+        for (unsigned i = 0; i < 100; i++) asos_sink = i;
+        t1 = read_counter();
+        printf("# ASOS-DECOMP,boucle_a_vide,%lu,%lu\r\n",
+               (unsigned long)(t1 - t0), (unsigned long)((t1 - t0) / 100));
     }
 
     /* Remise en etat : l'actuation a pu revoquer les Device ID. Hors mesure. */
