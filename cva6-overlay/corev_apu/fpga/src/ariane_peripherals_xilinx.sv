@@ -105,7 +105,17 @@ module ariane_peripherals #(
     //  1. PLIC
     // -----------------------------------------------------------------------
     logic [ariane_soc::NumSources-1:0] irq_sources;
-    assign irq_sources[ariane_soc::NumSources-1:ariane_soc::LastIntIndex+1] = '0;
+
+    //  Carte des sources PLIC :
+    //    0        UART            3..6   Timer
+    //    1        SPI             8..11  IOMMU (IOMMUNumWires = 4)
+    //    2        Ethernet       12, 13  ARMOR sec_wrapper #1 et #2  (v13)
+    //
+    //  Le forcage a zero partait de LastIntIndex+1 = 11, alors que l'IOMMU
+    //  pilote deja [11:8] : le bit 11 avait DEUX pilotes continus. Corrige ici
+    //  en partant de 14, au-dessus des deux nouvelles sources ARMOR. On ne
+    //  touche pas a LastIntIndex, qui vit dans le sous-module cva6.
+    assign irq_sources[ariane_soc::NumSources-1:14] = '0;
 
     REG_BUS #(.ADDR_WIDTH(32), .DATA_WIDTH(32)) reg_bus (clk_i);
 
@@ -679,7 +689,8 @@ module ariane_peripherals #(
             .req_wrapper_iommu_o ( req_accel1_out   ),
             .req_CPU_Wrapper__i  ( req_cpu_wrap1    ),
             .resp_CPU_Wrapper_o  ( resp_cpu_wrap1   ),
-            .armor_verdict_o     ( armor_verdict1   )
+            .armor_verdict_o     ( armor_verdict1   ),
+            .irq_o               ( irq_sources[12]  )
         );
 
         // -------------------------------------------------------------------
@@ -865,7 +876,8 @@ module ariane_peripherals #(
                 .req_wrapper_iommu_o ( req_accel2_out   ),
                 .req_CPU_Wrapper__i  ( req_cpu_wrap2    ),
                 .resp_CPU_Wrapper_o  ( resp_cpu_wrap2   ),
-                .armor_verdict_o     ( armor_verdict2   )
+                .armor_verdict_o     ( armor_verdict2   ),
+                .irq_o               ( irq_sources[13]  )
             );
 
             // axi_mux 2:1 — entrées : accel1_sec, accel2_sec (sorties des wrappers)
@@ -967,6 +979,10 @@ module ariane_peripherals #(
 
         end else begin : gen_accel2_disabled
 
+            //  Sans second wrapper, sa source PLIC n'a aucun pilote : la forcer
+            //  explicitement plutot que de laisser Vivado la resoudre.
+            assign irq_sources[13] = 1'b0;
+
             // Un seul accélérateur — accel1_sec → IOMMU directement
             `AXI_ASSIGN_TO_REQ(axi_iommu_tr_req, accel1_sec)
             `AXI_ASSIGN_FROM_RESP(accel1_sec, axi_iommu_tr_rsp)
@@ -1000,6 +1016,10 @@ module ariane_peripherals #(
         end // gen_accel2 / gen_accel2_disabled
 
     end else begin : gen_dma_disabled
+
+        //  Aucun accelerateur, donc aucun wrapper : les deux sources ARMOR
+        //  restent a zero.
+        assign irq_sources[13:12] = 2'b00;
 
         // Tous les ports → esclaves d'erreur
         ariane_axi_soc::req_slv_t  q[4]; ariane_axi_soc::resp_slv_t r[4];
