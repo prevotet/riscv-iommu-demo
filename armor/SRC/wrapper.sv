@@ -423,7 +423,7 @@ logic resp_hold_b, resp_hold_r;
 
 //  B_FATE (CTRL[10]) : nets de la file du sort cote B, calcules plus bas (apres
 //  W_FATE, dont ils reprennent les handshakes) et lus par les deux managers.
-logic                  bfate_on, bq_fab, bq_take;
+logic                  bfate_on, bq_fab, bq_take, bq_hold_aw;
 logic [IdWidthSlv-1:0] bq_head_id;
 
 
@@ -715,17 +715,37 @@ assign w_absorb = csr_wskid_q & csr_wfate_q & ~fate_empty & ~fate_head;
 //  CTRL[5] FRESH : une ecriture admise en aval recoit son B reel, meme si son
 //  verdict tombe ensuite. A 0 au reset : comportement precedent.
 // -----------------------------------------------------------------------------
-localparam int unsigned BqDepth = 16;
+//  PROFONDEUR. 16 ne suffit pas : SC04-MSI emet MSI_REQS = 48 ecritures d'affilee
+//  sans attendre leurs B, et il suffit que la tete soit une ecriture admise dont
+//  le B reel tarde pour que rien ne se depile. Sur carte le 2026-09-12, la file a
+//  deborde et la campagne a gele dans SC04 ; reproduit au banc avec DN_AWOUT=48
+//  DN_BLAT=200 (remplissage 16/16, 294 B manquants, 6 timeouts). 64 couvre la plus
+//  grosse rafale de bench_runner.c ; au-dela, le freinage ci-dessous protege.
+localparam int unsigned BqDepth = 64;
 
 logic [BqDepth-1:0]                 bq_fate_q;    // [0] = tete ; 1 admise, 0 coupee
 logic [BqDepth-1:0][IdWidthSlv-1:0] bq_id_q;
-logic [4:0]                         bq_n_q;       // 0..16 entrees
-logic [4:0]                         bq_wdone_q;   // W-last passes, B pas encore rendu
-logic                               bq_ovf_q;     // poussee perdue sur file pleine (collant)
-logic                               bq_empty, bq_b_hs;
+logic [6:0]                         bq_n_q;       // 0..64 entrees
+logic [6:0]                         bq_wdone_q;   // W-last passes, B pas encore rendu
+logic                               bq_ovf_q;     // poussee perdue : ne doit plus arriver
+logic                               bq_empty, bq_full, bq_b_hs;
 
 assign bfate_on   = csr_bfate_q & csr_wskid_q & csr_wfate_q;
-assign bq_empty   = (bq_n_q == 5'd0);
+assign bq_empty   = (bq_n_q == 7'd0);
+assign bq_full    = (bq_n_q == 7'(BqDepth));
+
+//  FILE PLEINE : ON REFUSE L'AW, ON NE PERD PAS LA POUSSEE (2026-09-12).
+//
+//  La version precedente laissait tomber la poussee et levait bq_ovf_q : le
+//  compte etait alors faux pour toujours, et le maitre attendait un B que
+//  personne ne devait plus -- c'est le gel observe sur carte dans SC04. Un
+//  esclave a le droit de faire attendre : on retire donc aw_ready au maitre et
+//  aw_valid en aval tant que la file est pleine.
+//
+//  Aucun VALID deja presente n'est retire : la file ne se remplit qu'au cycle
+//  d'un handshake AW AMONT, et ce handshake implique que l'AW correspondant a
+//  ete soit admis en aval dans le meme cycle, soit jamais presente (coupe).
+assign bq_hold_aw = bfate_on & bq_full;
 assign bq_fab     = bfate_on & ~bq_empty & ~bq_fate_q[0] & (bq_wdone_q != 5'd0);
 assign bq_take    = bfate_on & ~bq_empty &  bq_fate_q[0];
 assign bq_head_id = bq_id_q[0];
@@ -746,25 +766,28 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
     end else begin
         automatic logic [BqDepth-1:0]                 f  = bq_fate_q;
         automatic logic [BqDepth-1:0][IdWidthSlv-1:0] d  = bq_id_q;
-        automatic logic [4:0]                         n  = bq_n_q;
-        automatic logic [4:0]                         wd = bq_wdone_q;
+        automatic logic [6:0]                         n  = bq_n_q;
+        automatic logic [6:0]                         wd = bq_wdone_q;
         //  Depiler d'abord, puis le W-last, puis l'AW : les trois peuvent tomber
         //  dans le meme cycle.
-        if (bq_b_hs && n != 5'd0) begin
+        if (bq_b_hs && n != 7'd0) begin
             f = f >> 1;
             d = d >> IdWidthSlv;
-            n = n - 5'd1;
-            if (wd != 5'd0) wd = wd - 5'd1;
+            n = n - 7'd1;
+            if (wd != 7'd0) wd = wd - 7'd1;
         end
         //  Borne par n : un W-last sans entree n'ouvre aucun B.
         if (fate_w_last_hs && wd < n)
-            wd = wd + 5'd1;
+            wd = wd + 7'd1;
         if (fate_aw_hs) begin
             if (n < BqDepth) begin
                 f[n] = dn_aw_hs;
                 d[n] = IdWidthSlv'(req_IP_wrapper_i.aw.id);
-                n    = n + 5'd1;
+                n    = n + 7'd1;
             end else begin
+                //  Inatteignable depuis le freinage : un AW ne peut plus etre
+                //  acquitte quand la file est pleine. Le drapeau reste comme
+                //  filet -- s'il se leve, c'est que le freinage a ete contourne.
                 bq_ovf_q <= 1'b1;
             end
         end
@@ -784,6 +807,9 @@ always_comb begin
         req_wrapper_iommu_o.w       = wskid_w;
         req_wrapper_iommu_o.w_valid = wskid_valid;
     end
+    //  B_FATE, file pleine : l'AW n'est pas presente en aval, et response_manager
+    //  ne rend pas son ready au maitre. L'ecriture attend son tour.
+    if (bq_hold_aw) req_wrapper_iommu_o.aw_valid = 1'b0;
 end
 
 response_manager #(
@@ -811,6 +837,7 @@ response_manager #(
     .bfate_fab_i(bq_fab),
     .bfate_take_i(bq_take),
     .bfate_id_i(bq_head_id),
+    .bfate_hold_aw_i(bq_hold_aw),   // file pleine : le maitre attend
     .resp_wrapper_iommu_i(resp_wrapper_iommu_i),
     .resp_IP_wrapper_o(resp_IP_wrapper_o)
 );

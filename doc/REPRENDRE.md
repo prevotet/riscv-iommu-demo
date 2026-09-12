@@ -60,12 +60,49 @@ pkill -x hw_server
 tools/capture_uart.sh -j payloads/fw_payload_v10_fresh1_wskid1_rhold1_wfate1.elf
 ```
 
-**Prochaine action** : synthétiser le bitstream v11 **sur la machine d'origine** (la seconde
-n'a pas de licence de synthèse, § 1) — `CTRL[10] B_FATE`, un B par écriture
-(§ 5, « Encore ouvert », et `armor/tb/README.md`, « Canal B ») —, puis l'A/B sur carte
-`bfate0` / `bfate1` sur la configuration de référence (`CTRL` relu `0x331` / `0x731`).
-**Validé au banc seulement.** Les runs répétés de la configuration de référence sont faits
-(tableau ci-dessus).
+**Bitstream v11 synthétisé et archivé le 2026-09-12** (`a402202`) : `CTRL[10] B_FATE`, un B
+par écriture (§ 5, « Encore ouvert », et `armor/tb/README.md`, « Canal B »). WNS +0,177 ns
+inchangé, 107 567 LUT et 73 385 bascules, soit +179 et +110 sur le v10. `check bench` dit
+À JOUR. Images : `payloads/fw_payload_v11_fresh1_wskid1_rhold1_wfate1_bfate0.elf` et
+`_bfate1.elf`.
+
+**A/B sur carte, 2026-09-12 08:54 — `B_FATE` ÉCHOUE, NE PAS L'ACTIVER.**
+
+| | `bfate0` (`results/bench_2026-09-12_085414.log`) | `bfate1` (`085533`) |
+|---|---|---|
+| `CTRL` relu | `0x331` | `0x731` |
+| Campagne | jusqu'à `END` | **gelée dans SC04, vers l'itération 18** |
+| `STATUS[24]`, file pleine | 0 | **1 (collant)** |
+| SC02 / SC04 détectées | 34/50, 48/50 | 38/50 puis plus rien |
+
+Le témoin `bfate0` reproduit exactement le v10 (SC02 34, SC04 48, SC03 et SC01 50/50, zéro
+faux positif, latence 37,08 / 37,10) : **le v11 ne change rien tant que le bit est à 0.**
+
+**Cause.** La file de sort ne fait que **16 entrées**, alors que SC04-MSI émet **48 écritures**
+d'affilée (`MSI_REQS`) et SC02 seize (`STORM_REQS`), sans attendre leurs B. Il suffit que la
+tête soit une écriture admise dont le B réel tarde : rien ne se dépile, les AW acquittés
+s'empilent, et la poussée en trop est **perdue** — `bq_ovf_q` — au lieu d'être refusée. Le
+compte est alors désynchronisé pour toujours ; au gel, le maître tient `b_ready` sans qu'aucun
+B ne lui soit présenté (`B -R` en amont) et ARMOR n'en prend aucun en aval (`B --`), la tête
+étant une écriture coupée dont le W-last ne viendra jamais.
+
+**Le banc ne pouvait pas le voir** : son aval n'acceptait **qu'une écriture à la fois**
+(sixième angle mort). Avec `DN_AWOUT` et `DN_BLAT`, ajoutés le 2026-09-12
+(`armor/tb/README.md`), seize écritures en vol et 8 cycles de latence de B ne suffisent
+toujours pas — la file monte à 2 sur 16. C'est la **lenteur du B**, pas le nombre
+d'écritures, qui bloque la tête.
+
+**Correctif écrit et validé au banc le 2026-09-12** : la file passe à **64** — au-dessus des
+48 écritures de SC04-MSI — et, pleine, elle **refuse l'AW** (`aw_ready` à 0 au maître,
+`aw_valid` coupé en aval) au lieu de perdre la poussée. Aval historique et aval réaliste :
+0 B en trop, 0 manquant, 0 débordement, remplissage 1 et 14 sur 64, verdicts inchangés.
+Le point qui débordait (48 écritures en vol, B à 200 cycles) ne déborde plus. Détail et
+tableaux : `armor/tb/README.md`, « La file de 16 déborde sur carte ».
+
+**Prochaine action** : synthétiser le **v12** (`XILINXD_LICENSE_FILE=/home/jc/Xilinx.lic
+FORCE_FPGA=1 BENCH_PROFILE=1 ./2_build_HB.sh fpga --force`, ~42 min), l'archiver, puis
+refaire l'A/B sur carte `bfate0` / `bfate1`. `STATUS[24]` doit rester à 0 et la campagne
+aller jusqu'à `END` des deux côtés.
 
 ## 1. Mise en route
 

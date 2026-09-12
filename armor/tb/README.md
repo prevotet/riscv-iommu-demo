@@ -29,6 +29,8 @@ Réglages, tous par variable d'environnement :
 | `DN_LAT=<n>` | latence d'acceptation AW/AR de l'aval. **≥ 2 obligatoire** : à 0 le banc validait ce sur quoi la carte gelait | 0 |
 | `DN_WGATE=1` | l'aval ne prend un W que si un AW l'y attend, comme l'IOMMU et le crossbar | aval historique, `w_ready` toujours haut |
 | `DN_WLAT=<n>` | latence d'acceptation d'un beat W. Carte : **40 à 45** (`ARMORSTALL`) | 0 |
+| `DN_AWOUT=<n>` | écritures acceptées en aval dont le B n'est pas rendu. À 1, l'aval est **mono-transaction en écriture** — sixième angle mort ; la carte en accepte 16 | 1 |
+| `DN_BLAT=<n>` | latence avant qu'un B dû soit présenté au wrapper | 0 |
 | `GUARD_MS=<n>` | garde-fou global. À relever avec `DN_WLAT`, sinon la campagne s'arrête avant la fin | 2 |
 | `WSKID=1` | `CTRL[4]`, étage W | 0 |
 | `FRESH=1` | `CTRL[5]`, verdict d'identité frais | 0 |
@@ -283,7 +285,56 @@ lieu de sortir sur des B fabriqués : SC02 111 → 114 cycles, SC04 232 → 238
 Vérifications : `OBS_CHECK=1`, 0 défaut sur l'aval historique et sur l'aval
 réaliste ; `DN_WGATE=1 DN_WLAT=8`, l'aval où `W_FATE` avait été mesuré, 0 en
 trop et 0 manquant contre 2773 et 52 bit à 0. Les seuls timeouts restants sont
-ceux de SC03 en état AR, le timeout propre de l'accélérateur. **Non synthétisé.**
+ceux de SC03 en état AR, le timeout propre de l'accélérateur.
+
+### La file de 16 déborde sur carte (2026-09-12)
+
+Synthétisé en v11 et passé sur carte, `B_FATE` **gèle la campagne dans SC04** :
+`STATUS[24]` levé — file pleine —, maître tenant son `b_ready` sans qu'aucun B ne
+lui soit présenté, et ARMOR n'en prenant aucun en aval. Sur le même bitstream,
+`bfate0` reproduit exactement le v10 : le défaut appartient bien au bit.
+
+Le banc ne pouvait pas le voir, et pas pour la raison qu'on croit. Son aval
+n'acceptait **qu'une écriture à la fois** — sixième angle mort, d'où `DN_AWOUT` et
+`DN_BLAT`. Mais seize écritures en vol ne suffisent pas davantage : ce qui remplit
+la file, c'est **la lenteur du B**, qui bloque la tête pendant que les AW acquittés
+s'empilent derrière.
+
+| aval | remplissage | débordement | en trop / manquants |
+|---|---|---|---|
+| 16 en vol, B à 8 cy | 2 / 16 | 0 | 0 / 0 |
+| 48 en vol, **B à 200 cy** | **16 / 16** | **1** | 206 / 294 |
+| 48 en vol, **B à 1000 cy** | **16 / 16** | **1** | 113 / 144 |
+
+**Correctif.** La file passe à **64**, au-dessus des 48 écritures de SC04-MSI
+(`MSI_REQS`), et surtout, pleine, elle **refuse l'AW** — `aw_ready` à 0 au maître,
+`aw_valid` coupé en aval — au lieu de perdre la poussée. Une poussée perdue
+désynchronise le compte pour toujours ; faire attendre un maître est licite.
+Aucun VALID présenté n'est retiré : la file ne se remplit qu'au cycle d'un
+handshake AW amont, lequel implique que l'AW a été admis en aval dans le même
+cycle, ou jamais présenté.
+
+| aval | remplissage | débordement | en trop / manquants | campagne |
+|---|---|---|---|---|
+| historique | 1 / 64 | 0 | **0 / 0** | 10 OK / 1 ÉCHEC |
+| réaliste (`DN_WLAT=40`) | 14 / 64 | 0 | **0 / 0** | 8 OK / 3 ÉCHEC |
+| 48 en vol, B à 40 cy | 3 / 64 | 0 | 2 / 2 | 7 OK / 4 ÉCHEC |
+| 48 en vol, B à 200 cy | 50 / 64 | **0** | 266 / 266 | 8 OK / 3 ÉCHEC |
+
+Les écarts résiduels ne sont pas un défaut de la file : ils sont **identiques bit à
+0 et bit à 1** — à 48 en vol et B à 40 cycles, 2 manquants des deux côtés, contre
+**527 B en trop** sans le bit —, chaque « B manquant » porte `timeout=1`, et le B
+en trop est un B **réel** (`resp=0`, hors blocage) arrivé après l'abandon. À 200
+cycles par B, 48 écritures dépassent de loin les 2000 cycles de `TIMEOUT_CYCLES`
+du banc : c'est un aval que le maître ne peut pas survivre, pas un compte faux.
+
+**Piège de méthode.** La première version de `DN_AWOUT` conditionnait `aw_ready` à
+« moins de N écritures en vol », plus strict que la garde historique « aucun B en
+attente ». À N = 1, l'aval réaliste gagnait 6 timeouts en AW et W et 6 B manquants
+**qui n'existaient pas** — un défaut du banc, pris un instant pour une régression
+du RTL. La garde historique est rétablie au bit près pour `DN_AWOUT=1`.
+
+**Non synthétisé** : le v12 reste à produire.
 
 ## Structure
 

@@ -194,6 +194,13 @@ run_one() {
     # ARMORSTALL mesure 40 a 45 cycles : c'est ce qui garde le dernier beat dans
     # l'etage W assez longtemps pour que le W suivant y soit capture.
     [[ -n "${DN_WLAT:-}" ]] && args+=("-testplusarg" "DN_WLAT=$DN_WLAT")
+    # DN_AWOUT=<n> : ecritures acceptees en aval dont le B n'est pas rendu. A 1
+    # (defaut) l'aval est MONO-TRANSACTION en ecriture, comme depuis le debut :
+    # c'est ce qui l'empechait de remplir la file de sort de B_FATE. L'IOMMU de
+    # la carte en accepte seize a la volee -- mettre DN_AWOUT=16.
+    [[ -n "${DN_AWOUT:-}" ]] && args+=("-testplusarg" "DN_AWOUT=$DN_AWOUT")
+    # DN_BLAT=<n> : cycles avant qu'un B du soit presente au wrapper (defaut 0).
+    [[ -n "${DN_BLAT:-}" ]] && args+=("-testplusarg" "DN_BLAT=$DN_BLAT")
     # GUARD_MS=<n> : garde-fou global de la simulation, en ms (defaut 2). A
     # relever avec DN_WLAT, sinon la campagne s'arrete avant la fin.
     [[ -n "${GUARD_MS:-}" ]] && args+=("-testplusarg" "GUARD_MS=$GUARD_MS")
