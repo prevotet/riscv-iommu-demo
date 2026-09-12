@@ -1025,7 +1025,11 @@ response_delayer #(
 //   0x40  CNT_OUTS     RO  nombre d'episodes de saturation outstanding
 //   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
 //   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
-//   0x58  MAGIC        RO  0x41524D4F5200000B ("ARMOR" + version)
+//   0x58  MAGIC        RO  0x41524D4F5200000C ("ARMOR" + version)
+//                          v11 portait deja b10, mais avec une file de 16 : elle
+//                          deborde et GELE la campagne dans SC04. Le MAGIC monte
+//                          donc a v12, seul moyen pour le logiciel de distinguer
+//                          les deux -- le .bit v11 reste archive et reinstallable.
 //
 // Bloc d'observabilite, ajoute le 2026-09-10 (d'ou MAGIC ...0002 : le logiciel
 // distingue ainsi un bitstream qui porte ces registres d'un qui n'en a pas).
@@ -2000,7 +2004,7 @@ always_comb begin
         5'd8:    csr_rdata = {32'h0, cnt_outs_q};
         5'd9:    csr_rdata = {32'h0, cnt_msi_q};
         5'd10:   csr_rdata = {{(64-DevIDWidth){1'b0}}, dev_id_last_q};
-        5'd11:   csr_rdata = 64'h41524D4F5200000B;
+        5'd11:   csr_rdata = 64'h41524D4F5200000C;
         // Observabilite (version 2 du MAGIC). Voir la carte des registres.
         5'd12:   csr_rdata = {52'h0, dbg_up};
         5'd13:   csr_rdata = {52'h0, dbg_dn};

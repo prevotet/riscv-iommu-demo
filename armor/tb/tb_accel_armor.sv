@@ -133,7 +133,7 @@ module tb_accel_armor;
     int unsigned obs_ref_badid, obs_ref_badcy;
     int unsigned obs_ref_ghost, obs_ref_orph, obs_ref_awdn;
 
-    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F5200000B;   // version 11 : + un B par ecriture (B_FATE)
+    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F5200000C;   // version 12 : file de sort a 64, AW refuse si pleine
 
     localparam logic [63:0] LEGIT_DST = 64'h0000_0000_9100_0000;
 

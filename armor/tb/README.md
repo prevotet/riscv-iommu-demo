@@ -266,7 +266,8 @@ verdict, les B en trop ne suffisent plus, et SC02 finit en timeout en état DRAI
 « le B d'un AW coupé ne vient jamais », était juste mais incomplète : les
 manquants existent **aussi** sous `RHOLD`, où rien n'est perdu.
 
-**`CTRL[10] B_FATE`** (MAGIC v11) : file du sort de chaque AW acquitté au maître,
+**`CTRL[10] B_FATE`** (MAGIC v11, puis v12 après le correctif de profondeur) : file
+du sort de chaque AW acquitté au maître,
 avec son ID, dépilée au B. Tête coupée : un SLVERR, un seul, après son W-last.
 Tête admise : le B de l'aval, seul cas où l'aval reçoit `b_ready`. File vide :
 aucun B.

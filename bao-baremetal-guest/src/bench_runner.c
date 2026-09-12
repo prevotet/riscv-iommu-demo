@@ -66,7 +66,7 @@
 #define WRAP_CTRL_WCAP          (1ULL << 7)   /* dette W comptee a la capture (v8) */
 #define WRAP_CTRL_RHOLD         (1ULL << 8)   /* reponses B/R tenues jusqu'au ready (v9) */
 #define WRAP_CTRL_WFATE         (1ULL << 9)   /* sort de chaque AW, W des AW coupes absorbe (v10) */
-#define WRAP_CTRL_BFATE         (1ULL << 10)  /* un B par ecriture, dans l'ordre (v11) */
+#define WRAP_CTRL_BFATE         (1ULL << 10)  /* un B par ecriture, dans l'ordre (v12) */
 /* CTRL[6] TX_BLOCK n'a volontairement AUCUNE option ici : nuisible seul
  * (retraits AW de SC04 : 1 -> 4 au banc). Voir wrapper.sv. */
 
@@ -142,7 +142,7 @@
 #endif
 
 /* Compiler avec -DARMOR_BFATE=1 pour rendre au maitre exactement un B par
- * ecriture, dans l'ordre (CTRL[10], MAGIC v11) : SLVERR fabrique pour un AW
+ * ecriture, dans l'ordre (CTRL[10], MAGIC v12) : SLVERR fabrique pour un AW
  * coupe, une fois son W-last passe ; B de l'aval pour un AW admis. N'a d'effet
  * qu'avec ARMOR_WSKID=1 et ARMOR_WFATE=1.
  *
@@ -449,6 +449,10 @@ static void armor_wrap_init(int enforce) {
         if (ARMOR_BFATE && v < 11)
             printf("# ATTENTION : ARMOR_BFATE=1 mais bitstream v%u -- CTRL[10] "
                    "SANS EFFET, le canal B reste fabrique en continu\r\n", v);
+        else if (ARMOR_BFATE && v == 11)
+            printf("# ATTENTION : ARMOR_BFATE=1 sur un bitstream v11 -- sa file de "
+                   "sort ne fait que 16 entrees : elle DEBORDE (STATUS[24]) et GELE "
+                   "la campagne dans SC04. Exiger v12.\r\n");
         if (ARMOR_BFATE && !(ARMOR_WSKID && ARMOR_WFATE))
             printf("# ATTENTION : ARMOR_BFATE=1 sans ARMOR_WSKID et ARMOR_WFATE -- "
                    "CTRL[10] n'agit qu'avec les deux, il est ici sans effet\r\n");
