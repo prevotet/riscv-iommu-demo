@@ -66,7 +66,23 @@ module wrapper #(
     // {MSI, OUTS, STORM, BANNED, BLOCKED} = armor_status[7:3].
     // Signaux instantanes : c'est a l'IP de les memoriser si elle veut les
     // observer apres coup (accel_wrap le fait par transaction).
-    output  logic [4:0]     armor_verdict_o
+    output  logic [4:0]     armor_verdict_o,
+
+    // Interruption de niveau vers le PLIC (v13). Haute tant qu'une alerte
+    // collante non acquittee subsiste et que CTRL[11] est arme.
+    //
+    // POURQUOI DU NIVEAU, ET PAS UNE IMPULSION. Les verdicts de flux ne durent
+    // que BLOCK_CYCLES -- 4 et 10 cycles en profil BENCH. Une impulsion de cette
+    // largeur serait manquee par un PLIC echantillonne, et le logiciel entrant
+    // dans son gestionnaire ne trouverait rien a lire dans STATUS : c'est
+    // exactement le piege qui a fait mesurer k = 0 partout au niveau 0. Le
+    // registre collant, lui, retient l'evenement jusqu'a son acquittement.
+    //
+    // ACQUITTEMENT : le STICKY_CLR qui existe deja (CTRL[1]). Le gestionnaire
+    // lit STICKY, evalue, ecrit sa politique avec STICKY_CLR, et l'interruption
+    // retombe dans la meme ecriture. Aucun registre nouveau, aucun chemin
+    // d'acquittement separe a desynchroniser.
+    output  logic           irq_o
 
 
 
@@ -149,6 +165,7 @@ logic                   csr_wcap_q;       // CTRL[7] : dette W comptee a la capt
 logic                   csr_rhold_q;      // CTRL[8] : reponses B/R tenues jusqu'au ready
 logic                   csr_wfate_q;      // CTRL[9] : sort de chaque AW, W des AW coupes absorbe
 logic                   csr_bfate_q;      // CTRL[10] : sort de chaque ecriture cote B, un B par AW
+logic                   csr_irqen_q;      // CTRL[11] : interruption armee (v13)
 logic [63:0]            csr_sticky_q;
 logic [31:0]            cnt_banned_q, cnt_storm_q, cnt_outs_q, cnt_msi_q;
 logic [DevIDWidth-1:0]  dev_id_last_q;
@@ -731,6 +748,11 @@ logic                               bq_ovf_q;     // poussee perdue : ne doit pl
 logic                               bq_empty, bq_full, bq_b_hs;
 
 assign bfate_on   = csr_bfate_q & csr_wskid_q & csr_wfate_q;
+
+// Interruption de niveau. csr_sticky_q est deja masque a l'ecriture par
+// ARMOR_STICKY_MASK, donc un OU reduit suffit : tout ce qui y est entre est un
+// evenement de securite.
+assign irq_o      = csr_irqen_q & (|csr_sticky_q);
 assign bq_empty   = (bq_n_q == 7'd0);
 assign bq_full    = (bq_n_q == 7'(BqDepth));
 
@@ -1266,6 +1288,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         csr_rhold_q    <= 1'b0;   // reset : comportement historique
         csr_wfate_q    <= 1'b0;   // reset : comportement historique
         csr_bfate_q    <= 1'b0;   // reset : comportement historique
+        csr_irqen_q    <= 1'b0;   // reset : aucune interruption tant qu'on ne l'arme pas
         csr_sticky_clr <= 1'b0;
         csr_cnt_clr    <= 1'b0;
     end else begin
@@ -1298,6 +1321,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
                             csr_rhold_q    <= req_CPU_Wrapper__i.w.data[8];
                             csr_wfate_q    <= req_CPU_Wrapper__i.w.data[9];
                             csr_bfate_q    <= req_CPU_Wrapper__i.w.data[10];
+                            csr_irqen_q    <= req_CPU_Wrapper__i.w.data[11];
                         end
                         default: ; // registres en lecture seule
                     endcase
@@ -1994,7 +2018,7 @@ always_comb begin
     case (r_idx_q)
         5'd0:    csr_rdata = csr_id_cfg_q;
         5'd1:    csr_rdata = csr_msi_addr_q;
-        5'd2:    csr_rdata = {53'h0, csr_bfate_q, csr_wfate_q, csr_rhold_q, csr_wcap_q, csr_txblk_q, csr_fresh_q, csr_wskid_q,
+        5'd2:    csr_rdata = {52'h0, csr_irqen_q, csr_bfate_q, csr_wfate_q, csr_rhold_q, csr_wcap_q, csr_txblk_q, csr_fresh_q, csr_wskid_q,
                               csr_awfix_q, 2'b00, csr_enforce_q};
         5'd3:    csr_rdata = armor_status;
         5'd4:    csr_rdata = csr_sticky_q;

@@ -111,19 +111,24 @@ struct config config = {
                      * Pas de .id : ce sont de simples esclaves MMIO, ils
                      * n'emettent aucune transaction DMA vers l'IOMMU.
                      * ---------------------------------------------------- */
+                    /* IRQ 12 et 13 : sorties irq_o des deux wrappers, ajoutees
+                     * au bitstream v13. Sans ces deux lignes, Bao ne route pas
+                     * la source PLIC vers la VM et le gestionnaire n'est jamais
+                     * appele -- l'interruption reste pendante cote hyperviseur.
+                     * Rappel : .dev_num est en dur au-dessus. */
                     {   // sec_wrapper #1 (surveille le LHA)
                         .pa = 0x50002000,
                         .va = 0x50002000,
                         .size = 0x00001000,
-                        .interrupt_num = 0,
-                        .interrupts = (irqid_t[]) {}
+                        .interrupt_num = 1,
+                        .interrupts = (irqid_t[]) {12}
                     },
                     {   // sec_wrapper #2 (surveille le MHA)
                         .pa = 0x50003000,
                         .va = 0x50003000,
                         .size = 0x00001000,
-                        .interrupt_num = 0,
-                        .interrupts = (irqid_t[]) {}
+                        .interrupt_num = 1,
+                        .interrupts = (irqid_t[]) {13}
                     },
                     {   // IOMMU (demo only)
                         .pa = 0x50010000,   
