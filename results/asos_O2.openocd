@@ -1,4 +1,4 @@
-  image   : payloads/fw_payload_v12_asos_O2.elf (742856 octets, 2026-09-12 14:34:28)
+  image   : payloads/fw_payload_v12_asos_O2.elf (743912 octets, 2026-09-12 14:45:51)
   DTB     : build/hw/cv64a6.dtb -> 0x82200000
   OpenOCD : /usr/bin/openocd (0.12)
 
