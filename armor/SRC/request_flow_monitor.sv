@@ -22,6 +22,36 @@ module request_flow_monitor #(
     // legit_hit_i pour ne compter que les requetes reellement emises.
     input  logic        legit_hit_i,
 
+    // =========================================================================
+    //  Comptage par TRANSFERT plutot que par front (CTRL[12], v14).
+    //
+    //  dn_aw_hs_i / dn_ar_hs_i sont les handshakes REELS en aval, apres la
+    //  coupure de request_manager : `req_wrapper_iommu_o.aw_valid &
+    //  resp_wrapper_iommu_i.aw_ready`. Un cycle ou les deux sont hauts EST un
+    //  transfert d'adresse AXI, il n'y en a pas d'autre definition.
+    //
+    //  Pourquoi ne pas simplement compter `aw_handshake` par cycle : ce signal
+    //  croise le VALID du maitre en AMONT avec le READY de l'aval, deux bus
+    //  differents. Pendant un blocage, request_manager coupe aw_valid en aval
+    //  mais le maitre tient le sien et l'IOMMU au repos tient son ready : le
+    //  produit est vrai a chaque cycle alors que rien ne circule. C'est le meme
+    //  piege que celui qui a impose legit_hit_i ci-dessus, et c'est ce qui avait
+    //  fait compter 1 024 012 evenements MSI pour 1 000 transactions.
+    //
+    //  Le front montant evite ce piege mais en paie un autre : deux adresses
+    //  transferees sur deux cycles consecutifs ne font qu'un front, donc une
+    //  seule requete comptee. Le generateur de accel_wrap ne le fait jamais (sa
+    //  FSM repasse par G_W entre deux AW, aw_valid retombe), mais tout maitre
+    //  qui pipeline ses adresses -- c'est-a-dire toute tempete realiste --
+    //  serait sous-compte exactement dans le regime qu'on veut detecter.
+    //
+    //  A 0, comportement historique (front montant) : le meme bitstream donne
+    //  les deux comptages et l'A/B se fait sans resynthese.
+    // =========================================================================
+    input  logic        dn_aw_hs_i,
+    input  logic        dn_ar_hs_i,
+    input  logic        cnt_fix_i,
+
     // Outputs
     output logic        storm_flag,
     output logic        block_req,
@@ -54,6 +84,17 @@ module request_flow_monitor #(
     //  Le front montant du handshake compte une fois par transfert AXI reel,
     //  independamment de l'ID : le storm mono-ID reste detecte et une lecture
     //  legitime ne compte qu'une fois.
+    //
+    //  NUANCE (v14) : « une fois par transfert » n'est vrai que d'un maitre qui
+    //  relache son VALID entre deux adresses, ce que fait le generateur de
+    //  accel_wrap. Deux adresses transferees sur deux cycles consecutifs ne font
+    //  qu'un front et ne comptent que pour une. cnt_fix_i compte alors les
+    //  transferts reels en aval ; voir le commentaire de ses ports.
+    //
+    //  req_fire garde dans les deux cas sa definition historique : il alimente
+    //  outs_req_monitor, qui l'apparie a resp_complete pour tenir sa profondeur
+    //  d'en-vol. Changer son pas changerait le seuil d'outstanding, qui n'est
+    //  pas le sujet ici -- et SC03 detecte 50/50 avec la definition actuelle.
     // =========================================================================
     logic aw_prev,      ar_prev;
     logic aw_edge,      ar_edge;
@@ -78,7 +119,32 @@ module request_flow_monitor #(
 
 
     logic [$clog2(WINDOW_CYCLES):0] window_cnt;
-    logic [$clog2(MAX_REQ_PER_WINDOW):0] req_cnt;
+
+    // =========================================================================
+    //  LARGEUR DU COMPTEUR DE FENETRE : 8 BITS SATURANTS (correctif v14).
+    //
+    //  Il faisait `$clog2(MAX_REQ_PER_WINDOW)+1` bits, soit QUATRE bits pour un
+    //  seuil de 8 : il comptait 0 a 15 puis REPASSAIT A 0 en pleine fenetre.
+    //  storm_flag, qui n'est qu'une comparaison sur ce compteur, retombait alors
+    //  au milieu d'une tempete et le blocage se relachait -- silencieusement,
+    //  aucun compteur ne le disait.
+    //
+    //  Le scenario SC02 emet STORM_REQS = 16 requetes par salve : il est pile
+    //  sur le point de rebouclage. Toute salve dont 16 requetes tombent dans la
+    //  meme fenetre y passait, et le bras ENFORCE=0 -- ou rien n'est coupe,
+    //  donc ou les 16 sont comptees a coup sur -- le traverse par construction.
+    //
+    //  Un compteur d'observation n'a aucune raison de reboucler : 8 bits (la
+    //  largeur de req_cnt_o, donc gratuits en sortie) et une SATURATION a 255.
+    //  Saturer plutot que s'arreter au seuil garde la marge lisible : c'est ce
+    //  qui permet de dire de combien une salve depasse, et non seulement
+    //  qu'elle depasse.
+    // =========================================================================
+    localparam logic [7:0] REQ_CNT_MAX = 8'hFF;
+
+    logic [7:0] req_cnt;
+    logic [1:0] req_inc;
+    logic [7:0] req_cnt_next;
 
     // Sliding window counter
     always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -92,22 +158,41 @@ module request_flow_monitor #(
     end
 
     // Count requests in the window
+    //
+    //  cnt_fix_i = 0 : un front montant de handshake (historique), au plus une
+    //                  requete comptee par cycle.
+    //  cnt_fix_i = 1 : un transfert d'adresse reellement accompli en aval, AW et
+    //                  AR pouvant tomber dans le MEME cycle -- d'ou un pas de 2.
+    //                  Les requetes coupees par request_manager ne sont alors
+    //                  plus comptees du tout, ce qui est correct : elles n'ont
+    //                  pas circule. Le compteur de coupures (cnt_req_cut) les
+    //                  chiffre deja separement cote wrapper.
+    assign req_inc = cnt_fix_i ? ({1'b0, dn_aw_hs_i} + {1'b0, dn_ar_hs_i})
+                               : {1'b0, req_fire};
 
-    
+    always_comb begin
+        // Saturation : ne jamais reboucler, quitte a perdre la valeur exacte
+        // au-dela de 255.
+        if ({1'b0, req_cnt} + {7'h0, req_inc} > {1'b0, REQ_CNT_MAX})
+            req_cnt_next = REQ_CNT_MAX;
+        else
+            req_cnt_next = req_cnt + {6'h0, req_inc};
+    end
+
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if(!rst_ni) begin
-            req_cnt <= 0;
+            req_cnt <= 8'h0;
         end else if(window_cnt == WINDOW_CYCLES-1) begin
-            req_cnt <= 0; // new window
-        end else if(req_fire) begin // && req_ready
-            req_cnt <= req_cnt + 1;
+            req_cnt <= 8'h0; // new window
+        end else if(req_inc != 2'd0) begin
+            req_cnt <= req_cnt_next;
         end
     end
 
     assign storm_flag = (req_cnt >= MAX_REQ_PER_WINDOW);
 
-    // Extension zero implicite : req_cnt fait 4 bits (seuil 8), window_cnt en
-    // fait 8 en profil BENCH et 17 en DEMO -- 32 bits couvrent les deux.
+    // window_cnt fait 8 bits en profil BENCH et 17 en DEMO -- 32 bits couvrent
+    // les deux. req_cnt fait desormais exactement la largeur de sa sortie.
     assign req_cnt_o    = req_cnt;
     assign window_cnt_o = window_cnt;
     

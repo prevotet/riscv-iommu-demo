@@ -13,6 +13,8 @@
 #    0  aval sain                       -- controle, doit atteindre DONE
 #    1  aval qui accepte mais ne repond jamais  -- le cas observe sur carte
 #    2  aval qui n'accepte rien
+#    3  campagne : les scenarios de bench_runner.c
+#    4  micro-banc du moniteur de flux : comptage par fronts vs par transferts
 #
 #  Ni verilator ni iverilog ne sont installes sur cette machine : xsim
 #  (xvlog / xelab / xsim) est le seul simulateur disponible.
@@ -170,6 +172,22 @@ fi
 # repondus apres (timeout en DRAIN). N'a d'effet qu'avec WSKID=1 et WFATE=1.
 [[ "${BFATE:-0}" == "1" ]]   && DEFINES+=("-d" "BFATE")
 
+# RFMCNT=1 : CTRL[12], le moniteur de flux compte les TRANSFERTS d'adresse
+# accomplis en aval au lieu des FRONTS de handshake. A 0, deux adresses
+# transferees sur deux cycles consecutifs ne comptent que pour une -- sans effet
+# sur le generateur de accel_wrap, qui relache aw_valid entre deux AW, mais un
+# angle mort pour tout maitre qui pipeline. L'A/B attendu est donc : aucune
+# difference sur les scenarios actuels. Une difference serait une information.
+[[ "${RFMCNT:-0}" == "1" ]]  && DEFINES+=("-d" "RFMCNT")
+
+# STORMOFF=1 : ajoute a la campagne un pas SC02-STORM sous ENFORCE=0. C'est le
+# seul regime ou l'occupation de fenetre se lit sans ecretage -- sous ENFORCE=1
+# le moniteur coupe des le seuil atteint et l'occupation vaut 8 par
+# construction. Hors campagne par defaut : ses 128 transactions supplementaires
+# decalent SC04-MSI, qui sous aval realiste bascule alors de detecte a non
+# detecte (fragilite de SC04, pas effet du pas).
+[[ "${STORMOFF:-0}" == "1" ]] && DEFINES+=("-d" "STORMOFF")
+
 echo "=== xvlog ==="
 xvlog -sv --nolog \
       "${DEFINES[@]+"${DEFINES[@]}"}" \
@@ -210,6 +228,6 @@ run_one() {
 }
 
 case "${1:-1}" in
-    all) run_one 0; run_one 1; run_one 2; run_one 3 ;;
+    all) run_one 0; run_one 1; run_one 2; run_one 3; run_one 4 ;;
     *)   run_one "${1:-1}" ;;
 esac

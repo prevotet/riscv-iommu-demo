@@ -1,10 +1,15 @@
 # Reprendre le travail ARMOR sur une autre machine
 
-État au **2026-09-11, 23h15**, branche `testbench`, poussée sur GitHub. Ce document
-existe parce que le README amont ne dit rien de la chaîne de bench, et que tout le
-reste vivait dans les messages de commit.
+État au **2026-09-13**, branche `testbench`. Ce document existe parce que le README amont
+ne dit rien de la chaîne de bench, et que tout le reste vivait dans les messages de commit.
 
 ## 0. Où reprendre, exactement
+
+> **Le RTL est en avance sur le bitstream depuis le 2026-09-13.** `armor/SRC` porte le v14
+> (§ 5 quater : compteur de fenêtre saturant, `CTRL[12]`, occupation de fenêtre en `0x38`),
+> validé au banc et **pas encore synthétisé**. `check bench` dit donc PÉRIMÉ : ne lancer
+> aucune campagne avant `BENCH_PROFILE=1 ./2_build_HB.sh fpga --force`. Pour rejouer une
+> campagne v13 en attendant, revenir au RTL de `a80e162`.
 
 **Configuration de référence, VALIDÉE SUR CARTE : `W_SKID + FRESH + RESP_HOLD + W_FATE`**
 (`CTRL` relu `0x331`). **Bitstream archivé : v13** (`d4836ae`) — `tools/bitstream.sh use
@@ -188,8 +193,9 @@ par bras, soit une heure de carte.
 et rien de plus. Le témoin `bfate0` du v12 reproduit le v10, donc **le v12 ne change rien
 tant que le bit est à 0** et la configuration de référence `0x331` reste justifiée.
 
-**Prochaine action** : rien n'est en attente sur `B_FATE`, et la chaîne
-ARMOR → interruption → logiciel est mesurée (§ 5 ter). Restent ouverts : le point (2) de
+**Prochaine action** : **synthétiser le v14** (§ 5 quater). Le RTL a changé le 2026-09-13 —
+`tools/bitstream.sh check bench` dira donc PÉRIMÉ, c'est normal et il ne faut lancer aucune
+campagne avant la resynthèse. Restent ouverts par ailleurs : le point (2) de
 § 5, « Encore ouvert » — SC04 à 1396 cycles en moyenne sous `DN_WLAT=40` sans timeout —
 et la notification **inter-VM** vers une VM de service distincte, avec sa copie de 8 Kio,
 que § 5 ter ne mesure pas (la configuration y est à VM unique).
@@ -698,6 +704,90 @@ Journaux : `results/asos_O0.log`, `results/asos_O2.log` (sans interruption),
 l'assignation et la voie d'activation. **Dans l'overlay et pas dans le sous-module** :
 `init_submodules` y fait `git reset --hard`. Ce sont elles qui ont prouvé que Bao prend la
 voie matérielle et programme bien le PLIC physique — donc que le défaut était ailleurs.
+
+## 5 quater. v14 — pourquoi SC02 n'est détecté qu'à ~78 %, et ce qui est corrigé
+
+Écrit le 2026-09-13, **validé au banc uniquement** : aucun bitstream v14 n'existe encore,
+`check bench` dit PÉRIMÉ tant qu'il n'est pas synthétisé. Rien de ce qui suit n'est vérifié
+sur carte.
+
+### Le point de départ
+
+Le 80,4 % de détection de SC02 publié dans le dossier de révision est un taux **par salve**
+— la proportion d'itérations où un bit de verdict est apparu — et non par transaction. Les
+compteurs matériels du même run disent l'autre chiffre : `req_up=800 req_dn=649
+req_cut=151`, soit **18,9 % de transactions coupées** (`results/serie_bfate0_115531.log`).
+Les deux sont vrais, ils ne répondent pas à la même question, et c'est le second qu'un
+relecteur peut recalculer.
+
+### Le mécanisme, mesuré
+
+Le débit de SC02 **au niveau du wrapper** n'est pas fixé par `STORM_REQS = 16` mais par la
+vitesse de l'aval. Le générateur de `accel_wrap` est séquentiel (`G_AW → G_W → G_NEXT`),
+`aw_valid` retombe entre deux adresses : la salve s'étale, et une salve étalée sur trois
+fenêtres de 100 cycles n'en met que cinq ou six dans chacune — sous le seuil de 8.
+
+Le banc le démontre en ne changeant QUE l'aval, scénario identique (détail et tableaux dans
+`armor/tb/README.md`, « L'occupation de la fenêtre de flux ») :
+
+| aval | occupation max | fenêtres au seuil | verdict SC02 |
+|---|---|---|---|
+| `DN_LAT=2` | 8 | 6 / 7 | `STORM`, 68/128 coupées |
+| `DN_LAT=4` | 8 | 9 / 10 | `STORM`, 55/128 coupées |
+| `DN_LAT=4 DN_WGATE=1 DN_WLAT=40` | **3** | **0 / 54** | **aucun**, 0 coupée |
+
+À `DN_WLAT=40` — la valeur que `ARMORSTALL` mesure sur carte — **SC02 passe
+intégralement**. La carte se situe entre les deux régimes : c'est là l'explication des
+~78 % et de leur dispersion de 12 points. Le seuil n'est pas mal calibré, **le scénario est
+sur la frontière de décision**.
+
+### Ce que le v14 change
+
+Deux correctifs et deux compteurs, tous dans `armor/SRC` :
+
+1. **`req_cnt` ne reboucle plus.** Il faisait quatre bits pour un seuil de 8 : il comptait
+   0 à 15 puis repassait à 0 en pleine fenêtre, `storm_flag` retombant au milieu d'une
+   tempête sans qu'aucun compteur ne le dise. Il fait désormais 8 bits **saturants**.
+   `STORM_REQS = 16` place SC02 pile sur ce point. Sous `ENFORCE=1` le blocage écrête le
+   compte à 8 et le défaut est invisible ; sous `ENFORCE=0` — le bras du baseline publié —
+   il coûtait 6 fenêtres sur 7 et 12 verdicts sur 128.
+2. **`CTRL[12] RFM_CNT`** : le moniteur compte les **transferts** d'adresse accomplis en
+   aval au lieu des **fronts** de handshake. Douze adresses transférées sur douze cycles
+   consécutifs comptaient pour **une**. L'accélérateur ne pipeline pas ses AW, donc l'A/B
+   sur la campagne est rigoureusement identique — le bit ferme un trou que la campagne
+   actuelle ne sait pas creuser, et `./run_sim.sh 4` le démontre sur un stimulus dédié.
+   **Au reset le bit vaut 0 : le v14 se comporte alors exactement comme le v13.**
+3. **`0x38[39:32] REQ_MAX` et `0x38[63:40] WIN_ACT`** : occupation maximale atteinte par une
+   fenêtre, et nombre de fenêtres fermées non vides, remises à zéro par `CNT_CLR`. C'est ce
+   qui manquait pour lire un faux négatif : `reqmax=6` sur un scénario non détecté dit en
+   un chiffre de combien la salve est passée sous le seuil. Le firmware les imprime
+   (`ARMORCNT,...,reqmax=,winact=`).
+4. **MAGIC passe à `0x…0E`** (v14). Le bitstream v13 avait oublié d'incrémenter le sien,
+   resté à `0x…0C` : on saute `0x0D` pour que numéro de bitstream et version de MAGIC se
+   recollent. Le contrôle du firmware est par seuil, un firmware ancien n'y verra rien.
+
+### Non-régression
+
+RTL v14 + banc de HEAD, aval réaliste : sortie **identique ligne pour ligne** à HEAD. Sur
+l'aval rapide, la seule différence de toute la campagne est le bras `ENFORCE=0`, qui passe
+de 65 à 77 transactions avec verdict sur 128 — le rebouclage en moins. Le contrôle croisé
+`OBS_CHECK=1` confirme que `REQ_MAX`/`WIN_ACT` disent la même chose que les compteurs
+indépendants du banc : 0 défaut.
+
+### À faire sur carte
+
+```sh
+BENCH_PROFILE=1 ./2_build_HB.sh fpga --force      # ~45 min, licence requise
+tools/bitstream.sh save bench                     # puis committer bitstreams/
+```
+
+Puis une campagne de référence (`0x331`, § 2) : la détection de SC02 doit être **inchangée**
+— la correction de largeur n'agit pas sous `ENFORCE=1` — et les lignes `ARMORCNT` doivent
+porter un `reqmax` proche de 8 sur SC02 et nettement plus bas sur les salves non détectées.
+C'est ce chiffre-là qui permettra enfin de dire, dans le papier, de combien un faux négatif
+passe sous le seuil. Un A/B `-DARMOR_RFMCNT=1` ne devrait rien changer ; une différence
+voudrait dire qu'un maître pipeline ses adresses sur la carte, ce que le banc ne modélise
+pas.
 
 ## 6. Ce qui n'est pas dans le dépôt
 
