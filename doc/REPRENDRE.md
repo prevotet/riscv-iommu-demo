@@ -152,9 +152,34 @@ entre 202 et 206. Ce **n'était donc pas** un basculement propre entre deux pali
 quantification. Si le cas revient, les 97 valeurs de `LATDUMP` diront immédiatement s'il
 bascule en cours de scénario ou part décalé dès l'itération de chauffe.
 
-**À surveiller, sans conclusion** : ces 21 campagnes donnent SC02 **36 à 46, moyenne 40,2**,
-contre 32 à 44 et 37,4 sur les 9 `bfate0` du matin. Les plages se recouvrent largement,
-donc rien de significatif — mais la carte a été reprogrammée entre les deux séries.
+**Réplication de l'A/B, 2026-09-12 11:50** (`results/serie_bfate{0,1}_115*.log`) : même
+protocole 7 + 7 alterné, mêmes images, après une reprogrammation de la carte.
+
+| TP sur 50 | série 11:07 | série 11:50 |
+|---|---|---|
+| `bfate0` SC02 | 32–44, moy. 38,6 | 31–43, moy. 38,4 |
+| `bfate1` SC02 | 32–40, moy. 36,3 | 31–41, moy. 35,9 |
+| `bfate0` SC04 | 43–49, moy. 46,1 | 45–48, moy. 46,6 |
+| `bfate1` SC04 | 45–49, moy. 47,0 | 47–49, moy. 47,6 |
+
+Les quatre moyennes tiennent en moins d'un demi-point d'une série à l'autre, **à travers une
+reprogrammation de la carte**. Cela règle aussi un soupçon qu'avait laissé la série `latdump`
+(SC02 à 40,2) : ce n'était pas un effet de la reprogrammation, puisque cette série-ci, qui
+lui est postérieure, retombe à 38,4. C'était le bruit de SC02, rien d'autre.
+
+**Un signe reproductible, mais pas un effet.** Dans les deux séries indépendamment,
+`bfate1` est plus bas sur SC02 (−2,3 puis −2,5) et plus haut sur SC04 (+0,9 puis +1,0).
+Sur les 31 campagnes v12 poolées :
+
+| | `bfate0` | `bfate1` | Mann-Whitney |
+|---|---|---|---|
+| SC02-STORM | n=16, moy. 37,9 | n=15, moy. 36,5 | z=+0,93, p=0,35 |
+| SC04-MSI | n=16, moy. 46,5 | n=15, moy. 47,3 | z=−0,99, p=0,32 |
+
+**Non significatif des deux côtés** : la conclusion tient. Le signe répété est ce qu'on
+attend de deux tirages dans des populations qui se recouvrent — à ces effectifs, deux fois
+le même signe arrive une fois sur quatre. Trancher demanderait une trentaine de campagnes
+par bras, soit une heure de carte.
 
 **Ce que `B_FATE` vaut donc** : une correction de robustesse — il supprime le gel du v11 —
 et rien de plus. Le témoin `bfate0` du v12 reproduit le v10, donc **le v12 ne change rien
