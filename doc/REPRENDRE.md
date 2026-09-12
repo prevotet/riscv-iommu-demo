@@ -7,8 +7,9 @@ reste vivait dans les messages de commit.
 ## 0. Où reprendre, exactement
 
 **Configuration de référence, VALIDÉE SUR CARTE : `W_SKID + FRESH + RESP_HOLD + W_FATE`**
-(`CTRL` relu `0x331`). **Bitstream archivé : v10** (`c0df50b`) — `tools/bitstream.sh use
-bench`, puis `check bench` doit dire À JOUR.
+(`CTRL` relu `0x331`). **Bitstream archivé : v12** (`9e23f97`) — `tools/bitstream.sh use
+bench`, puis `check bench` doit dire À JOUR. `B_FATE` (`CTRL[10]`, `0x731`) y est **sûr mais
+sans gain mesurable** : à activer ou non, la détection est la même (voir plus bas).
 
 **Validation de `W_FATE` sur carte, 2026-09-11 17:00**, même bitstream v10, chargement par
 `capture_uart.sh -j` :
@@ -66,7 +67,8 @@ inchangé, 107 567 LUT et 73 385 bascules, soit +179 et +110 sur le v10. `check 
 À JOUR. Images : `payloads/fw_payload_v11_fresh1_wskid1_rhold1_wfate1_bfate0.elf` et
 `_bfate1.elf`.
 
-**A/B sur carte, 2026-09-12 08:54 — `B_FATE` ÉCHOUE, NE PAS L'ACTIVER.**
+**A/B sur carte du v11, 2026-09-12 08:54 — `B_FATE` GELAIT LA CARTE.** Corrigé depuis :
+le v12 passe des deux côtés, voir « A/B du v12 » ci-dessous.
 
 | | `bfate0` (`results/bench_2026-09-12_085414.log`) | `bfate1` (`085533`) |
 |---|---|---|
@@ -99,10 +101,39 @@ d'écritures, qui bloque la tête.
 Le point qui débordait (48 écritures en vol, B à 200 cycles) ne déborde plus. Détail et
 tableaux : `armor/tb/README.md`, « La file de 16 déborde sur carte ».
 
-**Prochaine action** : synthétiser le **v12** (`XILINXD_LICENSE_FILE=/home/jc/Xilinx.lic
-FORCE_FPGA=1 BENCH_PROFILE=1 ./2_build_HB.sh fpga --force`, ~42 min), l'archiver, puis
-refaire l'A/B sur carte `bfate0` / `bfate1`. `STATUS[24]` doit rester à 0 et la campagne
-aller jusqu'à `END` des deux côtés.
+**Bitstream v12 synthétisé et archivé le 2026-09-12** (`9e23f97`) : file de sort à 64
+entrées, qui refuse l'AW quand elle est pleine. MAGIC v12 (`0x…0c`). Images :
+`payloads/fw_payload_v12_fresh1_wskid1_rhold1_wfate1_bfate0.elf` et `_bfate1.elf`.
+
+**A/B du v12 sur carte, 2026-09-12 11:00–11:14 — LE GEL EST CORRIGÉ, SANS GAIN DE
+DÉTECTION.** 17 campagnes : 9 `bfate0` et 8 `bfate1`, toutes jusqu'à `END`, `STATUS[24]`
+jamais armé sur aucun des 81 instantanés de chacune. La série répétée est
+`results/serie_bfate{0,1}_11*.log` (7 + 7, alternées, une seule capture à la fois), plus
+l'A/B initial `bench_2026-09-12_1100{10,40}.log` et `serie_bfate0_110730_essai.log`.
+
+| TP sur 50 | `bfate0` ×9 | `bfate1` ×8 |
+|---|---|---|
+| SC02-STORM | 32 à 44, moy. 37,4 | 32 à 42, moy. 37,0 |
+| SC04-MSI | 43 à 49, moy. 46,4 | 45 à 49, moy. 47,0 |
+
+**Les plages se recouvrent entièrement** et les moyennes tiennent en moins d'un point : à
+l'inverse de `W_FATE`, dont les plages étaient disjointes, `B_FATE` n'apporte **aucun gain
+de détection**. L'A/B d'un seul run de 11:00 semblait montrer SC02 32 → 42 ; la série le
+dément — la même variante `bfate1` donne 32 comme 40 selon le run. **Ne pas conclure d'un
+A/B à un run sur SC02 : sa dispersion propre est de 12 points.**
+
+Partout ailleurs, les 17 campagnes sont identiques : zéro faux positif, SC03 et SC01 50/50,
+SC03 `b-r=0`, aucune `ERR` sur SC02 ni SC04, `W V-` absent en aval du wrapper 2, latence
+légitime 258 cycles (`SUMMARY-TX` SC06/SC07). Une anomalie isolée, sans conséquence et non
+expliquée : `serie_bfate1_110806.log` donne SC06-LHAOK à 240–245 cycles au lieu de 258 —
+**plus rapide**, sur le seul chemin LHA, SC07 restant à 258 et les faux positifs à 0.
+
+**Ce que `B_FATE` vaut donc** : une correction de robustesse — il supprime le gel du v11 —
+et rien de plus. Le témoin `bfate0` du v12 reproduit le v10, donc **le v12 ne change rien
+tant que le bit est à 0** et la configuration de référence `0x331` reste justifiée.
+
+**Prochaine action** : rien n'est en attente sur `B_FATE`. Le point (2) de § 5, « Encore
+ouvert » — SC04 à 1396 cycles en moyenne sous `DN_WLAT=40` sans timeout — n'a pas bougé.
 
 ## 1. Mise en route
 
