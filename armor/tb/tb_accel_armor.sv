@@ -367,7 +367,26 @@ module tb_accel_armor;
     // -------------------------------------------------------------------------
     int unsigned aw_seen, w_seen, ar_seen, b_sent, r_sent;
 
-    logic                            b_pending;
+    // -------------------------------------------------------------------------
+    //  ECRITURES EN VOL ET LATENCE DU B  (2026-09-12)
+    //
+    //  SIXIEME ANGLE MORT, trouve sur carte et pas ici. L'aval n'acceptait un AW
+    //  que si aucun B n'etait en attente (`~b_pending`, un seul bit) : il etait
+    //  MONO-TRANSACTION en ecriture. L'IOMMU de la carte en accepte seize a la
+    //  volee, et la file de sort de CTRL[10] B_FATE y a deborde -- STATUS[24]
+    //  leve, campagne gelee dans SC04. Le banc ne pouvait pas le produire : ses
+    //  entrees se depilaient avant que la suivante n'arrive.
+    //
+    //  DN_AWOUT : ecritures acceptees en aval dont le B n'est pas rendu.
+    //             1 = comportement historique.
+    //  DN_BLAT  : cycles avant qu'un B du soit presente. 0 = historique.
+    int unsigned dn_awout = 1;
+    int unsigned dn_blat  = 0;
+    int unsigned wr_inflight_q;      // AW acceptes - B rendus
+    int unsigned b_owed_q;           // W-last vus - B rendus (B prets a partir)
+    logic [15:0] b_wait_q;
+
+    logic                            b_pending;   // (b_owed_q != 0)
     logic [ariane_soc::IdWidth-1:0]  b_id_q;
     logic                            r_pending;
     logic [ariane_soc::IdWidth-1:0]  r_id_q;
@@ -434,12 +453,21 @@ module tb_accel_armor;
         end
     end
 
-    assign resp_out.aw_ready = dn_accept & ~b_pending & (aw_wait_q >= dn_lat);
+    assign b_pending         = (b_owed_q != 0);
+    //  A DN_AWOUT=1 on garde la garde HISTORIQUE au bit pres -- « aucun B en
+    //  attente d'etre rendu » --, et non « une seule ecriture en vol », qui est
+    //  plus stricte : elle ferait attendre l'AW suivant jusqu'au B du precedent,
+    //  ajouterait des attentes qui n'existaient pas, et ferait expirer le maitre.
+    //  Mesure : 6 timeouts hors AR et 6 B manquants apparus sur l'aval realiste
+    //  a la seule faveur de ce changement de modele.
+    assign resp_out.aw_ready = dn_accept & (aw_wait_q >= dn_lat)
+                             & ((dn_awout == 1) ? ~b_pending
+                                                : (wr_inflight_q < dn_awout));
     assign resp_out.w_ready  = dn_accept & (~dn_wgate | (dn_w_owed != 0))
                              & (w_wait_q >= dn_wlat);
     assign resp_out.ar_ready = dn_accept & ~r_pending & (ar_wait_q >= dn_lat);
 
-    assign resp_out.b_valid  = b_pending & dn_respond;
+    assign resp_out.b_valid  = b_pending & dn_respond & (b_wait_q >= dn_blat);
     assign resp_out.b.id     = b_id_q;
     assign resp_out.b.resp   = axi_pkg::RESP_OKAY;
     assign resp_out.b.user   = '0;
@@ -454,23 +482,33 @@ module tb_accel_armor;
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
             aw_seen <= 0; w_seen <= 0; ar_seen <= 0; b_sent <= 0; r_sent <= 0;
-            b_pending <= 1'b0; b_id_q <= '0;
+            wr_inflight_q <= 0; b_owed_q <= 0; b_wait_q <= 16'd0; b_id_q <= '0;
             r_pending <= 1'b0; r_id_q <= '0; r_left_q <= 8'd0;
         end else begin
+            automatic int unsigned infl = wr_inflight_q;
+            automatic int unsigned owed = b_owed_q;
             // Ecriture : on ne prepare le B qu'apres avoir vu le dernier beat W,
-            // comme le ferait un esclave reel.
+            // comme le ferait un esclave reel. Plusieurs peuvent etre en vol :
+            // c'est DN_AWOUT qui en fixe le nombre.
             if (req_out.aw_valid && resp_out.aw_ready) begin
                 aw_seen <= aw_seen + 1;
                 b_id_q  <= req_out.aw.id;
+                infl = infl + 1;
             end
             if (req_out.w_valid && resp_out.w_ready) begin
                 w_seen <= w_seen + 1;
-                if (req_out.w.last) b_pending <= 1'b1;
+                if (req_out.w.last) owed = owed + 1;
             end
             if (resp_out.b_valid && req_out.b_ready) begin
-                b_pending <= 1'b0;
+                if (owed > 0) owed = owed - 1;
+                if (infl > 0) infl = infl - 1;
                 b_sent    <= b_sent + 1;
             end
+            wr_inflight_q <= infl;
+            b_owed_q      <= owed;
+            //  Chaque B du paie sa latence, et le compteur repart a son depart.
+            b_wait_q <= (owed != 0 && !(resp_out.b_valid && req_out.b_ready))
+                        ? (b_wait_q + 16'd1) : 16'd0;
 
             // Lecture
             if (req_out.ar_valid && resp_out.ar_ready) begin
@@ -721,6 +759,15 @@ module tb_accel_armor;
                  ? "conditionne a un AW (DN_WGATE, comme la carte)"
                  : "w_ready toujours haut (historique -- avale un W sans adresse)",
                  dn_wlat);
+        // +DN_AWOUT=<n> : ecritures acceptees en aval dont le B n'est pas rendu.
+        // Defaut 1 : l'aval est mono-transaction en ecriture, comme depuis le
+        // debut du banc. L'IOMMU de la carte en accepte seize a la volee.
+        if (!$value$plusargs("DN_AWOUT=%d", dn_awout)) dn_awout = 1;
+        if (dn_awout == 0) dn_awout = 1;
+        // +DN_BLAT=<n> : cycles avant qu'un B du soit presente (defaut 0).
+        if (!$value$plusargs("DN_BLAT=%d", dn_blat)) dn_blat = 0;
+        $display(" aval B : %0d ecriture(s) en vol, latence %0d cycle(s)",
+                 dn_awout, dn_blat);
 
         case (scenario)
             0: begin dn_accept = 1'b1; dn_respond = 1'b1; end
@@ -1151,6 +1198,16 @@ module tb_accel_armor;
     //  aucun droit : elle ne compte ni en trop ni en manque. Le compte repart de
     //  zero a chaque FINISH, pour qu'une iteration ne paie pas pour la precedente.
     // -------------------------------------------------------------------------
+    //  Sonde directe de la file de sort de B_FATE (CTRL[10]). STATUS[24] ne se
+    //  lit que par le firmware ; ici on regarde le registre lui-meme. Le
+    //  remplissage maximal dit a quel point la profondeur est juste : sur carte,
+    //  elle a deborde des SC02 avec seize ecritures en vol.
+    int unsigned bq_n_max;
+    always @(posedge clk_i) begin
+        if (rst_ni && int'(i_sec_wrap.bq_n_q) > int'(bq_n_max))
+            bq_n_max = int'(i_sec_wrap.bq_n_q);
+    end
+
     int          b_open;                    // W-last acceptes cote maitre, sans B
     int unsigned b_paired, b_extra, b_missing;
     int unsigned b_paired_0, b_extra_0, b_missing_0;
@@ -1705,6 +1762,8 @@ module tb_accel_armor;
                      resp_lost_b, resp_lost_r);
             $display(" CANAL B COTE MAITRE : %0d apparie(s) a leur W-last | %0d en trop, %0d manquant(s)",
                      b_paired, b_extra, b_missing);
+            $display(" FILE B_FATE : remplissage max %0d / %0d | debordement %0d (doit rester 0)",
+                     bq_n_max, i_sec_wrap.BqDepth, i_sec_wrap.bq_ovf_q);
             $display(" bad_id : %0d fronts, %0d cycles hauts (invisible au logiciel)",
                      bad_id_rise, bad_id_cy);
             if (w_ghost_tot != 0)

@@ -154,6 +154,13 @@ module response_manager #(
     input  logic                bfate_take_i,
     input  logic [IdWidth-1:0]  bfate_id_i,
 
+    //  FILE PLEINE (2026-09-12). Une poussee perdue desynchronise le compte pour
+    //  toujours : le maitre attend alors un B que personne ne lui doit -- le gel
+    //  observe sur carte dans SC04. Quand la file est pleine on ne perd rien, on
+    //  fait attendre : aw_ready reste a 0, dans TOUTES les branches, y compris
+    //  pendant un blocage ou l'acquittement est fabrique.
+    input  logic                bfate_hold_aw_i,
+
     input  resp_slv_t  resp_wrapper_iommu_i,
     output resp_slv_t  resp_IP_wrapper_o
 );
@@ -227,6 +234,11 @@ module response_manager #(
             else if (!w_pending_i)
                 resp_base.w_ready = 1'b0;
         end
+
+        //  File de sort pleine : aucune nouvelle ecriture n'est acquittee, quelle
+        //  que soit la branche. Le W et les reponses en cours continuent, eux.
+        if (bfate_hold_aw_i)
+            resp_base.aw_ready = 1'b0;
     end
 
     // -------------------------------------------------------------------------
