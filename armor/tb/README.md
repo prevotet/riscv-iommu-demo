@@ -12,7 +12,8 @@ signaux sont visibles en quelques secondes.
 ./run_sim.sh 1        # aval qui accepte AW/AR mais ne renvoie jamais B ni R
 ./run_sim.sh 2        # aval qui n'accepte rien
 ./run_sim.sh 3        # campagne : les six scénarios de bench_runner.c
-./run_sim.sh all      # les quatre
+./run_sim.sh 4        # micro-banc du moniteur de flux : fronts vs transferts
+./run_sim.sh all      # les cinq
 
 BUG=1   ./run_sim.sh 0        # rejoue le défaut resp_t/resp_slv_t (non-régression)
 PROFILE=demo ./run_sim.sh 3   # profil DEMO au lieu de BENCH
@@ -39,6 +40,8 @@ Réglages, tous par variable d'environnement :
 | `RHOLD=1` | `CTRL[8]`, réponse B/R présentée tenue jusqu'à son `ready` | 0 |
 | `WFATE=1` | `CTRL[9]`, sort de chaque AW ; le W d'un AW coupé est absorbé même hors blocage — n'agit qu'avec `WSKID` | 0 |
 | `BFATE=1` | `CTRL[10]`, un B par écriture, dans l'ordre : SLVERR pour un AW coupé, B de l'aval pour un AW admis — n'agit qu'avec `WSKID` et `WFATE` | 0 |
+| `RFMCNT=1` | `CTRL[12]`, le moniteur de flux compte les **transferts** d'adresse accomplis en aval au lieu des **fronts** de handshake (v14) | 0 |
+| `STORMOFF=1` | ajoute à la campagne un pas `SC02-STORM/off` sous `ENFORCE=0` — le seul régime où l'occupation de fenêtre se lit sans écrêtage | 0 |
 | `OBS_CHECK=1` | contrôle croisé des compteurs matériels. **Perturbe SC03 et SC04** : run de vérification, pas de mesure | 0 |
 | `AWFIX=1` | `CTRL[3]`, inerte depuis la réfutation | 0 |
 
@@ -128,6 +131,98 @@ Les deux variantes, jouées à salve et écart identiques (12 salves × 7, gap
 L'évasion — la limite intéressante et publiable des détecteurs à fenêtre
 glissante — est parfaitement obtenable, mais seulement en mode 0. En mode 4 le
 scénario ne démontre rien qu'SC02 ne démontre déjà.
+
+### L'occupation de la fenêtre de flux, et pourquoi SC02 n'est pas détecté
+
+Ajouté le 2026-09-13. Chaque pas imprime désormais une ligne `FENETRE` :
+
+```
+SC02-STORM  FENETRE : occ max=8 (seuil 8) | fenetres actives=10 dont 9 au seuil
+                      | 73 requetes comptees, soit 7.30 par fenetre active
+```
+
+C'est le chiffre qui manquait pour lire un faux négatif. Le log disait combien
+de salves avaient levé `STORM` ; celles qui ne le levaient pas étaient un trou
+noir. Or **une salve de 16 écritures n'est au-dessus du seuil de 8 que si elle
+tient dans une seule fenêtre de 100 cycles** : étalée sur trois, elle n'en met
+que cinq ou six dans chacune, et aucun moniteur à fenêtre ne peut la voir.
+
+Le banc le démontre en faisant varier la seule vitesse de l'aval, à scénario
+strictement identique (`ENFORCE=1`, 8 itérations de 16 écritures) :
+
+| aval | occ max | fenêtres au seuil | occupation moyenne | verdict SC02 |
+|---|---|---|---|---|
+| `DN_LAT=2` | 8 | 6 / 7 | 7,42 | `STORM`, 68/128 coupées |
+| `DN_LAT=4` | 8 | 9 / 10 | 7,30 | `STORM`, 55/128 coupées |
+| `DN_LAT=4 DN_WGATE=1 DN_WLAT=40` (carte) | **3** | **0 / 54** | **2,33** | **aucun**, 0 coupée |
+
+Et sans enforcement, où rien n'est coupé et où l'occupation se lit donc en
+clair (`STORMOFF=1`) : `DN_LAT=2` donne **occ max = 18**, `DN_LAT=4` **14**,
+l'aval réaliste **4**. Le débit de l'attaque au niveau du wrapper n'est pas
+fixé par `STORM_REQS` mais **par la vitesse de l'aval**. À `DN_WLAT=40` — la
+valeur que `ARMORSTALL` mesure sur carte — SC02 passe intégralement, sans qu'une
+ligne de RTL ait changé.
+
+C'est le mécanisme qui explique les ~78 % de détection sur carte et leur
+dispersion de 12 points : la salve y arrive à peu près au seuil, et c'est la
+phase entre elle et la fenêtre qui décide. **Le seuil n'est pas mal calibré, le
+scénario est sur la frontière.**
+
+Deux conséquences pour la lecture des campagnes :
+
+- `occ max` sous `ENFORCE=1` vaut 8 **par construction** — le moniteur coupe dès
+  le seuil atteint. Il ne dit rien du débit de l'attaque ; seul le bras
+  `ENFORCE=0` le dit ;
+- l'évasion de SC08 a **plus de marge que son énoncé ne le suggère**. Ses salves
+  de 7 « sous le seuil de 8 » n'atteignent en réalité que **4** par fenêtre, la
+  salve étant elle-même étalée sur deux fenêtres. Un seuil abaissé à 5 la
+  laisserait encore passer — mais du trafic légitime monte lui aussi à 4 quand
+  ses itérations s'enchaînent sans pause logicielle.
+
+### Le compteur de fenêtre rebouclait à 16
+
+`req_cnt` était déclaré `[$clog2(MAX_REQ_PER_WINDOW):0]`, soit **quatre bits pour
+un seuil de 8** : il comptait 0 à 15 puis repassait à 0 en pleine fenêtre, et
+`storm_flag` — qui n'est qu'une comparaison sur ce compteur — retombait au
+milieu d'une tempête. Silencieusement : aucun compteur ne le disait.
+
+`STORM_REQS = 16` place SC02 pile sur le point de rebouclage. Sous `ENFORCE=1`
+le blocage écrête le compte à 8 et le défaut ne se voit pas ; sous `ENFORCE=0`,
+où rien n'est coupé, il se voit tout de suite (`STORMOFF=1 DN_LAT=2`) :
+
+| | ancien RTL | v14 |
+|---|---|---|
+| occupation max | 15 (plafond 4 bits) | **18** |
+| fenêtres atteignant le seuil | 1 / 6 | **7 / 7** |
+| rebouclages | **7** | 0 |
+| transactions avec verdict | 65 / 128 | **77 / 128** |
+
+Le reste de la campagne est **identique ligne pour ligne** entre les deux RTL :
+le correctif de largeur ne change pas l'enforcement, il rend au bras `ENFORCE=0`
+— celui du baseline publié — la capacité de voir ce qu'il observe.
+
+### Le comptage par fronts sous-compte un maître pipeliné (scénario 4)
+
+`req_fire` compte un **front montant** de handshake. Deux adresses transférées
+sur deux cycles consécutifs ne font qu'un front, donc une seule requête comptée.
+Le générateur de `accel_wrap` ne le fait jamais — sa FSM repasse par `G_W` entre
+deux AW, `aw_valid` retombe — si bien que l'A/B `RFMCNT=0` / `RFMCNT=1` sur la
+campagne est **rigoureusement identique**, au caractère près.
+
+Un A/B qui ne bouge pas ne prouve pourtant pas que le nouveau chemin compte
+juste : c'est aussi ce qu'on observerait s'il ne comptait rien. D'où le
+scénario 4, qui produit le cas que l'accélérateur ne sait pas produire — douze
+adresses transférées sur douze cycles consécutifs, `valid` et `ready` tenus :
+
+```
+adresses ESPACEES  : fronts=12 transferts=12 (attendu 12 et 12)
+adresses PIPELINEES: fronts=1  transferts=12 (attendu 1 et 12)
+```
+
+Une tempête pipelinée — c'est-à-dire toute tempête écrite par quelqu'un qui
+cherche vraiment à saturer un bus — compte donc pour **une** requête et ne
+franchit jamais le seuil. `CTRL[12]` le corrige ; la campagne ne peut pas le
+montrer, et c'est précisément pourquoi ce micro-banc existe.
 
 ### Le bannissement contamine tout ce qui suit dans les 2 ms
 

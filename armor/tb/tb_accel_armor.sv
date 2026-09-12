@@ -70,6 +70,9 @@ module tb_accel_armor;
     localparam logic [63:0] CSR_STATUS = 64'h18;
     localparam logic [63:0] CSR_STICKY  = 64'h20;
     localparam logic [63:0] CSR_FAILCNT = 64'h28;
+    //  0x38 : [31:0] episodes de storm, [39:32] occupation max d'une fenetre,
+    //  [63:40] fenetres actives (v14).
+    localparam logic [63:0] CSR_CNT_STORM = 64'h38;
     localparam logic [63:0] CSR_MAGIC  = 64'h58;
 
     // Bloc d'observabilite (MAGIC v2) — voir armor/SRC/wrapper.sv
@@ -124,6 +127,9 @@ module tb_accel_armor;
 `ifdef BFATE
         | (64'h1 << 10)
 `endif
+`ifdef RFMCNT
+        | (64'h1 << 12)
+`endif
         ;
 
     int unsigned obs_fail = 0;   // defauts trouves dans le bloc d'observabilite
@@ -133,7 +139,7 @@ module tb_accel_armor;
     int unsigned obs_ref_badid, obs_ref_badcy;
     int unsigned obs_ref_ghost, obs_ref_orph, obs_ref_awdn;
 
-    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F5200000C;   // version 12 : file de sort a 64, AW refuse si pleine
+    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F5200000E;   // version 14 : compteur de fenetre saturant, occupation en 0x38, CTRL[12]
 
     localparam logic [63:0] LEGIT_DST = 64'h0000_0000_9100_0000;
 
@@ -736,6 +742,65 @@ module tb_accel_armor;
     endfunction
 
     // -------------------------------------------------------------------------
+    //  MICRO-BANC DU MONITEUR DE FLUX (scenario 4, 2026-09-13).
+    //
+    //  Le comptage par transfert (CTRL[12]) ne change RIEN a la campagne, et
+    //  c'est attendu : la FSM de accel_wrap repasse par G_W entre deux adresses,
+    //  donc aw_valid retombe et chaque adresse fait son front. Un A/B qui ne
+    //  bouge pas ne prouve pourtant pas que le nouveau chemin compte juste --
+    //  il est aussi ce qu'on observerait s'il ne comptait rien.
+    //
+    //  Ce micro-banc fournit le cas que l'accelerateur ne sait pas produire :
+    //  douze adresses transferees sur douze cycles CONSECUTIFS, valid et ready
+    //  tenus. En AXI ce sont douze transferts. Deux instances du moniteur,
+    //  identiques sauf cnt_fix_i, recoivent le meme stimulus.
+    //
+    //  Attendu :
+    //    stimulus espace   (valid retombe entre deux adresses) : 12 et 12 ;
+    //    stimulus pipeline (valid tenu, 12 cycles d'affilee)   :  1 et 12.
+    //
+    //  Le 1 est l'angle mort : une tempete pipelinee, c'est-a-dire toute
+    //  tempete ecrite par quelqu'un qui cherche a saturer un bus, compte pour
+    //  une requete et ne franchit jamais le seuil.
+    // -------------------------------------------------------------------------
+    ariane_axi_soc::req_mmu_t  mb_req;
+    ariane_axi_soc::resp_slv_t mb_resp;
+    logic                      mb_dn_aw, mb_dn_ar;
+    logic [7:0]                mb_cnt_edge, mb_cnt_xfer;
+    logic [31:0]               mb_win_edge, mb_win_xfer;
+
+    request_flow_monitor #(
+        .WINDOW_CYCLES(100_000),      // une seule fenetre : rien ne se remet a zero
+        .MAX_REQ_PER_WINDOW(8),
+        .BLOCK_CYCLES(4),
+        .req_iommu_t(ariane_axi_soc::req_mmu_t),
+        .resp_slv_t(ariane_axi_soc::resp_slv_t)
+    ) mb_mon_edge (
+        .clk_i(clk_i), .rst_ni(rst_ni),
+        .req_IP_wrapper_i(mb_req), .resp_wrapper_iommu_i(mb_resp),
+        .legit_hit_i(1'b1),
+        .dn_aw_hs_i(mb_dn_aw), .dn_ar_hs_i(mb_dn_ar), .cnt_fix_i(1'b0),
+        .storm_flag(), .block_req(), .req_fire(),
+        .req_cnt_o(mb_cnt_edge), .window_cnt_o(mb_win_edge)
+    );
+
+    request_flow_monitor #(
+        .WINDOW_CYCLES(100_000),
+        .MAX_REQ_PER_WINDOW(8),
+        .BLOCK_CYCLES(4),
+        .req_iommu_t(ariane_axi_soc::req_mmu_t),
+        .resp_slv_t(ariane_axi_soc::resp_slv_t)
+    ) mb_mon_xfer (
+        .clk_i(clk_i), .rst_ni(rst_ni),
+        .req_IP_wrapper_i(mb_req), .resp_wrapper_iommu_i(mb_resp),
+        .legit_hit_i(1'b1),
+        .dn_aw_hs_i(mb_dn_aw), .dn_ar_hs_i(mb_dn_ar), .cnt_fix_i(1'b1),
+        .storm_flag(), .block_req(), .req_fire(),
+        .req_cnt_o(mb_cnt_xfer), .window_cnt_o(mb_win_xfer)
+    );
+
+
+    // -------------------------------------------------------------------------
     //  Scenario
     // -------------------------------------------------------------------------
     logic [63:0] rd;
@@ -774,8 +839,9 @@ module tb_accel_armor;
             1: begin dn_accept = 1'b1; dn_respond = 1'b0; end
             2: begin dn_accept = 1'b0; dn_respond = 1'b0; end
             3: begin dn_accept = 1'b1; dn_respond = 1'b1; end   // campagne
+            4: begin dn_accept = 1'b1; dn_respond = 1'b1; end   // micro-banc du moniteur
             default: begin
-                $display("SCENARIO=%0d inconnu (0, 1, 2 ou 3)", scenario);
+                $display("SCENARIO=%0d inconnu (0, 1, 2, 3 ou 4)", scenario);
                 $finish;
             end
         endcase
@@ -788,6 +854,11 @@ module tb_accel_armor;
         $display("   accel TIMEOUT_CYCLES = %0d, garde-fou MMIO = %0d cycles",
                  AccelTimeout, MMIO_GUARD);
         $display("=======================================================");
+
+        mb_req      = '0;
+        mb_resp     = '0;
+        mb_dn_aw    = 1'b0;
+        mb_dn_ar    = 1'b0;
 
         cfg_timeout = 1'b0;
         saw_done    = 1'b0;
@@ -812,7 +883,8 @@ module tb_accel_armor;
         $display("[%0t] MAGIC = 0x%016h (%s)", $time, rd,
                  (rd == MAGIC_EXPECTED) ? "OK" : "INATTENDU");
 
-        if (scenario == 3) run_campaign();   // ne revient pas
+        if (scenario == 4) micro_bench_flow();   // ne revient pas
+        if (scenario == 3) run_campaign();       // ne revient pas
 
         // ID_CFG = STREAM_ID de l'accelerateur, sinon le comparateur d'ID voit
         // un spoof sur du trafic parfaitement legitime.
@@ -1358,6 +1430,79 @@ module tb_accel_armor;
         end
     end
 
+    // -------------------------------------------------------------------------
+    //  INSTRUMENTATION DE LA FENETRE DE FLUX (2026-09-13).
+    //
+    //  Ce que le banc et la carte savaient dire jusqu'ici d'un faux negatif de
+    //  SC02 : rien. Le log compte les salves qui ont leve STORM ; celles qui ne
+    //  l'ont pas leve etaient un trou noir. Or une salve de 16 requetes n'est
+    //  au-dessus du seuil que si elle tient dans UNE fenetre de 100 cycles :
+    //  etalee sur trois, elle n'en met que cinq ou six dans chacune et aucun
+    //  moniteur a fenetre ne peut la voir. C'est une explication mecanique et
+    //  verifiable, pas une fatalite -- encore faut-il la mesurer.
+    //
+    //  Quatre chiffres suffisent :
+    //    occ_max  la plus forte occupation atteinte, a comparer au seuil ;
+    //    win_act  fenetres fermees avec au moins une requete ;
+    //    occ_sum  requetes comptees dans ces fenetres -- occ_sum/win_act est le
+    //             debit reel vu par le moniteur ;
+    //    win_trip fenetres ayant atteint le seuil, donc levant storm_flag.
+    //
+    //  occ_wrap est d'une autre nature : il compte les DIMINUTIONS de req_cnt
+    //  hors fermeture de fenetre, c'est-a-dire les rebouclages du compteur. Sur
+    //  le RTL d'avant v14 (quatre bits pour un seuil de 8) il doit etre non nul
+    //  des qu'une fenetre voit seize requetes ; apres correctif il doit rester
+    //  a zero, et c'est la non-regression du correctif de largeur.
+    //
+    //  Tout est pris sur les nets internes du wrapper : aucune lecture CSR,
+    //  donc aucune perturbation -- OBS_CHECK a montre que quatre lectures par
+    //  pas suffisent a changer l'issue de SC03 et SC04.
+    // -------------------------------------------------------------------------
+    //  Remise a zero : sur le CNT_CLR du wrapper lui-meme, et non sur une
+    //  impulsion posee par la tache de campagne. Les compteurs du banc et ceux
+    //  du materiel repartent alors au MEME cycle, ce qui est la condition pour
+    //  que les uns puissent verifier les autres. Un maximum ne se rattrape pas
+    //  par difference comme un accumulateur : il lui faut ce vrai depart a zero.
+    localparam int unsigned FLOW_MAX_REQ = 8;   // MAX_REQ_PER_WINDOW, wrapper.sv
+
+    wire [7:0]  fcnt_now = tb_accel_armor.i_sec_wrap.flow_req_cnt;
+    wire [31:0] fwin_now = tb_accel_armor.i_sec_wrap.flow_window_cnt;
+    wire        occ_clr  = tb_accel_armor.i_sec_wrap.csr_cnt_clr;
+
+    logic [7:0]  fcnt_q;
+    logic [31:0] fwin_q;
+    int unsigned occ_max, win_act, win_trip, occ_sum, occ_wrap;
+
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            fcnt_q   <= 8'h0;  fwin_q   <= 32'h0;
+            occ_max  <= 0;     win_act  <= 0;
+            win_trip <= 0;     occ_sum  <= 0;   occ_wrap <= 0;
+        end else begin
+            fcnt_q <= fcnt_now;
+            fwin_q <= fwin_now;
+
+            if (occ_clr) begin
+                occ_max  <= 0;  win_act <= 0;
+                win_trip <= 0;  occ_sum <= 0;   occ_wrap <= 0;
+            end else begin
+                if (fcnt_now > occ_max) occ_max <= fcnt_now;
+
+                if (fwin_now == 32'h0 && fwin_q != 32'h0) begin
+                    // Fermeture de fenetre : fcnt_q porte le compte definitif,
+                    // le RTL vient de le remettre a zero.
+                    if (fcnt_q != 8'h0) begin
+                        win_act <= win_act + 1;
+                        occ_sum <= occ_sum + fcnt_q;
+                        if (fcnt_q >= FLOW_MAX_REQ) win_trip <= win_trip + 1;
+                    end
+                end else if (fcnt_now < fcnt_q) begin
+                    occ_wrap <= occ_wrap + 1;
+                end
+            end
+        end
+    end
+
     //  Rapport d'appariement par pas : ecarts depuis le rapport precedent.
     //
     //  Imprime AUSSI quand tout est juste, avec le nombre de beats verifies. Le
@@ -1443,6 +1588,7 @@ module tb_accel_armor;
         int unsigned aw_seen_0;
         int unsigned blk_rise_0, blk_hi_0, blk_lo_0, danger_0, aw_adm_0;
         int unsigned outs_max_0, ovf_0, oblk_0, fire_0, respc_0;
+        int unsigned d_win, d_sum;
         begin
             w_excess_0 = w_excess_tot;
             w_ghost_0  = w_ghost_tot;
@@ -1528,6 +1674,21 @@ module tb_accel_armor;
                          name, blk_rise - blk_rise_0, blk_hi_cy - blk_hi_0,
                          blk_lo_cy - blk_lo_0, aw_adm_while_storm - aw_adm_0,
                          danger_cy - danger_0, aw_owed, aw_owed_max);
+            //  FENETRE : le debit que le moniteur voit reellement. Imprime des
+            //  qu'une fenetre s'est fermee avec du trafic, y compris quand tout
+            //  va bien -- c'est la ligne qui dit de combien un faux negatif est
+            //  passe sous le seuil, et elle ne vaut rien si elle ne s'affiche
+            //  que lorsqu'on la soupconne.
+            d_win = win_act;
+            d_sum = occ_sum;
+            if (d_win != 0)
+                $display("  %-12s  FENETRE : occ max=%0d (seuil %0d) | fenetres actives=%0d dont %0d au seuil | %0d requetes comptees, soit %0d.%02d par fenetre active%s",
+                         name, occ_max, FLOW_MAX_REQ,
+                         d_win, win_trip, d_sum,
+                         d_sum / d_win, ((d_sum * 100) / d_win) % 100,
+                         (occ_wrap != 0)
+                           ? $sformatf(" | !! COMPTEUR REBOUCLE %0d fois", occ_wrap)
+                           : "");
             if (w_excess_tot != w_excess_0)
                 $display("  %-12s  !! W ORPHELIN EN AVAL : %0d beat(s) avale(s) sans AW -- canal W decale",
                          name, w_excess_tot - w_excess_0);
@@ -1593,7 +1754,12 @@ module tb_accel_armor;
             //  DN_WLAT=4), le canal W s'y decalait et contaminait tout le reste :
             //  WCAP=0 et WCAP=1 donnaient la meme rupture au cycle pres. Le firmware
             //  n'a pas ce defaut, il preserve CTRL.
-            csr_write(CSR_CTRL, CTRL_OPTS | 64'b011);   // ENFORCE=1, STICKY_CLR=1
+            //  CNT_CLR en plus (2026-09-13) : sans lui, les compteurs
+            //  d'occupation de fenetre de ce pas continuaient ceux du pas
+            //  precedent, et c'est precisement sur SC08 que l'occupation doit
+            //  se lire seule -- toute la demonstration de l'evasion tient dans
+            //  « la fenetre la plus chargee a vu 7 requetes pour un seuil de 8 ».
+            csr_write(CSR_CTRL, CTRL_OPTS | 64'b111);   // ENFORCE=1, STICKY_CLR=1, CNT_CLR=1
             if (cfg_timeout) return;
 
             acc_write(ACC_BASE,   LEGIT_DST);
@@ -1627,11 +1793,72 @@ module tb_accel_armor;
             $display("  %-12s mode=%0d %2d salves x %0d, gap %0d cy -> %5s | passe %0d, bloque %0d | verdict=%b",
                      name, mode, salvos, burst, gap_cy,
                      ok ? "OK" : "ECHEC", n_passed, n_blocked, acc_bits);
+            //  La MARGE de l'evasion, et non seulement son resultat. « 84 passees »
+            //  ne dit pas si le scenario frole le seuil ou s'il en est loin : la
+            //  meme campagne rejouee sur un aval plus rapide pourrait basculer
+            //  sans qu'on comprenne pourquoi.
+            if (win_act != 0)
+                $display("  %-12s  FENETRE : occ max=%0d (seuil %0d) | fenetres actives=%0d dont %0d au seuil | %0d requetes comptees, soit %0d.%02d par fenetre active%s",
+                         name, occ_max, FLOW_MAX_REQ, win_act, win_trip, occ_sum,
+                         occ_sum / win_act, ((occ_sum * 100) / win_act) % 100,
+                         (occ_wrap != 0)
+                           ? $sformatf(" | !! COMPTEUR REBOUCLE %0d fois", occ_wrap)
+                           : "");
             //  SC08 en mode 4 est une tempete d'ecritures : exactement le regime
             //  qui decale le canal W. Sans ce rapport ses anomalies seraient
             //  imputees au pas suivant, SC02.
             pair_step_report(name);
             if (ok) n_pass++; else n_fail++;
+        end
+    endtask
+
+    task automatic micro_bench_flow();
+        int unsigned n, base_edge, base_xfer;
+        begin
+            n_pass = 0; n_fail = 0;
+            $display("");
+            $display("  MICRO-BANC request_flow_monitor -- 12 adresses, deux formes");
+            $display("");
+
+            // --- 1. Adresses espacees : valid retombe entre deux -------------
+            base_edge = mb_cnt_edge;  base_xfer = mb_cnt_xfer;
+            for (n = 0; n < 12; n++) begin
+                mb_req.aw_valid = 1'b1;  mb_resp.aw_ready = 1'b1;
+                mb_dn_aw        = 1'b1;
+                @(posedge clk_i);
+                mb_req.aw_valid = 1'b0;  mb_resp.aw_ready = 1'b0;
+                mb_dn_aw        = 1'b0;
+                @(posedge clk_i);
+            end
+            @(posedge clk_i);
+            $display("   adresses ESPACEES  : fronts=%0d transferts=%0d (attendu 12 et 12)",
+                     mb_cnt_edge - base_edge, mb_cnt_xfer - base_xfer);
+            if (mb_cnt_edge - base_edge != 12 || mb_cnt_xfer - base_xfer != 12)
+                n_fail++;
+            else n_pass++;
+
+            // --- 2. Adresses pipelinees : valid et ready tenus ---------------
+            base_edge = mb_cnt_edge;  base_xfer = mb_cnt_xfer;
+            mb_req.aw_valid = 1'b1;  mb_resp.aw_ready = 1'b1;
+            mb_dn_aw        = 1'b1;
+            repeat (12) @(posedge clk_i);
+            mb_req.aw_valid = 1'b0;  mb_resp.aw_ready = 1'b0;
+            mb_dn_aw        = 1'b0;
+            @(posedge clk_i);
+            $display("   adresses PIPELINEES: fronts=%0d transferts=%0d (attendu 1 et 12)",
+                     mb_cnt_edge - base_edge, mb_cnt_xfer - base_xfer);
+            if (mb_cnt_edge - base_edge != 1 || mb_cnt_xfer - base_xfer != 12)
+                n_fail++;
+            else n_pass++;
+
+            $display("");
+            $display("   Lecture : sur un maitre qui pipeline ses adresses, le comptage");
+            $display("   historique voit UNE requete la ou douze ont circule. Le seuil de");
+            $display("   8 par fenetre ne peut alors pas etre franchi, quelle que soit la");
+            $display("   tempete. CTRL[12] le corrige ; la campagne ne le montre pas,");
+            $display("   parce que accel_wrap ne pipeline pas.");
+            $display("");
+            report_and_finish();
         end
     endtask
 
@@ -1733,6 +1960,40 @@ module tb_accel_armor;
             // block_req se met a hacher, 4 cycles hauts / 1 creux, pendant tout
             // le reste de la fenetre de 100 cycles. C'est ce regime-la qui gele
             // la carte, et que le banc ne voyait pas.
+            //  LA MEME TEMPETE SANS ENFORCEMENT (2026-09-13).
+            //
+            //  Sous ENFORCE=1 le moniteur coupe des qu'il atteint le seuil :
+            //  l'occupation de fenetre y est ecretee a 8 par construction, et
+            //  elle ne dit donc RIEN du debit de l'attaque. C'est ici qu'il se
+            //  lit, toutes les requetes circulant : occ max donne le vrai
+            //  nombre de requetes par fenetre, a comparer aux 16 par salve
+            //  qu'annonce la Table 5 du papier -- les deux ne coincident que si
+            //  la salve tient dans une seule fenetre.
+            //
+            //  C'est aussi le seul regime ou le compteur de fenetre pouvait
+            //  reboucler avant v14 : rien n'etant coupe, une fenetre pouvait
+            //  voir seize requetes, soit exactement le point de rebouclage d'un
+            //  compteur de quatre bits. La ligne FENETRE le dirait
+            //  (« COMPTEUR REBOUCLE »), la detection ne le disait pas.
+            //
+            //  Le verdict STORM est attendu MEME ICI, et c'est un fait a
+            //  retenir : armor_status[5] suit block_req_flow, qui est la sortie
+            //  BRUTE du moniteur. ENFORCE ne gate que la coupure, pas
+            //  l'observation -- le wrapper detecte et le dit sans rien couper.
+            //  C'est ce que mesure le bras ENFORCE=0 de la campagne sur carte
+            //  (results/2026-09-09_enforce0_baseline.csv).
+            //  PAS OPTIONNEL (`+define+STORMOFF`, STORMOFF=1 cote run_sim.sh).
+            //  Il n'est pas dans la campagne par defaut pour une raison mesuree :
+            //  il fait passer 128 transactions de plus avant SC04, et sous aval
+            //  realiste (DN_WLAT=40) cela suffit a faire basculer SC04-MSI de
+            //  detecte a non detecte. Ce n'est pas un effet du pas lui-meme,
+            //  c'est la fragilite deja connue de SC04 vis-a-vis de ce qui le
+            //  precede -- la meme famille que la contamination par SC03. Le
+            //  garder optionnel preserve la comparabilite de toutes les
+            //  campagnes archivees.
+`ifdef STORMOFF
+            campaign_step("SC02-STORM/off", 3'd4, 1'b0, BIT_STORM[4:0], 1'b0, 8, 1'b0);
+`endif
             campaign_step("SC02-STORM", 3'd4, 1'b0, BIT_STORM[4:0],  1'b0, 8, 1'b1);
             campaign_step("SC04-MSI",   3'd6, 1'b0, BIT_MSI[4:0],    1'b0, 8, 1'b1);
             campaign_step("SC03-OUTS",  3'd5, 1'b1, BIT_OUTS[4:0],   1'b0, 8, 1'b1);
@@ -1809,9 +2070,22 @@ module tb_accel_armor;
     //  doit etre reglee avant qu'on accorde le moindre credit a ces chiffres sur
     //  carte.
     task automatic obs_step_check(input string name);
-        logic [63:0] bad, wch, wan, wow;
+        logic [63:0] bad, wch, wan, wow, stm;
         begin
             if (cfg_timeout) return;
+            //  Occupation de fenetre : le materiel (0x38, v14) contre les memes
+            //  grandeurs recalculees par le banc sur les nets internes. Les deux
+            //  repartent du meme CNT_CLR, la comparaison est donc a l'egalite --
+            //  a ceci pres que le materiel est lu APRES la fin du pas, donc
+            //  quelques fenetres plus tard : il ne peut qu'etre superieur ou
+            //  egal, jamais inferieur.
+            csr_read(CSR_CNT_STORM, stm);
+            obs_check(stm[39:32] >= occ_max,
+                      $sformatf("%s : occupation max, materiel %0d < banc %0d -- impossible",
+                                name, stm[39:32], occ_max));
+            obs_check(stm[63:40] >= win_act,
+                      $sformatf("%s : fenetres actives, materiel %0d < banc %0d -- impossible",
+                                name, stm[63:40], win_act));
             csr_read(CSR_CNT_BADID, bad);
             csr_read(CSR_CNT_WCH,   wch);
             csr_read(CSR_CNT_WANOM, wan);
@@ -2125,7 +2399,17 @@ module tb_accel_armor;
             $display("-------------------------------------------------------");
             if (obs_fail != 0)
                 $display(" ATTENTION : le bloc d'observabilite ment sur %0d point(s) -- ne pas synthetiser.", obs_fail);
-            if (scenario == 0) begin
+            if (scenario == 4) begin
+                //  Micro-banc : le datapath n'a pas tourne, les lignes
+                //  ci-dessus sont toutes a zero et c'est normal. Seul compte le
+                //  resultat des deux stimuli.
+                $display(" MICRO-BANC : %0d controle(s) reussi(s), %0d echec(s)",
+                         n_pass, n_fail);
+                $display(" VERDICT : %s",
+                         (n_fail == 0)
+                           ? "CTRL[12] compte les transferts, le comptage par fronts sous-compte un maitre pipeline."
+                           : "le comptage ne fait pas ce qui est annonce -- ne pas synthetiser.");
+            end else if (scenario == 0) begin
                 // done ET error ensemble = timeout de l'accelerateur, pas une
                 // transaction aboutie : c'est exactement ce que les campagnes
                 // sur carte rapportaient comme verdict 'E'.

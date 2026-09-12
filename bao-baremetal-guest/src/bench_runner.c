@@ -71,6 +71,7 @@
 #define WRAP_CTRL_RHOLD         (1ULL << 8)   /* reponses B/R tenues jusqu'au ready (v9) */
 #define WRAP_CTRL_WFATE         (1ULL << 9)   /* sort de chaque AW, W des AW coupes absorbe (v10) */
 #define WRAP_CTRL_BFATE         (1ULL << 10)  /* un B par ecriture, dans l'ordre (v12) */
+#define WRAP_CTRL_RFMCNT        (1ULL << 12)  /* moniteur de flux : transferts et non fronts (v14) */
 /* CTRL[6] TX_BLOCK n'a volontairement AUCUNE option ici : nuisible seul
  * (retraits AW de SC04 : 1 -> 4 au banc). Voir wrapper.sv. */
 
@@ -158,6 +159,28 @@
  * termine plus sur le compte de B fabriques, mais sur un B par requete. */
 #ifndef ARMOR_BFATE
 #define ARMOR_BFATE 0
+#endif
+
+/* Compiler avec -DARMOR_RFMCNT=1 pour que request_flow_monitor compte les
+ * TRANSFERTS d'adresse accomplis en aval au lieu des FRONTS de handshake
+ * (CTRL[12], MAGIC v14).
+ *
+ * A 0 (defaut, comportement historique), deux adresses transferees sur deux
+ * cycles consecutifs ne comptent que pour UNE : le seuil de 8 par fenetre est
+ * alors hors d'atteinte d'un maitre qui pipeline ses adresses. L'accelerateur
+ * de ce banc ne le fait jamais -- sa FSM repasse par G_W entre deux AW, donc
+ * aw_valid retombe -- et l'A/B au banc est en consequence RIGOUREUSEMENT
+ * IDENTIQUE sur les six scenarios. Ce bit ne ferme donc pas un trou que la
+ * campagne actuelle traverse : il ferme un trou qu'elle ne sait pas creuser.
+ *
+ * La preuve du sous-comptage est au banc, scenario 4 (`./run_sim.sh 4`) : douze
+ * adresses transferees sur douze cycles consecutifs comptent 1 en mode front et
+ * 12 en mode transfert.
+ *
+ * Attendu sur carte : aucune difference de detection. Une difference serait une
+ * information -- elle voudrait dire qu'un maitre y pipeline ses adresses. */
+#ifndef ARMOR_RFMCNT
+#define ARMOR_RFMCNT 0
 #endif
 /* CONTROLE DE VERSION PAR SEUIL, ET NON PAR EGALITE.
  *
@@ -460,6 +483,16 @@ static void armor_wrap_init(int enforce) {
         if (ARMOR_BFATE && !(ARMOR_WSKID && ARMOR_WFATE))
             printf("# ATTENTION : ARMOR_BFATE=1 sans ARMOR_WSKID et ARMOR_WFATE -- "
                    "CTRL[10] n'agit qu'avec les deux, il est ici sans effet\r\n");
+        if (ARMOR_RFMCNT && v < 14)
+            printf("# ATTENTION : ARMOR_RFMCNT=1 mais bitstream v%u -- CTRL[12] "
+                   "SANS EFFET, le moniteur de flux compte les fronts\r\n", v);
+        /* Pas une ATTENTION : rien n'est casse, une mesure manque. Zero n'est
+         * pas « aucune requete », c'est « aucune mesure » -- la meme confusion
+         * que pour 0xF0/0xF8, et elle a deja coute une journee. */
+        if (v < 14)
+            printf("# ARMOR v%u : 0x38[63:32] lira zero -- ni occupation max ni "
+                   "fenetres actives, un faux negatif de SC02 restera sans marge "
+                   "mesuree\r\n", v);
     }
 
     w1[WRAP_ID_CFG_OFF   / 8] = 1ULL;         /* LHA : STREAM_ID = 1 */
@@ -474,15 +507,16 @@ static void armor_wrap_init(int enforce) {
                   | (ARMOR_RHOLD ? WRAP_CTRL_RHOLD : 0ULL)
                   | (ARMOR_WFATE ? WRAP_CTRL_WFATE : 0ULL)
                   | (ARMOR_BFATE ? WRAP_CTRL_BFATE : 0ULL)
+                  | (ARMOR_RFMCNT ? WRAP_CTRL_RFMCNT : 0ULL)
                   | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
     w1[WRAP_CTRL_OFF / 8] = ctrl;
     w2[WRAP_CTRL_OFF / 8] = ctrl;
     fence();
 
     printf("# ARMOR arme : ENFORCE=%d, W_SKID=%d, FRESH=%d, WCAP=%d, RHOLD=%d, WFATE=%d, "
-           "BFATE=%d, ID_CFG w1=1 w2=2, MSI_ADDR=0x%08x\r\n",
+           "BFATE=%d, RFMCNT=%d, ID_CFG w1=1 w2=2, MSI_ADDR=0x%08x\r\n",
            enforce, ARMOR_WSKID, ARMOR_FRESH, ARMOR_WCAP, ARMOR_RHOLD, ARMOR_WFATE,
-           ARMOR_BFATE,
+           ARMOR_BFATE, ARMOR_RFMCNT,
            (unsigned)MSI_TARGET_DST);
 
     /* Ce que le MATERIEL a retenu, et non ce qu'on lui a demande. Un bit que le
@@ -521,14 +555,33 @@ static void armor_wrap_clear(void) {
  * non remis a zero par CNT_CLR, et repasse par 0 tous les 256. */
 static void armor_wrap_report_one(const char *tag, const char *who, uint64_t base) {
     volatile uint64_t *w = (volatile uint64_t *)base;
-    printf("# ARMORCNT,%s,%s,sticky=0x%08x,fail=%lu,ban=%lu,storm=%lu,outs=%lu,msi=%lu\r\n",
+    /* 0x38 porte trois grandeurs depuis v14 : les episodes de storm dans les
+     * 32 bits bas, l'occupation maximale d'une fenetre de flux dans l'octet
+     * suivant, et le nombre de fenetres fermees non vides au-dessus.
+     *
+     * reqmax/winact sont ce qui manquait pour lire un faux negatif de SC02. Une
+     * salve de 16 ecritures n'est au-dessus du seuil de 8 que si elle tient
+     * dans UNE fenetre de 100 cycles : etalee par la traduction IOMMU, elle en
+     * met 5 ou 6 dans chacune et aucun moniteur a fenetre ne peut la voir.
+     * `reqmax=6` sur un scenario non detecte dit cela en un chiffre ; sans lui
+     * on ne pouvait que le supposer. Et `storm/(req_up/winact)` donne le debit
+     * de l'attaque TEL QUE LE MONITEUR LE VOIT, a comparer aux 16 par salve
+     * qu'annonce la Table 5.
+     *
+     * Sur un bitstream anterieur a v14 les deux champs lisent zero, et le
+     * controle de version l'a deja dit en tete de campagne. */
+    uint64_t stm = w[WRAP_CNT_STORM_OFF / 8];
+    printf("# ARMORCNT,%s,%s,sticky=0x%08x,fail=%lu,ban=%lu,storm=%lu,outs=%lu,msi=%lu,"
+           "reqmax=%lu,winact=%lu\r\n",
            tag, who,
            (unsigned)w[WRAP_STICKY_OFF      / 8],
            (unsigned long)w[WRAP_FAILCNT_OFF    / 8],
            (unsigned long)w[WRAP_CNT_BANNED_OFF / 8],
-           (unsigned long)w[WRAP_CNT_STORM_OFF  / 8],
+           (unsigned long)(stm & 0xFFFFFFFFULL),
            (unsigned long)w[WRAP_CNT_OUTS_OFF   / 8],
-           (unsigned long)w[WRAP_CNT_MSI_OFF    / 8]);
+           (unsigned long)w[WRAP_CNT_MSI_OFF    / 8],
+           (unsigned long)((stm >> 32) & 0xFFULL),
+           (unsigned long)(stm >> 40));
 }
 
 static void armor_wrap_report(const char *tag) {

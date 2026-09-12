@@ -166,6 +166,7 @@ logic                   csr_rhold_q;      // CTRL[8] : reponses B/R tenues jusqu
 logic                   csr_wfate_q;      // CTRL[9] : sort de chaque AW, W des AW coupes absorbe
 logic                   csr_bfate_q;      // CTRL[10] : sort de chaque ecriture cote B, un B par AW
 logic                   csr_irqen_q;      // CTRL[11] : interruption armee (v13)
+logic                   csr_rfmcnt_q;     // CTRL[12] : moniteur de flux compte les transferts (v14)
 logic [63:0]            csr_sticky_q;
 logic [31:0]            cnt_banned_q, cnt_storm_q, cnt_outs_q, cnt_msi_q;
 logic [DevIDWidth-1:0]  dev_id_last_q;
@@ -175,6 +176,31 @@ logic                   csr_sticky_clr, csr_cnt_clr;
 logic [7:0]             outs_depth;      // profondeur outstanding courante
 logic [7:0]             flow_req_cnt;    // requetes comptees dans la fenetre
 logic [31:0]            flow_window_cnt; // position dans la fenetre
+
+// =============================================================================
+//  OCCUPATION DE LA FENETRE DE FLUX (v14).
+//
+//  Le seul chiffre qui manquait pour interpreter un faux negatif de SC02. Le
+//  log dit combien de salves ont leve STORM, jamais de combien les autres sont
+//  passees sous le seuil -- or une salve de 16 requetes etalee sur trois
+//  fenetres de 100 cycles n'en met que cinq ou six dans chacune, et aucun
+//  moniteur a fenetre ne peut la voir. Sans ces deux compteurs, cette
+//  explication reste une hypothese deduite des latences logicielles.
+//
+//    cnt_reqmax_q : la plus forte occupation atteinte, toutes fenetres
+//                   confondues -- a comparer a MAX_REQ_PER_WINDOW = 8. C'est la
+//                   marge, en clair.
+//    cnt_winact_q : nombre de fenetres FERMEES en ayant compte au moins une
+//                   requete. Avec cnt_req_up_q, il donne l'occupation MOYENNE
+//                   d'une fenetre active, donc le debit reel de l'attaque tel
+//                   que le moniteur le voit -- et non tel que la Table 5
+//                   l'annonce.
+// =============================================================================
+logic [7:0]             cnt_reqmax_q;
+logic [23:0]            cnt_winact_q;
+logic                   flow_win_close;  // dernier cycle de la fenetre courante
+
+assign flow_win_close = (flow_window_cnt == FLOW_WINDOW_C - 1);
 
 // Signaux effectifs, apres la gate ENFORCE (CTRL[0], cf. bloc CSR en fin de
 // module). ENFORCE = 0 -> le wrapper laisse tout passer et se contente
@@ -357,6 +383,11 @@ logic       dn_aw_hs, dn_w_last_hs;
 assign dn_aw_hs     = req_wrapper_iommu_o.aw_valid & resp_wrapper_iommu_i.aw_ready;
 assign dn_w_last_hs = req_wrapper_iommu_o.w_valid  & resp_wrapper_iommu_i.w_ready
                                                    & req_wrapper_iommu_o.w.last;
+
+// dn_ar_hs vit ici et non avec ses jumeaux du bloc d'observabilite : il est
+// consomme par request_flow_monitor, instancie plus haut dans le fichier.
+logic       dn_ar_hs;
+assign dn_ar_hs     = req_wrapper_iommu_o.ar_valid & resp_wrapper_iommu_i.ar_ready;
 
 always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
@@ -889,6 +920,9 @@ request_flow_monitor #(
     .req_IP_wrapper_i(req_IP_wrapper_i),
     .resp_wrapper_iommu_i(resp_wrapper_iommu_i),
     .legit_hit_i(legit_hit_eff),
+    .dn_aw_hs_i(dn_aw_hs),
+    .dn_ar_hs_i(dn_ar_hs),
+    .cnt_fix_i(csr_rfmcnt_q),
     .storm_flag(storm_flag),
     .block_req(block_req_flow),
     .req_fire(req_fire_signal),
@@ -961,6 +995,15 @@ response_delayer #(
 //                          (1 pour sec_wrapper #1, 2 pour #2, cf. accel_wrap.sv)
 //   0x08  MSI_ADDR     RW  adresse MSI surveillee par msi_detector
 //   0x10  CTRL         RW  b0 ENFORCE, b1 STICKY_CLR, b2 CNT_CLR,
+//                          b12 RFM_CNT -- request_flow_monitor compte les
+//                          TRANSFERTS d'adresse accomplis en aval au lieu des
+//                          FRONTS de handshake. A 0, comportement historique :
+//                          deux adresses transferees sur deux cycles consecutifs
+//                          ne comptent que pour une. Le generateur de accel_wrap
+//                          ne pipeline pas ses AW, le bit est donc sans effet
+//                          mesurable sur les scenarios actuels -- il ferme un
+//                          angle mort pour tout maitre qui le ferait. Echo dans
+//                          la relecture de CTRL. (v14)
 //                          b5 FRESH_VERDICT -- n'admet une adresse en aval que
 //                          si SA comparaison d'identite a rendu. Ferme une
 //                          fenetre de DEUX cycles ou l'adresse etait jugee sur
@@ -1043,15 +1086,34 @@ response_delayer #(
 //   0x20  STICKY       RO  OU cumulatif de STATUS depuis le dernier STICKY_CLR
 //   0x28  FAIL_CNT     RO  security_monitor.failure_count (8 bits)
 //   0x30  CNT_BANNED   RO  nombre de bannissements (fronts montants)
-//   0x38  CNT_STORM    RO  nombre d'episodes de storm de requetes
+//   0x38  CNT_STORM    RO  [31:0]  nombre d'episodes de storm de requetes
+//                          [39:32] REQ_MAX -- plus forte occupation atteinte par
+//                          une fenetre de flux depuis CNT_CLR, a comparer au
+//                          seuil MAX_REQ_PER_WINDOW = 8. Dit de COMBIEN une
+//                          salve non detectee est passee sous le seuil, la
+//                          seule chose que le log ne savait pas dire.
+//                          [63:40] WIN_ACT -- fenetres fermees en ayant compte
+//                          au moins une requete. Avec CNT_REQ (0x90), donne
+//                          l'occupation moyenne d'une fenetre active, c'est-a-
+//                          dire le debit de l'attaque TEL QUE LE MONITEUR LE
+//                          VOIT -- a ne pas confondre avec le nombre de requetes
+//                          par salve, qui n'en est le double que si la salve
+//                          tient dans une seule fenetre.
+//                          Les deux sont remis a zero par CNT_CLR (v14).
 //   0x40  CNT_OUTS     RO  nombre d'episodes de saturation outstanding
 //   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
 //   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
-//   0x58  MAGIC        RO  0x41524D4F5200000C ("ARMOR" + version)
+//   0x58  MAGIC        RO  0x41524D4F5200000E ("ARMOR" + version)
 //                          v11 portait deja b10, mais avec une file de 16 : elle
 //                          deborde et GELE la campagne dans SC04. Le MAGIC monte
 //                          donc a v12, seul moyen pour le logiciel de distinguer
 //                          les deux -- le .bit v11 reste archive et reinstallable.
+//                          Le bitstream v13 (irq_o, b11) avait OUBLIE d'y
+//                          toucher : le MAGIC passe de 0x0C a 0x0E d'un coup,
+//                          pour que numero de bitstream et version de MAGIC se
+//                          recollent. Un firmware qui exige v13 ou v14 est donc
+//                          protege ; aucun ne pouvait exiger 0x0D, il n'a jamais
+//                          existe.
 //
 // Bloc d'observabilite, ajoute le 2026-09-10 (d'ou MAGIC ...0002 : le logiciel
 // distingue ainsi un bitstream qui porte ces registres d'un qui n'en a pas).
@@ -1217,6 +1279,8 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         cnt_storm_q   <= 32'h0;
         cnt_outs_q    <= 32'h0;
         cnt_msi_q     <= 32'h0;
+        cnt_reqmax_q  <= 8'h0;
+        cnt_winact_q  <= 24'h0;
         dev_id_last_q <= '0;
     end else begin
         ban_d   <= block_ip_o;
@@ -1240,11 +1304,23 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
             cnt_storm_q  <= 32'h0;
             cnt_outs_q   <= 32'h0;
             cnt_msi_q    <= 32'h0;
+            cnt_reqmax_q <= 8'h0;
+            cnt_winact_q <= 24'h0;
         end else begin
             if (block_ip_o     && !ban_d)   cnt_banned_q <= cnt_banned_q + 1;
             if (block_req_flow && !storm_d) cnt_storm_q  <= cnt_storm_q  + 1;
             if (block_req_outs && !outs_d)  cnt_outs_q   <= cnt_outs_q   + 1;
             if (block_msi      && !msi_d)   cnt_msi_q    <= cnt_msi_q    + 1;
+
+            // Occupation de la fenetre de flux. Le maximum se prend en continu
+            // -- flow_req_cnt ne retombe qu'a la fermeture de la fenetre, le
+            // suivre cycle a cycle revient au meme et evite de dependre d'un
+            // instant d'echantillonnage. Les fenetres actives se comptent au
+            // DERNIER cycle de la fenetre, le seul ou le compte est complet.
+            if (flow_req_cnt > cnt_reqmax_q) cnt_reqmax_q <= flow_req_cnt;
+            if (flow_win_close && flow_req_cnt != 8'h0 &&
+                cnt_winact_q != 24'hFF_FFFF)
+                cnt_winact_q <= cnt_winact_q + 24'd1;
         end
     end
 end
@@ -1289,6 +1365,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         csr_wfate_q    <= 1'b0;   // reset : comportement historique
         csr_bfate_q    <= 1'b0;   // reset : comportement historique
         csr_irqen_q    <= 1'b0;   // reset : aucune interruption tant qu'on ne l'arme pas
+        csr_rfmcnt_q   <= 1'b0;   // reset : comptage historique par fronts
         csr_sticky_clr <= 1'b0;
         csr_cnt_clr    <= 1'b0;
     end else begin
@@ -1322,6 +1399,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
                             csr_wfate_q    <= req_CPU_Wrapper__i.w.data[9];
                             csr_bfate_q    <= req_CPU_Wrapper__i.w.data[10];
                             csr_irqen_q    <= req_CPU_Wrapper__i.w.data[11];
+                            csr_rfmcnt_q   <= req_CPU_Wrapper__i.w.data[12];
                         end
                         default: ; // registres en lecture seule
                     endcase
@@ -1460,14 +1538,15 @@ end
 //  est le nombre de requetes qu'ARMOR a effectivement coupees -- la seule
 //  mesure directe de son action, jusqu'ici deduite des verdicts.
 // -----------------------------------------------------------------------------
-logic up_aw_hs, up_ar_hs, up_b_hs, up_r_last_hs, dn_ar_hs;
+logic up_aw_hs, up_ar_hs, up_b_hs, up_r_last_hs;
 
 assign up_aw_hs     = req_IP_wrapper_i.aw_valid & resp_IP_wrapper_o.aw_ready;
 assign up_ar_hs     = req_IP_wrapper_i.ar_valid & resp_IP_wrapper_o.ar_ready;
 assign up_b_hs      = resp_IP_wrapper_o.b_valid & req_IP_wrapper_i.b_ready;
 assign up_r_last_hs = resp_IP_wrapper_o.r_valid & req_IP_wrapper_i.r_ready
                                                 & resp_IP_wrapper_o.r.last;
-assign dn_ar_hs     = req_wrapper_iommu_o.ar_valid & resp_wrapper_iommu_i.ar_ready;
+// dn_ar_hs est declare avec dn_aw_hs, plus haut : request_flow_monitor le
+// consomme avant ce point du fichier.
 
 // -----------------------------------------------------------------------------
 //  Chronometre materiel d'une transaction
@@ -2018,17 +2097,21 @@ always_comb begin
     case (r_idx_q)
         5'd0:    csr_rdata = csr_id_cfg_q;
         5'd1:    csr_rdata = csr_msi_addr_q;
-        5'd2:    csr_rdata = {52'h0, csr_irqen_q, csr_bfate_q, csr_wfate_q, csr_rhold_q, csr_wcap_q, csr_txblk_q, csr_fresh_q, csr_wskid_q,
+        5'd2:    csr_rdata = {51'h0, csr_rfmcnt_q, csr_irqen_q, csr_bfate_q, csr_wfate_q, csr_rhold_q, csr_wcap_q, csr_txblk_q, csr_fresh_q, csr_wskid_q,
                               csr_awfix_q, 2'b00, csr_enforce_q};
         5'd3:    csr_rdata = armor_status;
         5'd4:    csr_rdata = csr_sticky_q;
         5'd5:    csr_rdata = {56'h0, failure_count};
         5'd6:    csr_rdata = {32'h0, cnt_banned_q};
-        5'd7:    csr_rdata = {32'h0, cnt_storm_q};
+        // [31:0] verdicts STORM ; [39:32] occupation max d'une fenetre de flux ;
+        // [63:40] fenetres fermees avec au moins une requete. Loge dans les bits
+        // libres du compteur STORM plutot que dans un index neuf : les 32 index
+        // du wrapper sont tous pris, et ces trois chiffres se lisent ensemble.
+        5'd7:    csr_rdata = {cnt_winact_q, cnt_reqmax_q, cnt_storm_q};
         5'd8:    csr_rdata = {32'h0, cnt_outs_q};
         5'd9:    csr_rdata = {32'h0, cnt_msi_q};
         5'd10:   csr_rdata = {{(64-DevIDWidth){1'b0}}, dev_id_last_q};
-        5'd11:   csr_rdata = 64'h41524D4F5200000C;
+        5'd11:   csr_rdata = 64'h41524D4F5200000E;
         // Observabilite (version 2 du MAGIC). Voir la carte des registres.
         5'd12:   csr_rdata = {52'h0, dbg_up};
         5'd13:   csr_rdata = {52'h0, dbg_dn};
