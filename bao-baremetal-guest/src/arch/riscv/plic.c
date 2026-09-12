@@ -71,10 +71,12 @@ int plic_get_prio(int int_id){
 
 void plic_handle(){
 
+    /* Deux printf de debogage vivaient ici. Dans le chemin d'interruption ils
+     * sont doublement nuisibles : ils rendent toute mesure de latence absurde,
+     * et sous une source de niveau non acquittee ils ont produit 560 000 lignes
+     * en une seule campagne, 11 Mo d'UART, le 2026-09-12. */
     int cntxt = plic_hartidpriv_to_context(get_cpuid(), PRIV_S);
-    printf("cntxt %d \r\n",cntxt);
     uint32_t id = plic_hart[cntxt].claim;
-    printf("claim \r\n");
     if(id > 0) {
         irq_handle(id);
         plic_hart[cntxt].complete = id;

@@ -111,24 +111,34 @@ struct config config = {
                      * Pas de .id : ce sont de simples esclaves MMIO, ils
                      * n'emettent aucune transaction DMA vers l'IOMMU.
                      * ---------------------------------------------------- */
-                    /* IRQ 12 et 13 : sorties irq_o des deux wrappers, ajoutees
+                    /* IRQ 13 et 14 : sorties irq_o des deux wrappers, ajoutees
                      * au bitstream v13. Sans ces deux lignes, Bao ne route pas
                      * la source PLIC vers la VM et le gestionnaire n'est jamais
-                     * appele -- l'interruption reste pendante cote hyperviseur.
-                     * Rappel : .dev_num est en dur au-dessus. */
+                     * appele. Rappel : .dev_num est en dur au-dessus.
+                     *
+                     * ATTENTION AU DECALAGE D'UN. L'identifiant PLIC vaut
+                     * l'index materiel PLUS UN, l'ID 0 etant reserve par la
+                     * specification RISC-V. Toute cette table le fait deja :
+                     * l'UART est cable sur irq_sources[0] et declare {1}, le
+                     * SPI sur [1] et declare {2}, le timer sur [6:3] et declare
+                     * {4,5,6,7}. Les wrappers sont cables sur irq_sources[12]
+                     * et [13] : ils portent donc les ID 13 et 14. Les declarer
+                     * 12 et 13 arme le voisin -- l'ID 13 designe le wrapper 1,
+                     * dont le collant reste vide, et rien ne remonte jamais.
+                     * Trois campagnes perdues dessus le 2026-09-12. */
                     {   // sec_wrapper #1 (surveille le LHA)
                         .pa = 0x50002000,
                         .va = 0x50002000,
                         .size = 0x00001000,
                         .interrupt_num = 1,
-                        .interrupts = (irqid_t[]) {12}
+                        .interrupts = (irqid_t[]) {13}
                     },
                     {   // sec_wrapper #2 (surveille le MHA)
                         .pa = 0x50003000,
                         .va = 0x50003000,
                         .size = 0x00001000,
                         .interrupt_num = 1,
-                        .interrupts = (irqid_t[]) {13}
+                        .interrupts = (irqid_t[]) {14}
                     },
                     {   // IOMMU (demo only)
                         .pa = 0x50010000,   
