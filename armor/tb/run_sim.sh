@@ -188,6 +188,16 @@ fi
 # detecte (fragilite de SC04, pas effet du pas).
 [[ "${STORMOFF:-0}" == "1" ]] && DEFINES+=("-d" "STORMOFF")
 
+# PIPE=1 : ajoute a la campagne le pas SC09-PIPE, mode 7 de l'accelerateur --
+# seize adresses a la volee AVANT le premier beat de donnees. C'est la tempete
+# que decrit la Table 5 du papier et que le mode 4 n'est pas. A jouer dans les
+# DEUX arms :
+#   PIPE=1              ./run_sim.sh 3   -> aucun verdict (comptage par fronts)
+#   PIPE=1 RFMCNT=1     ./run_sim.sh 3   -> STORM
+# Le contraste EST le resultat. Hors campagne par defaut : ses transactions
+# supplementaires decalent SC04.
+[[ "${PIPE:-0}" == "1" ]]    && DEFINES+=("-d" "PIPE")
+
 echo "=== xvlog ==="
 xvlog -sv --nolog \
       "${DEFINES[@]+"${DEFINES[@]}"}" \

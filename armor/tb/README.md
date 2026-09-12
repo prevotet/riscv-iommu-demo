@@ -42,6 +42,7 @@ Réglages, tous par variable d'environnement :
 | `BFATE=1` | `CTRL[10]`, un B par écriture, dans l'ordre : SLVERR pour un AW coupé, B de l'aval pour un AW admis — n'agit qu'avec `WSKID` et `WFATE` | 0 |
 | `RFMCNT=1` | `CTRL[12]`, le moniteur de flux compte les **transferts** d'adresse accomplis en aval au lieu des **fronts** de handshake (v14) | 0 |
 | `STORMOFF=1` | ajoute à la campagne un pas `SC02-STORM/off` sous `ENFORCE=0` — le seul régime où l'occupation de fenêtre se lit sans écrêtage | 0 |
+| `PIPE=1` | ajoute le pas `SC09-PIPE`, mode 7 de l'accélérateur : seize adresses à la volée **avant** le premier beat de données | 0 |
 | `OBS_CHECK=1` | contrôle croisé des compteurs matériels. **Perturbe SC03 et SC04** : run de vérification, pas de mesure | 0 |
 | `AWFIX=1` | `CTRL[3]`, inerte depuis la réfutation | 0 |
 
@@ -223,6 +224,84 @@ Une tempête pipelinée — c'est-à-dire toute tempête écrite par quelqu'un q
 cherche vraiment à saturer un bus — compte donc pour **une** requête et ne
 franchit jamais le seuil. `CTRL[12]` le corrige ; la campagne ne peut pas le
 montrer, et c'est précisément pourquoi ce micro-banc existe.
+
+### La tempête pipelinée (mode 7, `PIPE=1`)
+
+Le mode 4 émet seize écritures **une à la fois** : `G_AW → G_W → G_NEXT`,
+`aw_valid` retombe entre deux adresses, chaque écriture attend que la
+précédente ait poussé ses données. Son débit au niveau du wrapper est donc fixé
+par la vitesse de l'aval, et c'est ce que montre le tableau de la section
+précédente. Le mode 7 présente ses seize adresses à la volée, puis leurs seize
+beats : c'est ce que fait tout DMA réel, et c'est ce que la Table 5 du papier
+décrit déjà (« 16 requêtes par salve, 2 × MAX_REQ »).
+
+Même salve, 8 itérations × 16 écritures = 128 transactions, aval rapide
+(`DN_LAT=4`) :
+
+| | `req_fire` vu | occ. max | verdict | coupées |
+|---|---|---|---|---|
+| SC02 séquentiel (mode 4) | 75 | 8 | `STORM` | 53 / 128 |
+| SC09 pipeliné, `RFMCNT=0` | **8** | **3** | **aucun** | **0 / 128** |
+| SC09 pipeliné, `RFMCNT=1` | — | 9 | `STORM` | **92 / 128** |
+
+**Huit fronts pour 128 adresses transférées** : le comptage historique voit une
+requête par salve. La tempête la plus dense que cette plateforme sache produire
+est, littéralement, invisible au moniteur — et elle le reste quelle que soit la
+vitesse de l'aval, puisque c'est la forme du trafic et non son débit qui la
+cache. C'est l'angle mort du scénario 4, ici de bout en bout dans la campagne.
+
+Et sous l'aval réaliste, celui qui fait passer SC02 intégralement :
+
+| aval `DN_WLAT=40` | occ. max | fenêtres au seuil | verdict | coupées |
+|---|---|---|---|---|
+| SC02 séquentiel | 3 | 0 / 54 | aucun | 0 / 128 |
+| SC09 pipeliné, `RFMCNT=1` | 9 | 8 / 10 | `STORM` | 50 / 128 |
+
+**Le débit du mode 7 ne dépend plus de l'aval.** C'est la seule modification qui
+fasse remonter la détection sans toucher au seuil ni au moniteur — et elle rend
+la Table 5 conforme au RTL au lieu de l'inverse.
+
+#### Ce que le mode 7 a coûté au wrapper
+
+Seize AW en vol sans leurs données, c'est exactement l'hypothèse sur laquelle
+trois mécanismes reposaient :
+
+- **la file de sort de `W_FATE` faisait quatre entrées**, sur le commentaire
+  « accel_wrap n'a jamais plus d'un AW sans W en attente ». La cinquième poussée
+  était perdue et `fate_ovf_q` (STATUS[22]) se levait : le sort d'une écriture
+  devenait inconnu. Portée à **64**, comme la file B ;
+- **`w_owed_q` faisait quatre bits** et saturait à 15. Avec seize AW il perdait
+  une incrémentation puis encaissait seize décrémentations : il atteignait zéro
+  alors qu'une écriture était encore due en aval, et la coupure de W redevenait
+  autorisée au pire moment — le Bug #16 que ce compteur existe pour éviter.
+  Porté à **8 bits** ;
+- **`B_FATE` (CTRL[10]) devient nécessaire.** Il était jusqu'ici une correction
+  de robustesse sans gain mesurable (31 campagnes, p = 0,35 sur SC02). Sous
+  aval réaliste, le mode 7 sans lui donne **488 B en trop, 50 manquants et un AW
+  resté dû en aval** — la condition du gel carte ; avec lui, **128 B appariés,
+  aucun en trop ni manquant, `aw_owed = 0`**. Le premier scénario qui en a
+  besoin.
+
+Aucune de ces trois modifications ne change quoi que ce soit tant que le maître
+n'a qu'un AW en vol : campagne par défaut **identique ligne pour ligne** avant
+et après, sur aval rapide comme sur aval réaliste.
+
+Effet de bord à noter : le contrôle `OBS_CHECK` de `w_owed_max` lisait déjà
+`0xE8[15:8]`, c'est-à-dire des champs de 8 bits, alors que le RTL en portait de
+4 — il comparait donc un zéro constant à un maximum lui aussi presque toujours
+nul, et passait sans rien vérifier. Le RTL l'ayant rejoint, le contrôle devient
+réel : sur SC09 il confronte un `w_owed_max` de 9 à celui que le banc compte de
+son côté.
+
+#### Le contrôle d'appariement W suivait un maître séquentiel
+
+Il rattachait chaque beat au **dernier** AW acquitté — vrai d'une FSM qui fait
+`G_AW → G_W`, faux dès que les adresses partent en avance. Sur le mode 7 il
+sortait « 120 beats pour un AW sans donnée » sur un trafic parfaitement
+conforme. Il suit désormais une **file** : les beats appartiennent aux AW
+acquittés dans l'ordre, ce qui est la règle AXI4 et vaut pour les deux formes de
+maître. Pour un maître séquentiel la file n'a jamais plus d'une entrée, et le
+contrôle est inchangé.
 
 ### Le bannissement contamine tout ce qui suit dans les 2 ms
 

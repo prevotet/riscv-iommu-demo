@@ -243,13 +243,22 @@
 
 #define WRAP_RETR_FIELD(v, i)   (((v) >> (16 * (i))) & 0xFFFFULL)
 
-/* DBG_WOWED : DEUX CHAMPS DE 4 BITS, pas de 8. w_owed_q fait 4 bits et sature a
- * 15. La premiere version de ce decodeur lisait 8 bits par champ -- parce que le
- * commentaire du RTL l'annoncait ainsi -- et sortait « w_owed=16 max=0 » dans le
- * log du 2026-09-10 12:36 : deux impossibilites a la fois, un compteur 4 bits a
- * 16 et un maximum sous la valeur courante. C'etait 0x10, soit max=1, owed=0. */
-#define WRAP_WOWED_CUR(v)       ((unsigned long)((v)       & 0xF))
-#define WRAP_WOWED_MAX(v)       ((unsigned long)(((v) >> 4) & 0xF))
+/* DBG_WOWED : deux champs de 8 bits DEPUIS v14, de 4 bits avant.
+ *
+ * Les deux ont bouge ensemble le 2026-09-13 : w_owed_q est passe a 8 bits parce
+ * qu'un maitre qui emet seize adresses a la volee (mode 7) saturait les quatre.
+ * Ce decodeur a deja mordu une fois dans l'autre sens -- il lisait 8 bits sur un
+ * RTL qui en portait 4, parce que le commentaire du RTL l'annoncait ainsi, et
+ * sortait « w_owed=16 max=0 » dans le log du 2026-09-10 12:36 : un compteur de
+ * 4 bits a 16 et un maximum sous la valeur courante, deux impossibilites a la
+ * fois. C'etait 0x10, soit max=1 owed=0.
+ *
+ * Sur un bitstream anterieur a v14 les bits [7:4] portent le maximum et non le
+ * haut de la valeur courante : `w_owed` y sera donc lu trop grand des que le
+ * maximum depasse zero. Ne pas melanger les logs des deux versions -- le MAGIC
+ * en tete de campagne tranche. */
+#define WRAP_WOWED_CUR(v)       ((unsigned long)((v)       & 0xFF))
+#define WRAP_WOWED_MAX(v)       ((unsigned long)(((v) >> 8) & 0xFF))
 
 /* Canaux surveilles par DBG_STALL_*, dans l'ordre des champs de 12 bits. */
 #define WRAP_STALL_FIELD(v, i)  (((v) >> (12 * (i))) & 0xFFFULL)
@@ -483,6 +492,19 @@ static void armor_wrap_init(int enforce) {
         if (ARMOR_BFATE && !(ARMOR_WSKID && ARMOR_WFATE))
             printf("# ATTENTION : ARMOR_BFATE=1 sans ARMOR_WSKID et ARMOR_WFATE -- "
                    "CTRL[10] n'agit qu'avec les deux, il est ici sans effet\r\n");
+#ifdef BENCH_SC09
+        if (v < 14)
+            printf("# ATTENTION : BENCH_SC09=1 mais bitstream v%u -- le mode 7 "
+                   "n'existe pas dans cet accelerateur, SC09 emettra du TRAFIC "
+                   "NORMAL et sera lu comme une non-detection\r\n", v);
+        if (!ARMOR_RFMCNT)
+            printf("# NOTE : SC09 sans ARMOR_RFMCNT -- aucune detection attendue, "
+                   "c'est le bras qui montre l'angle mort du comptage par fronts\r\n");
+        if (!ARMOR_BFATE)
+            printf("# ATTENTION : SC09 sans ARMOR_BFATE -- seize AW en vol sans "
+                   "leurs donnees font decrocher le canal B (au banc : 488 B en "
+                   "trop, 50 manquants, un AW reste du). Armer CTRL[10].\r\n");
+#endif
         if (ARMOR_RFMCNT && v < 14)
             printf("# ATTENTION : ARMOR_RFMCNT=1 mais bitstream v%u -- CTRL[12] "
                    "SANS EFFET, le moniteur de flux compte les fronts\r\n", v);
@@ -2100,7 +2122,13 @@ void main(void) {
      * baremetal-guest est limitée à STACK_SIZE = 0x4000 (16 KiB), cf.
      * src/arch/riscv/start.S. Sans 'static' → stack overflow → "no emulation
      * handler for abort" sous Bao. */
+    /* 9 scenarios, 10 avec SC09 (-DBENCH_SC09). Le tableau est dimensionne au
+     * maximum : un depassement ici ecrirait dans la pile de 16 KiB. */
+#ifdef BENCH_SC09
+    static stats_t s[10];
+#else
     static stats_t s[9];
+#endif
     int n = 0;
 
     /* Mode "smoke test" : N petits pour valider la chaîne complète et obtenir
@@ -2224,6 +2252,41 @@ void main(void) {
 
     /* SC-02 : Request storm — attendu STORM. */
     run_scenario("SC02-STORM", 'M', /*mode*/4, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
+
+    /* SC-09 : tempête PIPELINÉE — mode 7, HORS CAMPAGNE PAR DÉFAUT.
+     *
+     * Compiler avec -DBENCH_SC09 pour l'inclure. Il est optionnel pour la même
+     * raison que tout le reste ici : il ajoute 50 x 16 transactions avant SC04,
+     * et au banc ce décalage suffit à faire basculer SC04-MSI sous aval lent.
+     * Une campagne archivée et une campagne avec SC09 ne se comparent pas.
+     *
+     * CE QU'IL MESURE. Le mode 4 émet ses seize écritures UNE A LA FOIS : son
+     * débit au niveau du wrapper est fixé par la vitesse de l'aval, pas par
+     * STORM_REQS, et sous latence d'écriture réaliste il tombe sous le seuil —
+     * au banc, 2,3 requêtes par fenêtre de 100 cycles pour un seuil de 8, zéro
+     * détection. Le mode 7 présente ses seize adresses à la volée avant le
+     * premier beat de données, comme le fait tout DMA réel et comme l'annonce
+     * la Table 5 du papier. Son débit ne dépend plus de l'aval.
+     *
+     * L'ATTENDU DÉPEND DE L'ARME, et c'est tout le résultat :
+     *   ARMOR_RFMCNT=0 : AUCUN verdict. Seize adresses transférées sur seize
+     *                    cycles consécutifs ne font qu'un front de handshake,
+     *                    donc UNE requête comptée. La tempête la plus dense que
+     *                    cette plateforme sache produire est invisible au
+     *                    moniteur historique.
+     *   ARMOR_RFMCNT=1 : STORM, y compris sous l'aval lent qui fait passer SC02
+     *                    intégralement.
+     *
+     * EXIGE ARMOR_BFATE=1 (CTRL[10]). Seize AW en vol sans leurs données, c'est
+     * la configuration exacte où le canal B décroche : sans B_FATE le banc
+     * mesure 488 B en trop, 50 manquants et un AW resté dû en aval — la
+     * condition du gel carte. Avec, 128 B appariés et aw_owed = 0. B_FATE était
+     * jusqu'ici une correction de robustesse sans gain mesurable ; ce mode est
+     * le premier à en avoir besoin. */
+#ifdef BENCH_SC09
+    run_scenario("SC09-PIPE",  'M', /*mode*/7, LEGIT_DST, /*cfg*/0, N_ATK,
+                 ARMOR_RFMCNT ? 1 : 0, &s[n++]);
+#endif
 
     /* SC-04 : MSI storm — attendu MSI
      *   Le MSI-monitor voit l'AW avant l'IOMMU, donc la dest configurée

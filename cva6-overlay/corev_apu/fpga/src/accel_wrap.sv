@@ -41,6 +41,7 @@
 //    4 Tempete de requetes  STORM_REQS ecritures a la volee
 //    5 Saturation outstanding OUTS_REQS lectures sans consommer les reponses
 //    6 Tempete MSI          MSI_REQS ecritures vers l'adresse surveillee
+//    7 Tempete PIPELINEE    PIPE_REQS adresses a la volee, PUIS leurs donnees
 //
 //  NOTE sur les identifiants AXI : request_flow_monitor comptait autrefois une
 //  requete par changement d'identifiant, ce qui obligeait les modes de flood a
@@ -50,6 +51,36 @@
 //  realiste pour un maitre multi-transactions) mais n'est plus necessaire a la
 //  detection : ce qui compte est que aw_valid/ar_valid retombe entre deux
 //  requetes, ce que fait la machine d'etats ci-dessous.
+//
+//  ============================================================
+//  MODE 7 : LA TEMPETE QUE LE MODE 4 N'EST PAS (2026-09-13)
+//
+//  Le mode 4 emet seize ecritures, mais UNE A LA FOIS : la FSM fait
+//  G_AW -> G_W -> G_NEXT, donc aw_valid retombe entre deux adresses et chaque
+//  ecriture attend que la precedente ait pousse ses donnees. Le debit qui en
+//  resulte au niveau du wrapper n'est pas fixe par STORM_REQS mais par la
+//  VITESSE DE L'AVAL : mesure au banc, il tombe a ~2,3 requetes par fenetre de
+//  100 cycles sous une latence d'acceptation de W realiste (DN_WLAT=40), pour
+//  un seuil de 8. La tempete passe alors integralement, et sur carte elle est
+//  detectee une salve sur quatre environ -- non parce que le seuil serait mal
+//  calibre, mais parce que le scenario est POSE SUR LA FRONTIERE.
+//
+//  La Table 5 du papier annonce pourtant « 16 requetes par salve, 2 x MAX_REQ ».
+//  Ce n'est vrai que d'un maitre qui presente ses adresses sans attendre ses
+//  donnees -- c'est-a-dire de tout DMA reel, et de toute tempete ecrite par
+//  quelqu'un qui cherche a saturer un bus. Le mode 7 est ce maitre : PIPE_REQS
+//  adresses consecutives, puis PIPE_REQS beats de donnees. Le debit devient
+//  alors celui de l'emission, independant de l'aval.
+//
+//  Deux consequences a garder en tete en le jouant :
+//    - il faut CTRL[12] (RFM_CNT) pour le detecter. Le comptage historique par
+//      FRONTS voit une seule requete dans seize adresses transferees sur seize
+//      cycles consecutifs -- c'est l'angle mort que ce mode rend visible ;
+//    - il met seize AW en vol sans leurs donnees. La file de sort de W_FATE
+//      faisait quatre entrees sur cette hypothese exacte (« accel_wrap n'a
+//      jamais plus d'un AW sans W ») : elle est passee a 64, et w_owed_q de 4 a
+//      8 bits, le meme jour et pour la meme raison.
+//  ============================================================
 // ============================================================
 
 module accel_wrap #(
@@ -68,6 +99,10 @@ module accel_wrap #(
     parameter int unsigned STORM_REQS       = 16,
     parameter int unsigned OUTS_REQS        = 24,
     parameter int unsigned MSI_REQS         = 48,
+    // Mode 7 : adresses emises a la volee avant toute donnee. Dimensionne comme
+    // STORM_REQS pour que les deux tempetes soient comparables a salve egale --
+    // seule leur FORME change, et c'est tout l'interet de la comparaison.
+    parameter int unsigned PIPE_REQS        = 16,
     // Garde-fou : une requete bloquee par ARMOR ne recoit jamais son ready
     parameter int unsigned TIMEOUT_CYCLES   = 32'd65536
 ) (
@@ -259,6 +294,7 @@ module accel_wrap #(
     //  Parametres derives du mode d'attaque
     // =========================================================================
     logic [7:0]  n_req;        // nombre de requetes pour un start
+    logic        pipelined;    // mode 7 : adresses a la volee, donnees ensuite
     logic        vary_id;      // faire varier l'ID AXI entre requetes
     logic [23:0] sid_eff;      // stream_id emis
     logic [63:0] addr_eff;     // adresse ciblee
@@ -278,6 +314,7 @@ module accel_wrap #(
     always_comb begin
         // Valeurs par defaut = mode 0 (normal)
         n_req     = 8'd1;
+        pipelined = 1'b0;
         vary_id   = 1'b0;
         sid_eff   = STREAM_ID;
         addr_eff  = reg_base_q;
@@ -316,6 +353,13 @@ module accel_wrap #(
                 is_write  = 1'b1;
                 burst_len = 8'd0;
             end
+            3'd7: begin // tempete PIPELINEE : les adresses d'abord, les donnees ensuite
+                n_req     = PIPE_REQS[7:0];
+                pipelined = 1'b1;
+                vary_id   = 1'b1;
+                is_write  = 1'b1;
+                burst_len = 8'd0;   // une donnee par adresse, w_last a chaque beat
+            end
             default: ; // 0 et valeurs hors plage : trafic normal
         endcase
     end
@@ -331,8 +375,14 @@ module accel_wrap #(
     //  securite (blocage en amont du wrapper, ou mode d'attente ~legit_hit
     //  avant le verdict d'ID).
     // =========================================================================
-    typedef enum logic [2:0] {
-        G_IDLE, G_AW, G_W, G_AR, G_NEXT, G_DRAIN, G_FINISH
+    typedef enum logic [3:0] {
+        G_IDLE, G_AW, G_W, G_AR, G_NEXT, G_DRAIN, G_FINISH,
+        //  Mode 7. Deux etats et non une variante des precedents : la phase
+        //  d'adresses et la phase de donnees n'ont plus rien en commun une fois
+        //  qu'elles sont decouplees, et les melanger rendrait illisible la seule
+        //  FSM que tout le reste du banc prend pour reference.
+        G_PAW,   // PIPE_REQS adresses a la volee
+        G_PW     // puis leurs PIPE_REQS beats de donnees
     } gen_state_e;
 
     gen_state_e  g_state_q;
@@ -346,14 +396,22 @@ module accel_wrap #(
     logic [AXI_ID_WIDTH-1:0] cur_id;
     assign cur_id = vary_id ? req_idx_q[AXI_ID_WIDTH-1:0] : '0;
 
+    //  Mode 7 : req_idx_q sert deux fois, aux adresses puis aux donnees. Le
+    //  canal W n'a pas d'identifiant en AXI4, la reutilisation est donc sans
+    //  effet de bord -- et elle evite un compteur de plus dans une FSM que
+    //  quatre correctifs ont deja traversee.
+
+
     logic issuing;
-    assign issuing = (g_state_q == G_AW) || (g_state_q == G_W) ||
-                     (g_state_q == G_AR) || (g_state_q == G_NEXT);
+    assign issuing = (g_state_q == G_AW)  || (g_state_q == G_W) ||
+                     (g_state_q == G_AR)  || (g_state_q == G_NEXT) ||
+                     (g_state_q == G_PAW) || (g_state_q == G_PW);
 
     assign timeout_hit = (timeout_q >= TIMEOUT_CYCLES);
 
-    // Canal AW
-    assign axi_dma.aw_valid       = (g_state_q == G_AW);
+    // Canal AW -- tenu haut pendant toute la phase d'adresses en mode 7, ce qui
+    // permet un transfert PAR CYCLE tant que l'aval acquitte.
+    assign axi_dma.aw_valid       = (g_state_q == G_AW) || (g_state_q == G_PAW);
     assign axi_dma.aw_id          = cur_id;
     assign axi_dma.aw_addr        = addr_eff;
     assign axi_dma.aw_len         = burst_len;
@@ -371,7 +429,7 @@ module accel_wrap #(
     assign axi_dma.aw_substream_id= 20'd0;
 
     // Canal W
-    assign axi_dma.w_valid = (g_state_q == G_W);
+    assign axi_dma.w_valid = (g_state_q == G_W) || (g_state_q == G_PW);
     assign axi_dma.w_data  = wdata_q;
     assign axi_dma.w_strb  = {STRB_WIDTH{1'b1}};
     assign axi_dma.w_last  = (beat_q == burst_len);
@@ -446,7 +504,8 @@ module accel_wrap #(
                         b_cnt_q   <= 8'h0;
                         r_cnt_q   <= 8'h0;
                         timeout_q <= 32'h0;
-                        g_state_q <= (~reg_conf_q[0]) ? G_AW : G_AR;
+                        g_state_q <= pipelined ? G_PAW
+                                               : ((~reg_conf_q[0]) ? G_AW : G_AR);
                     end
                 end
 
@@ -486,6 +545,45 @@ module accel_wrap #(
                     end
                 end
 
+                //  ---- Mode 7 : phase d'adresses -----------------------------
+                //  aw_valid reste haut d'un transfert au suivant : rien ne le
+                //  fait retomber tant qu'il reste des adresses a emettre. C'est
+                //  la difference, et la seule, avec le mode 4.
+                G_PAW: begin
+                    if (axi_dma.aw_ready) begin
+                        if (req_idx_q + 8'h1 >= n_req) begin
+                            req_idx_q <= 8'h0;    // reutilise pour la phase W
+                            beat_q    <= 8'h0;
+                            g_state_q <= G_PW;
+                        end else begin
+                            req_idx_q <= req_idx_q + 8'h1;
+                        end
+                    end else if (timeout_hit) begin
+                        error_q      <= 1'b1;
+                        reg_blkcnt_q <= reg_blkcnt_q + 32'h1;
+                        g_state_q    <= G_FINISH;
+                    end
+                end
+
+                //  ---- Mode 7 : phase de donnees -----------------------------
+                //  burst_len vaut 0, donc w_last est haut a chaque beat : un
+                //  beat par adresse, dans l'ordre d'emission des adresses, comme
+                //  AXI4 l'exige.
+                G_PW: begin
+                    if (axi_dma.w_ready) begin
+                        wdata_q <= wdata_q + 64'h1;
+                        if (req_idx_q + 8'h1 >= n_req) begin
+                            g_state_q <= G_DRAIN;
+                        end else begin
+                            req_idx_q <= req_idx_q + 8'h1;
+                        end
+                    end else if (timeout_hit) begin
+                        error_q      <= 1'b1;
+                        reg_blkcnt_q <= reg_blkcnt_q + 32'h1;
+                        g_state_q    <= G_FINISH;
+                    end
+                end
+
                 G_NEXT: begin
                     if (req_idx_q + 8'h1 >= n_req) begin
                         g_state_q <= G_DRAIN;
@@ -518,7 +616,7 @@ module accel_wrap #(
                         b_cnt_q   <= 8'h0;
                         r_cnt_q   <= 8'h0;
                         timeout_q <= 32'h0;
-                        g_state_q <= is_write ? G_AW : G_AR;
+                        g_state_q <= pipelined ? G_PAW : (is_write ? G_AW : G_AR);
                     end else begin
                         busy_q    <= 1'b0;
                         done_q    <= 1'b1;
