@@ -1291,6 +1291,231 @@ static void run_sc08(stats_t *st) {
 }
 
 /* ============================================================
+ * ASOS, NIVEAU 0 : cout logiciel de la boucle de decision, MESURE SUR CARTE
+ *
+ * La Table 8 du papier mesure L_processing, L_mmio et L_total dans une
+ * co-simulation QEMU + Verilator, et doit excuser la dispersion de ses chiffres
+ * par l'ordonnancement non deterministe du coeur emule. Or deux de ses trois
+ * colonnes n'ont pas besoin d'interruption pour etre mesurees : dans
+ * l'equation (5), seul le point t0 en depend. L'evaluation de la menace est du
+ * calcul pur, l'actuation une sequence d'ecritures MMIO -- les deux sont
+ * mesurables ici, sur silicium, avec le compteur deja calibre par `# CALIB`.
+ *
+ * CE QUI EST MESURE
+ *   L_processing : lecture de STATUS, decroissance gamma, somme ponderee des
+ *                  bits d'alerte actifs, classification TLC (9 seuils,
+ *                  Table 2), selection de l'etat.
+ *   L_mmio       : ecritures de politique dans ARMOR, RELECTURE COMPRISE. Sans
+ *                  la relecture on chronometrerait une ecriture postee, c'est
+ *                  a dire rien.
+ *
+ * CE QUI NE L'EST PAS, et qu'il ne faut pas presenter comme tel : le chemin
+ * d'interruption, absent du RTL synthetise (`wrapper.sv` n'a pas de `irq_o`),
+ * et la notification inter-VM avec sa copie de 8 Kio -- que le papier designe
+ * lui-meme comme le terme dominant de la variabilite de L_mmio. Ce bloc mesure
+ * la configuration a VM unique, pas l'architecture a VM de service.
+ *
+ * LIMITE D'ACTUATION. Le design n'expose aucun registre de debit : les etats
+ * SUSPICIOUS de la Table 2 (« resource throttling ») n'ont pas d'equivalent
+ * materiel ici et sont actues par le seul moyen disponible, re-armement de
+ * ENFORCE et purge du collant. QUARANTINE et BANNED, eux, le sont exactement
+ * comme le papier les decrit : la revocation du Device ID autorise s'ecrit dans
+ * ID_CFG. C'est pour ca que L_mmio depend du TLC atteint, et c'est le resultat.
+ * ============================================================ */
+#ifdef BENCH_ASOS
+
+#define ASOS_GAMMA_NUM   230u   /* 230/256 = 0,898 : gamma = 0,9 en MAC entier, */
+#define ASOS_GAMMA_SH    8u     /* sans division -- le papier dit « multiply-accumulate » */
+#define ASOS_REPEAT      20     /* repetitions, pour donner une dispersion */
+
+/* Poids de severite par type d'evenement, sur les bits d'alerte de STATUS. */
+static const struct { uint64_t bit; unsigned w; const char *name; } asos_ev[] = {
+    { 1ULL << 4, 40, "BANNED"  },   /* usurpation d'identite confirmee */
+    { 1ULL << 6, 30, "OUTS"    },
+    { 1ULL << 3, 25, "BLOCKED" },
+    { 1ULL << 5, 20, "STORM"   },
+    { 1ULL << 7, 15, "MSI"     },
+};
+#define ASOS_NEV  (sizeof(asos_ev) / sizeof(asos_ev[0]))
+
+/* Table 2 : neuf seuils, dix classes. */
+static unsigned asos_tlc(uint64_t sc) {
+    static const uint64_t th[9] = { 1, 6, 16, 26, 36, 51, 71, 86, 100 };
+    unsigned tlc = 10;
+    for (unsigned i = 0; i < 9; i++) if (sc >= th[i]) tlc = 9 - i;
+    return tlc;
+}
+
+static const char *asos_state(unsigned tlc) {
+    if (tlc >= 8) return "ACTIVE";
+    if (tlc >= 6) return "LEARNING";
+    if (tlc >= 4) return "SUSPICIOUS";
+    if (tlc == 3) return "QUARANTINE";
+    return "BANNED";
+}
+
+/* Actuation : ce que la politique ecrit REELLEMENT dans ARMOR. La relecture
+ * finale fait partie de la mesure, voir l'en-tete. */
+static unsigned asos_actuate(volatile uint64_t *w, unsigned tlc, uint64_t ctrl) {
+    unsigned nw;
+    if (tlc >= 6) {                 /* ACTIVE / LEARNING : observation seule */
+        w[WRAP_CTRL_OFF / 8] = ctrl;
+        nw = 1;
+    } else if (tlc >= 4) {          /* SUSPICIOUS : restriction */
+        w[WRAP_CTRL_OFF / 8] = ctrl | WRAP_CTRL_STICKY_CLR;
+        w[WRAP_CTRL_OFF / 8] = ctrl;
+        nw = 2;
+    } else {                        /* QUARANTINE / BANNED : revocation du Device ID */
+        w[WRAP_ID_CFG_OFF / 8] = 0xFFFFFFFFULL;
+        w[WRAP_CTRL_OFF   / 8] = ctrl | WRAP_CTRL_STICKY_CLR;
+        w[WRAP_CTRL_OFF   / 8] = ctrl;
+        nw = 3;
+    }
+    (void)w[WRAP_CTRL_OFF / 8];     /* force la fin des ecritures postees */
+    return nw;
+}
+
+/* Puits volatile. SANS LUI, -O2 elimine toute l'evaluation : ni le score, ni le
+ * TLC, ni l'etat ne sont relus, donc le compilateur a le droit de tout jeter.
+ * Mesure avant correction : 16 cycles constants de k=0 a k=5, soit la lecture
+ * MMIO seule. Un banc qui chronometre du code mort ne mesure rien. */
+static volatile uint64_t asos_sink;
+
+typedef struct { uint64_t min, max, sum; unsigned n; } asos_acc_t;
+
+static void asos_acc(asos_acc_t *a, uint64_t v) {
+    if (a->n == 0 || v < a->min) a->min = v;
+    if (a->n == 0 || v > a->max) a->max = v;
+    a->sum += v; a->n++;
+}
+
+/* Une reaction complete : evaluation puis actuation, chronometrees separement. */
+static void asos_step(volatile uint64_t *w, uint64_t ctrl, uint64_t snap,
+                      uint64_t *score,
+                      unsigned *o_tlc, unsigned *o_k, unsigned *o_nw,
+                      uint64_t *o_proc, uint64_t *o_mmio) {
+    uint64_t t0 = read_counter();
+    /* Le COLLANT, pas STATUS. Les verdicts de flux ne durent que BLOCK_CYCLES
+     * (4 a 10 cycles en profil BENCH) : une lecture de STATUS apres coup ne voit
+     * jamais rien, ce qu'une premiere version de ce bloc a montre en donnant
+     * k = 0 partout. `snap` est l'etat collant releve AVANT la serie : la
+     * lecture MMIO reste reelle et son cout est dans la mesure, mais l'ensemble
+     * d'alertes evalue ne change pas d'une repetition a l'autre -- sans quoi le
+     * STICKY_CLR de l'actuation viderait le registre des la premiere. */
+    uint64_t st = w[WRAP_STICKY_OFF / 8] | snap;
+    uint64_t sc = (*score * ASOS_GAMMA_NUM) >> ASOS_GAMMA_SH;
+    unsigned k  = 0;
+    for (unsigned i = 0; i < ASOS_NEV; i++)
+        if (st & asos_ev[i].bit) { sc += asos_ev[i].w; k++; }
+    unsigned tlc = asos_tlc(sc);
+    const char *stname = asos_state(tlc);
+    asos_sink = sc + tlc + (uint64_t)(uintptr_t)stname;
+    uint64_t t1 = read_counter();
+    unsigned nw = asos_actuate(w, tlc, ctrl);
+    uint64_t t2 = read_counter();
+
+    *score = sc; *o_tlc = tlc; *o_k = k; *o_nw = nw;
+    *o_proc = t1 - t0; *o_mmio = t2 - t1;
+}
+
+static void run_asos(void) {
+    volatile uint64_t *w1 = (volatile uint64_t *)WRAP1_BASE_ADDR;
+    volatile uint64_t *w2 = (volatile uint64_t *)WRAP2_BASE_ADDR;
+    /* CTRL tel que le MATERIEL le porte, pas tel qu'on croit l'avoir ecrit :
+     * une politique doit preserver la configuration en place, et les deux
+     * impulsions s'auto-effacent donc relisent zero. */
+    uint64_t ctrl = w2[WRAP_CTRL_OFF / 8]
+                  & ~(WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR);
+
+    printf("\r\n###### ASOS (niveau 0 : VM unique, sans IRQ) ######\r\n");
+    printf("# ASOS : gamma=%u/256, poids BANNED=40 OUTS=30 BLOCKED=25 "
+           "STORM=20 MSI=15, %d repetitions\r\n",
+           ASOS_GAMMA_NUM, ASOS_REPEAT);
+    printf("# ASOS,slot,evt,k,tlc,etat,ecritures,"
+           "proc_min,proc_moy,proc_max,mmio_min,mmio_moy,mmio_max\r\n");
+
+    /* Sequence calquee sur la Table 8, ramenee aux deux slots de la plateforme.
+     * Les bits d'alerte lus sont ceux que la campagne vient reellement de
+     * produire dans chaque wrapper : rien n'est simule. */
+    static const struct { int slot; const char *evt; } seq[] = {
+        { 1, "premier"  }, { 2, "premier"  },
+        { 2, "repete"   }, { 1, "repete"   },
+        { 2, "repete2"  }, { 2, "repete3"  },
+    };
+
+    /* Etat collant tel que la campagne vient de le laisser, releve une fois
+     * pour toutes avant que la moindre actuation ne le purge. */
+    uint64_t snap1 = w1[WRAP_STICKY_OFF / 8];
+    uint64_t snap2 = w2[WRAP_STICKY_OFF / 8];
+    printf("# ASOS : collant releve w1=0x%lx w2=0x%lx\r\n",
+           (unsigned long)snap1, (unsigned long)snap2);
+
+    for (unsigned r = 0; r < sizeof(seq) / sizeof(seq[0]); r++) {
+        volatile uint64_t *w    = (seq[r].slot == 1) ? w1 : w2;
+        uint64_t           snap = (seq[r].slot == 1) ? snap1 : snap2;
+        asos_acc_t ap = {0,0,0,0}, am = {0,0,0,0};
+        unsigned tlc = 10, k = 0, nw = 0;
+
+        for (unsigned i = 0; i < ASOS_REPEAT; i++) {
+            /* Le score repart de l'etat de la ligne precedente a chaque
+             * repetition, sinon la decroissance le ferait deriver et les
+             * repetitions ne mesureraient pas la meme chose. */
+            uint64_t score = (uint64_t)r * 20ULL;
+            uint64_t pr = 0, mm = 0;
+            asos_step(w, ctrl, snap, &score, &tlc, &k, &nw, &pr, &mm);
+            asos_acc(&ap, pr); asos_acc(&am, mm);
+        }
+
+        printf("# ASOS,%d,%s,%u,TLC-%u,%s,%u,%lu,%lu,%lu,%lu,%lu,%lu\r\n",
+               seq[r].slot, seq[r].evt, k, tlc, asos_state(tlc), nw,
+               (unsigned long)ap.min, (unsigned long)(ap.sum / ap.n),
+               (unsigned long)ap.max,
+               (unsigned long)am.min, (unsigned long)(am.sum / am.n),
+               (unsigned long)am.max);
+    }
+
+    /* Cout en fonction du nombre de bits d'alerte simultanes. Le papier annonce
+     * un cout O(k) « well under 100 integer cycles » sans jamais le mesurer ;
+     * ici le masque est force, de 0 a 5 bits, la lecture de STATUS restant
+     * reelle. C'est la seule partie de ce bloc qui n'est pas in situ. */
+    printf("# ASOS-K,k,proc_min,proc_moy,proc_max\r\n");
+    for (unsigned kk = 0; kk <= ASOS_NEV; kk++) {
+        uint64_t mask = 0;
+        for (unsigned i = 0; i < kk; i++) mask |= asos_ev[i].bit;
+        asos_acc_t ap = {0,0,0,0};
+        for (unsigned i = 0; i < ASOS_REPEAT; i++) {
+            uint64_t t0 = read_counter();
+            uint64_t st = w2[WRAP_STICKY_OFF / 8] | mask;
+            uint64_t sc = (42ULL * ASOS_GAMMA_NUM) >> ASOS_GAMMA_SH;
+            unsigned k = 0;
+            for (unsigned j = 0; j < ASOS_NEV; j++)
+                if (st & asos_ev[j].bit) { sc += asos_ev[j].w; k++; }
+            unsigned tlc = asos_tlc(sc);
+            const char *nm = asos_state(tlc);
+            asos_sink = sc + tlc + k + (uint64_t)(uintptr_t)nm;
+            uint64_t t1 = read_counter();
+            asos_acc(&ap, t1 - t0);
+        }
+        printf("# ASOS-K,%u,%lu,%lu,%lu\r\n", kk,
+               (unsigned long)ap.min, (unsigned long)(ap.sum / ap.n),
+               (unsigned long)ap.max);
+    }
+
+    /* Remise en etat : l'actuation a pu revoquer les Device ID. Hors mesure. */
+    w1[WRAP_ID_CFG_OFF / 8] = 1ULL;
+    w2[WRAP_ID_CFG_OFF / 8] = 2ULL;
+    w1[WRAP_CTRL_OFF / 8]   = ctrl;
+    w2[WRAP_CTRL_OFF / 8]   = ctrl;
+    fence();
+    printf("# ASOS : ID_CFG et CTRL restaures (w1=%lu w2=%lu)\r\n",
+           (unsigned long)w1[WRAP_ID_CFG_OFF / 8],
+           (unsigned long)w2[WRAP_ID_CFG_OFF / 8]);
+    printf("# ASOS : rappel -- retrancher le cout d'une lecture de compteur "
+           "(voir `# CALIB`) pour comparer a un chiffre publie.\r\n");
+}
+#endif /* BENCH_ASOS */
+
+/* ============================================================
  * Récap final
  * ============================================================ */
 /* Émet une ligne SUMMARY pour un accumulateur de latence donné (DET ou TX). */
@@ -1669,6 +1894,10 @@ void main(void) {
     run_scenario("SC01-SPOOF", 'M', /*mode*/1, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
 #ifndef BENCH_NO_LHA_BG
     lha_bg_stop();   /* arrêt du trafic de fond */
+#endif
+
+#ifdef BENCH_ASOS
+    run_asos();
 #endif
 
     printf("\r\n###### RESUME ######\r\n");
