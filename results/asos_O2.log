@@ -249,12 +249,12 @@ Bao Hypervisor
 # ARMORCNT,SC06-LHAOK,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0
 # ARMORCNT,SC06-LHAOK,w2,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0
 # ARMORLAT,SC06-LHAOK,w1,n=100,n_verdict=0,det_avg=28,tx_avg=28,det_last=28,tx_last=28,det_min=28,det_max=105,tx_min=28,tx_max=105,det_sum=2897,tx_sum=2897
-# ARMORHW,SC06-LHAOK,w1,cyc_block=0,cyc_hold=200,req_up=100,req_dn=100,req_cut=0,cyc_total=70936019
+# ARMORHW,SC06-LHAOK,w1,cyc_block=0,cyc_hold=200,req_up=100,req_dn=100,req_cut=0,cyc_total=70936055
 # ARMORW,SC06-LHAOK,w1,bad_id=0 fronts 0 cy | aw_dn=100 wlast_dn=100 ecart=0 | fantome=0 orphelin=0 | w_owed_max=1
 # ARMORRETR,SC06-LHAOK,w1,aucun retrait de VALID
 # ARMORSTALL,SC06-LHAOK,w1,up aw=2 w=37 b=0 ar=0 r=0 | dn aw=0 w=37 b=0 ar=0 r=0
 # ARMORLAT,SC06-LHAOK,w2,n=0 (aucune transaction echantillonnee)
-# ARMORHW,SC06-LHAOK,w2,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=73225324
+# ARMORHW,SC06-LHAOK,w2,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=73225336
 # ARMORW,SC06-LHAOK,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
 # ARMORRETR,SC06-LHAOK,w2,aucun retrait de VALID
 # ARMORSTALL,SC06-LHAOK,w2,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
@@ -445,12 +445,12 @@ Bao Hypervisor
 # ARMORCNT,SC07-MHAOK,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0
 # ARMORCNT,SC07-MHAOK,w2,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0
 # ARMORLAT,SC07-MHAOK,w1,n=0 (aucune transaction echantillonnee)
-# ARMORHW,SC07-MHAOK,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=71133046
+# ARMORHW,SC07-MHAOK,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=71133034
 # ARMORW,SC07-MHAOK,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
 # ARMORRETR,SC07-MHAOK,w1,aucun retrait de VALID
 # ARMORSTALL,SC07-MHAOK,w1,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
 # ARMORLAT,SC07-MHAOK,w2,n=100,n_verdict=0,det_avg=29,tx_avg=29,det_last=28,tx_last=28,det_min=28,det_max=108,tx_min=28,tx_max=108,det_sum=2900,tx_sum=2900
-# ARMORHW,SC07-MHAOK,w2,cyc_block=0,cyc_hold=200,req_up=100,req_dn=100,req_cut=0,cyc_total=72960939
+# ARMORHW,SC07-MHAOK,w2,cyc_block=0,cyc_hold=200,req_up=100,req_dn=100,req_cut=0,cyc_total=72960931
 # ARMORW,SC07-MHAOK,w2,bad_id=0 fronts 0 cy | aw_dn=100 wlast_dn=100 ecart=0 | fantome=0 orphelin=0 | w_owed_max=1
 # ARMORRETR,SC07-MHAOK,w2,aucun retrait de VALID
 # ARMORSTALL,SC07-MHAOK,w2,up aw=2 w=34 b=0 ar=0 r=0 | dn aw=0 w=34 b=0 ar=0 r=0
@@ -1313,64 +1313,64 @@ Bao Hypervisor
 #   MMIO -> lecture STATUS finale
 #   MMIO    lecture STATUS finale OK
 # IT,2,st=0x2,up=48,dn=48,cut=0,blk=0,hold=96,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,3,st=0x2e,up=64,dn=56,cut=8,blk=29,hold=112,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,4,st=0x2e,up=80,dn=64,cut=16,blk=84,hold=128,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,5,st=0x2e,up=96,dn=73,cut=23,blk=147,hold=146,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,6,st=0x2e,up=112,dn=84,cut=28,blk=163,hold=168,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,7,st=0x2e,up=128,dn=97,cut=31,blk=172,hold=194,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,8,st=0x2e,up=144,dn=110,cut=34,blk=200,hold=220,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,9,st=0x2e,up=160,dn=120,cut=40,blk=254,hold=240,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,10,st=0x2e,up=176,dn=131,cut=45,blk=302,hold=262,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,11,st=0x2e,up=192,dn=146,cut=46,blk=314,hold=292,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,12,st=0x2e,up=208,dn=154,cut=54,blk=341,hold=308,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,13,st=0x2e,up=224,dn=162,cut=62,blk=390,hold=324,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,14,st=0x2e,up=240,dn=171,cut=69,blk=455,hold=342,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,15,st=0x2e,up=256,dn=184,cut=72,blk=485,hold=368,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,16,st=0x2e,up=272,dn=197,cut=75,blk=495,hold=394,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,17,st=0x2e,up=288,dn=205,cut=83,blk=532,hold=410,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,18,st=0x2e,up=304,dn=213,cut=91,blk=589,hold=426,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,19,st=0x2e,up=320,dn=224,cut=96,blk=634,hold=448,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,20,st=0x2e,up=336,dn=236,cut=100,blk=674,hold=472,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,21,st=0x2e,up=352,dn=244,cut=108,blk=702,hold=488,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,22,st=0x2e,up=368,dn=254,cut=114,blk=757,hold=508,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,23,st=0x2e,up=384,dn=264,cut=120,blk=774,hold=529,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,24,st=0x2e,up=400,dn=272,cut=128,blk=830,hold=545,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,25,st=0x2e,up=416,dn=285,cut=131,blk=859,hold=571,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,26,st=0x2e,up=432,dn=293,cut=139,blk=887,hold=587,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,27,st=0x2e,up=448,dn=301,cut=147,blk=954,hold=603,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,28,st=0x2e,up=464,dn=315,cut=149,blk=961,hold=631,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,29,st=0x2e,up=480,dn=323,cut=157,blk=1015,hold=647,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,30,st=0x2e,up=496,dn=336,cut=160,blk=1023,hold=674,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,31,st=0x2e,up=512,dn=344,cut=168,blk=1090,hold=690,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,32,st=0x2e,up=528,dn=352,cut=176,blk=1114,hold=706,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,33,st=0x2e,up=544,dn=364,cut=180,blk=1151,hold=730,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,34,st=0x2e,up=560,dn=372,cut=188,blk=1192,hold=746,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,35,st=0x2e,up=576,dn=387,cut=189,blk=1204,hold=776,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,36,st=0x2e,up=592,dn=396,cut=196,blk=1268,hold=794,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,37,st=0x2e,up=608,dn=404,cut=204,blk=1297,hold=810,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,38,st=0x2e,up=624,dn=417,cut=207,blk=1324,hold=836,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,39,st=0x2e,up=640,dn=425,cut=215,blk=1383,hold=852,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,40,st=0x2e,up=656,dn=436,cut=220,blk=1399,hold=874,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,41,st=0x2e,up=672,dn=446,cut=226,blk=1453,hold=894,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,42,st=0x2e,up=688,dn=454,cut=234,blk=1483,hold=910,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,43,st=0x2e,up=704,dn=466,cut=238,blk=1523,hold=934,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,44,st=0x2e,up=720,dn=474,cut=246,blk=1579,hold=950,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,45,st=0x2e,up=736,dn=487,cut=249,blk=1587,hold=977,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,46,st=0x2e,up=752,dn=497,cut=255,blk=1643,hold=997,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,47,st=0x2e,up=768,dn=505,cut=263,blk=1674,hold=1013,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,48,st=0x2e,up=784,dn=517,cut=267,blk=1685,hold=1038,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,49,st=0x2e,up=800,dn=531,cut=269,blk=1705,hold=1066,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# SC02-STORM STATUS_final=0x2e | DONE=3 BLOCK=0 BAN=0 STORM=47 OUTS=0 MSI=0 ERR=0 UNK=0
+# IT,3,st=0x2e,up=64,dn=56,cut=8,blk=37,hold=112,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,4,st=0x2e,up=80,dn=65,cut=15,blk=103,hold=130,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,5,st=0x2e,up=96,dn=79,cut=17,blk=122,hold=158,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,6,st=0x2e,up=112,dn=90,cut=22,blk=170,hold=180,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,7,st=0x2e,up=128,dn=98,cut=30,blk=227,hold=196,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,8,st=0x2e,up=144,dn=110,cut=34,blk=240,hold=220,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,9,st=0x2e,up=160,dn=118,cut=42,blk=280,hold=236,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,10,st=0x2e,up=176,dn=126,cut=50,blk=313,hold=252,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,11,st=0x2e,up=192,dn=135,cut=57,blk=377,hold=270,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,12,st=0x2e,up=208,dn=147,cut=61,blk=414,hold=294,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,13,st=0x2e,up=224,dn=161,cut=63,blk=435,hold=322,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,14,st=0x2e,up=240,dn=169,cut=71,blk=463,hold=338,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,15,st=0x2e,up=256,dn=177,cut=79,blk=514,hold=354,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,16,st=0x2e,up=272,dn=185,cut=87,blk=573,hold=370,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,17,st=0x2e,up=288,dn=198,cut=90,blk=603,hold=396,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,18,st=0x2e,up=304,dn=214,cut=90,blk=612,hold=428,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,19,st=0x2e,up=320,dn=227,cut=93,blk=620,hold=455,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,20,st=0x2e,up=336,dn=235,cut=101,blk=665,hold=471,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,21,st=0x2e,up=352,dn=245,cut=107,blk=720,hold=491,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,22,st=0x2e,up=368,dn=253,cut=115,blk=752,hold=507,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,23,st=0x2e,up=384,dn=261,cut=123,blk=811,hold=523,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,24,st=0x2e,up=400,dn=271,cut=129,blk=828,hold=544,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,25,st=0x2e,up=416,dn=279,cut=137,blk=873,hold=560,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,26,st=0x2e,up=432,dn=289,cut=143,blk=930,hold=580,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,27,st=0x2e,up=448,dn=297,cut=151,blk=963,hold=596,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,28,st=0x2e,up=464,dn=305,cut=159,blk=1022,hold=612,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,29,st=0x2e,up=480,dn=314,cut=166,blk=1042,hold=631,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,30,st=0x2e,up=496,dn=326,cut=170,blk=1082,hold=655,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,31,st=0x2e,up=512,dn=334,cut=178,blk=1124,hold=671,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,32,st=0x2,up=528,dn=350,cut=178,blk=1124,hold=703,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,33,st=0x2e,up=544,dn=361,cut=183,blk=1138,hold=726,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,34,st=0x2e,up=560,dn=376,cut=184,blk=1151,hold=756,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,35,st=0x2e,up=576,dn=384,cut=192,blk=1212,hold=772,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,36,st=0x2e,up=592,dn=392,cut=200,blk=1237,hold=788,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,37,st=0x2e,up=608,dn=405,cut=203,blk=1265,hold=814,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,38,st=0x2e,up=624,dn=413,cut=211,blk=1303,hold=830,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,39,st=0x2e,up=640,dn=427,cut=213,blk=1325,hold=858,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,40,st=0x2e,up=656,dn=437,cut=219,blk=1383,hold=878,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,41,st=0x2e,up=672,dn=445,cut=227,blk=1421,hold=894,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,42,st=0x2e,up=688,dn=455,cut=233,blk=1477,hold=914,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,43,st=0x2e,up=704,dn=463,cut=241,blk=1516,hold=930,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,44,st=0x2e,up=720,dn=478,cut=242,blk=1528,hold=960,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,45,st=0x2e,up=736,dn=486,cut=250,blk=1595,hold=976,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,46,st=0x2e,up=752,dn=494,cut=258,blk=1625,hold=992,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,47,st=0x2e,up=768,dn=505,cut=263,blk=1673,hold=1014,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,48,st=0x2e,up=784,dn=513,cut=271,blk=1728,hold=1030,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,49,st=0x2e,up=800,dn=521,cut=279,blk=1778,hold=1046,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# SC02-STORM STATUS_final=0x2e | DONE=4 BLOCK=0 BAN=0 STORM=46 OUTS=0 MSI=0 ERR=0 UNK=0
 # ARMORCNT,SC02-STORM,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0
-# ARMORCNT,SC02-STORM,w2,sticky=0x00000228,fail=0,ban=0,storm=47,outs=0,msi=0
+# ARMORCNT,SC02-STORM,w2,sticky=0x00000228,fail=0,ban=0,storm=46,outs=0,msi=0
 # ARMORLAT,SC02-STORM,w1,n=0 (aucune transaction echantillonnee)
-# ARMORHW,SC02-STORM,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=50623653
+# ARMORHW,SC02-STORM,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=50628140
 # ARMORW,SC02-STORM,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
 # ARMORRETR,SC02-STORM,w1,aucun retrait de VALID
 # ARMORSTALL,SC02-STORM,w1,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
-# ARMORLAT,SC02-STORM,w2,n=522,n_verdict=269,det_avg=5,tx_avg=5,det_last=0,tx_last=0,det_min=0,det_max=37,tx_min=0,tx_max=37,det_sum=2744,tx_sum=2758
-# ARMORHW,SC02-STORM,w2,cyc_block=1705,cyc_hold=1066,req_up=800,req_dn=531,req_cut=269,cyc_total=52451550
-# ARMORW,SC02-STORM,w2,bad_id=0 fronts 0 cy | aw_dn=531 wlast_dn=531 ecart=0 | fantome=0 orphelin=0 | w_owed_max=2
+# ARMORLAT,SC02-STORM,w2,n=522,n_verdict=279,det_avg=5,tx_avg=5,det_last=0,tx_last=0,det_min=0,det_max=37,tx_min=0,tx_max=37,det_sum=2679,tx_sum=2706
+# ARMORHW,SC02-STORM,w2,cyc_block=1778,cyc_hold=1046,req_up=800,req_dn=521,req_cut=279,cyc_total=52456020
+# ARMORW,SC02-STORM,w2,bad_id=0 fronts 0 cy | aw_dn=521 wlast_dn=521 ecart=0 | fantome=0 orphelin=0 | w_owed_max=2
 # ARMORRETR,SC02-STORM,w2,aucun retrait de VALID
 # ARMORSTALL,SC02-STORM,w2,up aw=2 w=23 b=0 ar=0 r=0 | dn aw=0 w=27 b=0 ar=0 r=0
 # === SC04-MSI : N=50 accel=M mode=6 cfg=0x0 expect_block=1
@@ -1410,31 +1410,7 @@ Bao Hypervisor
 #   MMIO    1re lecture STATUS OK, sondage en cours
 #   MMIO -> lecture STATUS finale
 #   MMIO    lecture STATUS finale OK
-# IT,0,st=0x2e,up=48,dn=48,cut=0,blk=14,hold=96,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-#   MMIO -> ecriture ATTACK_MODE
-#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
-#   MMIO    BASE OK ; -> SIZE
-#   MMIO    SIZE OK ; -> CONFIG
-#   MMIO    CONFIG OK
-# ARMORSNAP,pre-ctrl,accel_status=0x2e
-# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
-# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x228 | legit ENF
-# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
-# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
-# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
-# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
-# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
-# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
-# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
-# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=10 verdict_vu=0
-# ARMORCUT,pre-ctrl,w2,req_up=48 req_dn=48 cut=0 | cyc_block=14 cyc_hold=96
-# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=48 wlast_dn=48 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=2
-#   MMIO -> ecriture CTRL=1 (lancement)
-#   MMIO    CTRL OK ; -> 1re lecture STATUS
-#   MMIO    1re lecture STATUS OK, sondage en cours
-#   MMIO -> lecture STATUS finale
-#   MMIO    lecture STATUS finale OK
-# IT,1,st=0x8e,up=96,dn=80,cut=16,blk=176,hold=160,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,0,st=0x8e,up=48,dn=32,cut=16,blk=96,hold=64,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
 #   MMIO -> ecriture ATTACK_MODE
 #   MMIO    ecriture ATTACK_MODE OK ; -> BASE
 #   MMIO    BASE OK ; -> SIZE
@@ -1442,7 +1418,7 @@ Bao Hypervisor
 #   MMIO    CONFIG OK
 # ARMORSNAP,pre-ctrl,accel_status=0x8e
 # ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
-# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0xaa8 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x888 | legit ENF
 # ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
 # ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
 # ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
@@ -1451,72 +1427,96 @@ Bao Hypervisor
 # ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
 # ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
 # ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=1 verdict_vu=1
-# ARMORCUT,pre-ctrl,w2,req_up=96 req_dn=80 cut=16 | cyc_block=176 cyc_hold=160
+# ARMORCUT,pre-ctrl,w2,req_up=48 req_dn=32 cut=16 | cyc_block=96 cyc_hold=64
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=32 wlast_dn=32 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=2
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,1,st=0x2,up=96,dn=80,cut=16,blk=96,hold=160,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x888 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=10 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=96 req_dn=80 cut=16 | cyc_block=96 cyc_hold=160
 # ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=80 wlast_dn=80 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=2
 #   MMIO -> ecriture CTRL=1 (lancement)
 #   MMIO    CTRL OK ; -> 1re lecture STATUS
 #   MMIO    1re lecture STATUS OK, sondage en cours
 #   MMIO -> lecture STATUS finale
 #   MMIO    lecture STATUS finale OK
-# IT,2,st=0x8e,up=144,dn=127,cut=17,blk=310,hold=254,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,3,st=0xae,up=192,dn=160,cut=32,blk=444,hold=320,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,4,st=0xae,up=240,dn=176,cut=64,blk=1157,hold=353,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,5,st=0xae,up=288,dn=189,cut=99,blk=1429,hold=379,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,6,st=0xae,up=336,dn=219,cut=117,blk=2089,hold=439,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,7,st=0xae,up=384,dn=235,cut=149,blk=2828,hold=471,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,8,st=0xae,up=432,dn=259,cut=173,blk=3612,hold=519,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,9,st=0xae,up=480,dn=275,cut=205,blk=4173,hold=551,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,10,st=0xae,up=528,dn=286,cut=242,blk=4765,hold=573,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,11,st=0xae,up=576,dn=303,cut=273,blk=5198,hold=607,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,12,st=0xae,up=624,dn=332,cut=292,blk=6105,hold=665,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,13,st=0xae,up=672,dn=348,cut=324,blk=6338,hold=698,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,14,st=0xae,up=720,dn=370,cut=350,blk=7278,hold=742,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,15,st=0xae,up=768,dn=389,cut=379,blk=7636,hold=780,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,16,st=0xae,up=816,dn=405,cut=411,blk=8536,hold=813,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,17,st=0xae,up=864,dn=439,cut=425,blk=8919,hold=881,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,18,st=0xae,up=912,dn=453,cut=459,blk=9618,hold=909,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,19,st=0xae,up=960,dn=483,cut=477,blk=10035,hold=969,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,20,st=0x2e,up=1008,dn=528,cut=480,blk=10636,hold=1059,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,21,st=0xae,up=1056,dn=552,cut=504,blk=10812,hold=1107,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,22,st=0xae,up=1104,dn=572,cut=532,blk=11095,hold=1147,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,23,st=0xae,up=1152,dn=587,cut=565,blk=11854,hold=1177,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,24,st=0xae,up=1200,dn=603,cut=597,blk=12034,hold=1209,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,25,st=0xae,up=1248,dn=637,cut=611,blk=12558,hold=1278,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,26,st=0xae,up=1296,dn=666,cut=630,blk=13155,hold=1336,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,27,st=0xae,up=1344,dn=682,cut=662,blk=13337,hold=1369,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,28,st=0xae,up=1392,dn=700,cut=692,blk=13935,hold=1407,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,29,st=0xae,up=1440,dn=711,cut=729,blk=14131,hold=1429,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,30,st=0xae,up=1488,dn=742,cut=746,blk=14540,hold=1491,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,31,st=0x2e,up=1536,dn=789,cut=747,blk=14973,hold=1585,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,32,st=0xae,up=1584,dn=821,cut=763,blk=15116,hold=1649,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,33,st=0xae,up=1632,dn=837,cut=795,blk=15421,hold=1681,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,34,st=0xae,up=1680,dn=851,cut=829,blk=16340,hold=1709,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,35,st=0xae,up=1728,dn=873,cut=855,blk=16660,hold=1753,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,36,st=0xae,up=1776,dn=919,cut=857,blk=17167,hold=1845,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,37,st=0xae,up=1824,dn=935,cut=889,blk=17834,hold=1877,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,38,st=0xae,up=1872,dn=951,cut=921,blk=18252,hold=1909,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,39,st=0xae,up=1920,dn=970,cut=950,blk=18997,hold=1947,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,40,st=0xae,up=1968,dn=992,cut=976,blk=19179,hold=1991,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,41,st=0xae,up=2016,dn=1023,cut=993,blk=19589,hold=2053,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,42,st=0xae,up=2064,dn=1039,cut=1025,blk=20312,hold=2086,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,43,st=0xae,up=2112,dn=1065,cut=1047,blk=21237,hold=2140,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,44,st=0xae,up=2160,dn=1075,cut=1085,blk=21665,hold=2161,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,45,st=0xae,up=2208,dn=1101,cut=1107,blk=21836,hold=2215,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,46,st=0xae,up=2256,dn=1133,cut=1123,blk=22449,hold=2279,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,47,st=0x2e,up=2304,dn=1153,cut=1151,blk=22566,hold=2319,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,48,st=0xae,up=2352,dn=1173,cut=1179,blk=22736,hold=2359,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# IT,49,st=0xae,up=2400,dn=1192,cut=1208,blk=23345,hold=2397,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
-# SC04-MSI STATUS_final=0xae | DONE=0 BLOCK=0 BAN=0 STORM=4 OUTS=0 MSI=46 ERR=0 UNK=0
+# IT,2,st=0x8e,up=144,dn=124,cut=20,blk=233,hold=248,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,3,st=0xae,up=192,dn=146,cut=46,blk=404,hold=294,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,4,st=0xae,up=240,dn=174,cut=66,blk=1073,hold=350,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,5,st=0xae,up=288,dn=204,cut=84,blk=1214,hold=411,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,6,st=0xae,up=336,dn=220,cut=116,blk=1624,hold=443,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,7,st=0xae,up=384,dn=251,cut=133,blk=2433,hold=506,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,8,st=0xae,up=432,dn=275,cut=157,blk=2974,hold=554,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,9,st=0xae,up=480,dn=286,cut=194,blk=3432,hold=577,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,10,st=0xae,up=528,dn=310,cut=218,blk=3939,hold=625,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,11,st=0xae,up=576,dn=329,cut=247,blk=4188,hold=664,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,12,st=0xae,up=624,dn=347,cut=277,blk=5042,hold=700,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,13,st=0xae,up=672,dn=367,cut=305,blk=5352,hold=740,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,14,st=0xae,up=720,dn=383,cut=337,blk=6165,hold=773,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,15,st=0xae,up=768,dn=414,cut=354,blk=6446,hold=835,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,16,st=0xae,up=816,dn=428,cut=388,blk=7109,hold=863,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,17,st=0xae,up=864,dn=452,cut=412,blk=7473,hold=911,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,18,st=0xae,up=912,dn=481,cut=431,blk=8187,hold=969,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,19,st=0xae,up=960,dn=497,cut=463,blk=8385,hold=1001,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,20,st=0x2e,up=1008,dn=530,cut=478,blk=9107,hold=1067,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,21,st=0xae,up=1056,dn=544,cut=512,blk=9300,hold=1095,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,22,st=0xae,up=1104,dn=568,cut=536,blk=9989,hold=1143,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,23,st=0xae,up=1152,dn=603,cut=549,blk=10224,hold=1214,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,24,st=0xae,up=1200,dn=615,cut=585,blk=10407,hold=1238,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,25,st=0xae,up=1248,dn=631,cut=617,blk=11066,hold=1270,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,26,st=0xae,up=1296,dn=647,cut=649,blk=12083,hold=1302,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,27,st=0xae,up=1344,dn=671,cut=673,blk=12419,hold=1350,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,28,st=0x2e,up=1392,dn=713,cut=679,blk=12901,hold=1434,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,29,st=0xae,up=1440,dn=741,cut=699,blk=13073,hold=1491,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,30,st=0xae,up=1488,dn=758,cut=730,blk=13343,hold=1525,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,31,st=0xae,up=1536,dn=778,cut=758,blk=14173,hold=1565,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,32,st=0xae,up=1584,dn=810,cut=774,blk=14329,hold=1629,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,33,st=0x2e,up=1632,dn=834,cut=798,blk=14616,hold=1677,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,34,st=0xae,up=1680,dn=856,cut=824,blk=14790,hold=1721,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,35,st=0xae,up=1728,dn=869,cut=859,blk=15006,hold=1747,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,36,st=0xae,up=1776,dn=895,cut=881,blk=15675,hold=1799,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,37,st=0xae,up=1824,dn=926,cut=898,blk=15829,hold=1861,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,38,st=0xae,up=1872,dn=942,cut=930,blk=16099,hold=1894,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,39,st=0xae,up=1920,dn=958,cut=962,blk=16962,hold=1927,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,40,st=0xae,up=1968,dn=969,cut=999,blk=17162,hold=1949,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,41,st=0xae,up=2016,dn=989,cut=1027,blk=17799,hold=1989,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,42,st=0x2e,up=2064,dn=1019,cut=1045,blk=18642,hold=2049,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,43,st=0xae,up=2112,dn=1035,cut=1077,blk=18831,hold=2081,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,44,st=0xae,up=2160,dn=1049,cut=1111,blk=19377,hold=2109,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,45,st=0xae,up=2208,dn=1078,cut=1130,blk=19605,hold=2168,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,46,st=0xae,up=2256,dn=1091,cut=1165,blk=20294,hold=2195,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,47,st=0x2e,up=2304,dn=1127,cut=1177,blk=20652,hold=2269,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,48,st=0xae,up=2352,dn=1143,cut=1209,blk=20834,hold=2301,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,49,st=0xae,up=2400,dn=1159,cut=1241,blk=21533,hold=2333,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# SC04-MSI STATUS_final=0xae | DONE=1 BLOCK=0 BAN=0 STORM=5 OUTS=0 MSI=44 ERR=0 UNK=0
 # ARMORCNT,SC04-MSI,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0
-# ARMORCNT,SC04-MSI,w2,sticky=0x00000aa8,fail=0,ban=0,storm=78,outs=0,msi=46
+# ARMORCNT,SC04-MSI,w2,sticky=0x00000aa8,fail=0,ban=0,storm=86,outs=0,msi=44
 # ARMORLAT,SC04-MSI,w1,n=0 (aucune transaction echantillonnee)
-# ARMORHW,SC04-MSI,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=51309076
+# ARMORHW,SC04-MSI,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=51286657
 # ARMORW,SC04-MSI,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
 # ARMORRETR,SC04-MSI,w1,aucun retrait de VALID
 # ARMORSTALL,SC04-MSI,w1,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
-# ARMORLAT,SC04-MSI,w2,n=2043,n_verdict=1208,det_avg=3,tx_avg=3,det_last=0,tx_last=0,det_min=0,det_max=37,tx_min=0,tx_max=37,det_sum=7540,tx_sum=7621
-# ARMORHW,SC04-MSI,w2,cyc_block=23416,cyc_hold=2397,req_up=2400,req_dn=1192,req_cut=1208,cyc_total=53092169
-# ARMORW,SC04-MSI,w2,bad_id=0 fronts 0 cy | aw_dn=1192 wlast_dn=1192 ecart=0 | fantome=0 orphelin=0 | w_owed_max=2
+# ARMORLAT,SC04-MSI,w2,n=2026,n_verdict=1241,det_avg=3,tx_avg=3,det_last=0,tx_last=0,det_min=0,det_max=37,tx_min=0,tx_max=37,det_sum=7117,tx_sum=7179
+# ARMORHW,SC04-MSI,w2,cyc_block=21705,cyc_hold=2333,req_up=2400,req_dn=1159,req_cut=1241,cyc_total=53069737
+# ARMORW,SC04-MSI,w2,bad_id=0 fronts 0 cy | aw_dn=1159 wlast_dn=1159 ecart=0 | fantome=0 orphelin=0 | w_owed_max=2
 # ARMORRETR,SC04-MSI,w2,aucun retrait de VALID
 # ARMORSTALL,SC04-MSI,w2,up aw=2 w=23 b=0 ar=0 r=0 | dn aw=0 w=27 b=0 ar=0 r=0
 # === SC03-OUTS : N=50 accel=M mode=5 cfg=0x0 expect_block=1
@@ -1556,7 +1556,7 @@ Bao Hypervisor
 #   MMIO    1re lecture STATUS OK, sondage en cours
 #   MMIO -> lecture STATUS finale
 #   MMIO    lecture STATUS finale OK
-# IT,0,st=0x6e,up=24,dn=7,cut=17,blk=383,hold=16,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,0,st=0x6e,up=24,dn=12,cut=12,blk=37,hold=20,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
 #   MMIO -> ecriture ATTACK_MODE
 #   MMIO    ecriture ATTACK_MODE OK ; -> BASE
 #   MMIO    BASE OK ; -> SIZE
@@ -1573,20 +1573,20 @@ Bao Hypervisor
 # ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
 # ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
 # ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=1 verdict_vu=1
-# ARMORCUT,pre-ctrl,w2,req_up=24 req_dn=7 cut=17 | cyc_block=383 cyc_hold=16
+# ARMORCUT,pre-ctrl,w2,req_up=24 req_dn=12 cut=12 | cyc_block=37 cyc_hold=20
 # ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=1 wlast_dn=1 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=1
 #   MMIO -> ecriture CTRL=1 (lancement)
 #   MMIO    CTRL OK ; -> 1re lecture STATUS
 #   MMIO    1re lecture STATUS OK, sondage en cours
 #   MMIO -> lecture STATUS finale
 #   MMIO    lecture STATUS finale OK
-# IT,1,st=0x2e,up=48,dn=22,cut=26,blk=400,hold=42,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,1,st=0x6e,up=48,dn=19,cut=29,blk=413,hold=36,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
 #   MMIO -> ecriture ATTACK_MODE
 #   MMIO    ecriture ATTACK_MODE OK ; -> BASE
 #   MMIO    BASE OK ; -> SIZE
 #   MMIO    SIZE OK ; -> CONFIG
 #   MMIO    CONFIG OK
-# ARMORSNAP,pre-ctrl,accel_status=0x2e
+# ARMORSNAP,pre-ctrl,accel_status=0x6e
 # ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
 # ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x668 | legit ENF
 # ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
@@ -1596,74 +1596,74 @@ Bao Hypervisor
 # ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
 # ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
 # ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
-# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=46 verdict_vu=1
-# ARMORCUT,pre-ctrl,w2,req_up=48 req_dn=22 cut=26 | cyc_block=400 cyc_hold=42
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=1 verdict_vu=1
+# ARMORCUT,pre-ctrl,w2,req_up=48 req_dn=19 cut=29 | cyc_block=413 cyc_hold=36
 # ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=2 wlast_dn=2 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=1
 #   MMIO -> ecriture CTRL=1 (lancement)
 #   MMIO    CTRL OK ; -> 1re lecture STATUS
 #   MMIO    1re lecture STATUS OK, sondage en cours
 #   MMIO -> lecture STATUS finale
 #   MMIO    lecture STATUS finale OK
-# IT,2,st=0x6,up=60,dn=34,cut=26,blk=400,hold=68,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
-# IT,3,st=0x2e,up=84,dn=50,cut=34,blk=415,hold=98,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
-# IT,4,st=0x6e,up=108,dn=57,cut=51,blk=540,hold=114,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
-# IT,5,st=0x6e,up=132,dn=64,cut=68,blk=923,hold=130,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
-# IT,6,st=0x2e,up=154,dn=80,cut=74,blk=1165,hold=162,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/2/0/0
-# IT,7,st=0x6e,up=178,dn=87,cut=91,blk=1304,hold=178,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/2/0/0
-# IT,8,st=0x6e,up=202,dn=94,cut=108,blk=1678,hold=194,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/2/0/0
-# IT,9,st=0x6e,up=226,dn=101,cut=125,blk=2047,hold=210,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/2/0/0
-# IT,10,st=0x6e,up=250,dn=111,cut=139,blk=2318,hold=226,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/2/0/0
-# IT,11,st=0x6e,up=274,dn=122,cut=152,blk=2357,hold=244,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/2/0/0
-# IT,12,st=0x6e,up=298,dn=131,cut=167,blk=2398,hold=260,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/2/0/0
-# IT,13,st=0x6,up=310,dn=143,cut=167,blk=2398,hold=286,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
-# IT,14,st=0x6e,up=334,dn=150,cut=184,blk=2522,hold=302,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
-# IT,15,st=0x6e,up=358,dn=157,cut=201,blk=2907,hold=318,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
-# IT,16,st=0x2e,up=373,dn=170,cut=203,blk=3141,hold=342,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
-# IT,17,st=0x2e,up=397,dn=181,cut=216,blk=3179,hold=364,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
-# IT,18,st=0x2e,up=421,dn=194,cut=227,blk=3200,hold=388,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
-# IT,19,st=0x6e,up=445,dn=201,cut=244,blk=3339,hold=404,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
-# IT,20,st=0x6e,up=469,dn=208,cut=261,blk=3707,hold=420,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
-# IT,21,st=0x2e,up=484,dn=221,cut=263,blk=3941,hold=444,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/5/0/0
-# IT,22,st=0x6e,up=508,dn=233,cut=275,blk=3977,hold=464,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/5/0/0
-# IT,23,st=0x6,up=520,dn=245,cut=275,blk=3977,hold=490,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/6/0/0
-# IT,24,st=0x2e,up=544,dn=258,cut=286,blk=3998,hold=514,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/6/0/0
-# IT,25,st=0x6e,up=568,dn=265,cut=303,blk=4137,hold=530,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/6/0/0
-# IT,26,st=0x6e,up=592,dn=272,cut=320,blk=4508,hold=546,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/6/0/0
-# IT,27,st=0x2e,up=616,dn=283,cut=333,blk=4778,hold=568,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/6/0/0
-# IT,28,st=0x2e,up=640,dn=292,cut=348,blk=4850,hold=586,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/6/0/0
-# IT,29,st=0x6e,up=664,dn=299,cut=365,blk=4989,hold=602,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/6/0/0
-# IT,30,st=0x6,up=676,dn=311,cut=365,blk=5219,hold=628,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/7/0/0
-# IT,31,st=0x6,up=688,dn=323,cut=365,blk=5219,hold=654,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/8/0/0
-# IT,32,st=0x6e,up=712,dn=330,cut=382,blk=5343,hold=670,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/8/0/0
-# IT,33,st=0x6e,up=736,dn=337,cut=399,blk=5712,hold=686,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/8/0/0
-# IT,34,st=0x2e,up=760,dn=347,cut=413,blk=6025,hold=706,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/8/0/0
-# IT,35,st=0x6e,up=784,dn=354,cut=430,blk=6163,hold=722,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/8/0/0
-# IT,36,st=0x6,up=796,dn=366,cut=430,blk=6393,hold=748,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/9/0/0
-# IT,37,st=0x6e,up=820,dn=373,cut=447,blk=6517,hold=764,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/9/0/0
-# IT,38,st=0x6e,up=844,dn=380,cut=464,blk=6901,hold=780,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/9/0/0
-# IT,39,st=0x6,up=856,dn=392,cut=464,blk=7141,hold=806,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/10/0/0
-# IT,40,st=0x6,up=868,dn=404,cut=464,blk=7141,hold=832,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/11/0/0
-# IT,41,st=0x6,up=880,dn=416,cut=464,blk=7141,hold=858,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/12/0/0
-# IT,42,st=0x2e,up=904,dn=427,cut=477,blk=7181,hold=880,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/12/0/0
-# IT,43,st=0x2e,up=928,dn=438,cut=490,blk=7221,hold=902,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/12/0/0
-# IT,44,st=0x6e,up=952,dn=448,cut=504,blk=7261,hold=918,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/12/0/0
-# IT,45,st=0x6e,up=976,dn=455,cut=521,blk=7400,hold=934,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/12/0/0
-# IT,46,st=0x6e,up=1000,dn=462,cut=538,blk=7769,hold=950,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/12/0/0
-# IT,47,st=0x6e,up=1024,dn=469,cut=555,blk=8137,hold=966,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/12/0/0
-# IT,48,st=0x2e,up=1048,dn=482,cut=566,blk=8393,hold=988,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/12/0/0
-# IT,49,st=0x6e,up=1072,dn=489,cut=583,blk=8532,hold=1004,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/12/0/0
-# SC03-OUTS STATUS_final=0x6e | DONE=0 BLOCK=0 BAN=0 STORM=14 OUTS=27 MSI=0 ERR=9 UNK=0
+# IT,2,st=0x6e,up=72,dn=26,cut=46,blk=790,hold=52,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,3,st=0x6e,up=96,dn=33,cut=63,blk=926,hold=68,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,4,st=0x6e,up=120,dn=42,cut=78,blk=1286,hold=84,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,5,st=0x2e,up=144,dn=52,cut=92,blk=1375,hold=104,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,6,st=0x6e,up=168,dn=59,cut=109,blk=1504,hold=120,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,7,st=0x2e,up=192,dn=72,cut=120,blk=1765,hold=144,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,8,st=0x6e,up=216,dn=79,cut=137,blk=1899,hold=160,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,9,st=0x2e,up=240,dn=89,cut=151,blk=2190,hold=180,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,10,st=0x2e,up=264,dn=99,cut=165,blk=2246,hold=200,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,11,st=0x6e,up=288,dn=106,cut=182,blk=2375,hold=216,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,12,st=0x6,up=300,dn=118,cut=182,blk=2615,hold=242,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
+# IT,13,st=0x6e,up=324,dn=126,cut=198,blk=2741,hold=258,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
+# IT,14,st=0x6e,up=348,dn=133,cut=215,blk=3140,hold=274,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
+# IT,15,st=0x2e,up=372,dn=145,cut=227,blk=3411,hold=298,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
+# IT,16,st=0x2e,up=396,dn=156,cut=240,blk=3451,hold=320,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
+# IT,17,st=0x6e,up=420,dn=163,cut=257,blk=3585,hold=336,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
+# IT,18,st=0x6e,up=444,dn=170,cut=274,blk=3954,hold=352,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
+# IT,19,st=0x6,up=456,dn=182,cut=274,blk=4189,hold=378,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/2/0/0
+# IT,20,st=0x6e,up=480,dn=189,cut=291,blk=4318,hold=394,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/2/0/0
+# IT,21,st=0x6e,up=504,dn=196,cut=308,blk=4687,hold=410,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/2/0/0
+# IT,22,st=0x6,up=516,dn=208,cut=308,blk=4927,hold=436,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,23,st=0x6e,up=540,dn=215,cut=325,blk=5056,hold=452,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,24,st=0x6e,up=564,dn=222,cut=342,blk=5424,hold=468,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,25,st=0x2e,up=588,dn=236,cut=352,blk=5684,hold=492,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,26,st=0x2e,up=612,dn=249,cut=363,blk=5705,hold=516,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,27,st=0x2e,up=636,dn=262,cut=374,blk=5726,hold=540,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,28,st=0x6e,up=660,dn=269,cut=391,blk=5860,hold=556,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,29,st=0x6e,up=684,dn=276,cut=408,blk=6224,hold=572,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,30,st=0x2e,up=708,dn=289,cut=419,blk=6503,hold=594,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,31,st=0x2e,up=732,dn=299,cut=433,blk=6558,hold=614,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,32,st=0x6e,up=756,dn=306,cut=450,blk=6692,hold=630,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,33,st=0x6e,up=780,dn=314,cut=466,blk=7070,hold=646,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,34,st=0x2e,up=804,dn=323,cut=481,blk=7408,hold=664,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,35,st=0x6e,up=828,dn=330,cut=498,blk=7537,hold=680,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,36,st=0x6e,up=852,dn=341,cut=511,blk=7817,hold=698,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,37,st=0x6,up=864,dn=353,cut=511,blk=7817,hold=724,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,38,st=0x2e,up=888,dn=363,cut=525,blk=7858,hold=744,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,39,st=0x6e,up=912,dn=370,cut=542,blk=7992,hold=760,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,40,st=0x6e,up=936,dn=377,cut=559,blk=8361,hold=776,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,41,st=0x2e,up=960,dn=388,cut=572,blk=8634,hold=798,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,42,st=0x6e,up=984,dn=395,cut=589,blk=8768,hold=814,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,43,st=0x6e,up=1008,dn=402,cut=606,blk=9137,hold=830,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,44,st=0x6e,up=1032,dn=409,cut=623,blk=9500,hold=846,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,45,st=0x6e,up=1056,dn=421,cut=635,blk=9779,hold=866,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,46,st=0x6e,up=1080,dn=428,cut=652,blk=9913,hold=882,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,47,st=0x6e,up=1104,dn=441,cut=663,blk=10182,hold=904,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,48,st=0x6e,up=1128,dn=448,cut=680,blk=10316,hold=920,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,49,st=0x6e,up=1152,dn=455,cut=697,blk=10685,hold=936,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# SC03-OUTS STATUS_final=0x6e | DONE=0 BLOCK=0 BAN=0 STORM=14 OUTS=32 MSI=0 ERR=4 UNK=0
 # ARMORCNT,SC03-OUTS,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0
-# ARMORCNT,SC03-OUTS,w2,sticky=0x00000668,fail=0,ban=0,storm=57,outs=27,msi=0
+# ARMORCNT,SC03-OUTS,w2,sticky=0x00000668,fail=0,ban=0,storm=69,outs=32,msi=0
 # ARMORLAT,SC03-OUTS,w1,n=0 (aucune transaction echantillonnee)
-# ARMORHW,SC03-OUTS,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=51044766
+# ARMORHW,SC03-OUTS,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=50976649
 # ARMORW,SC03-OUTS,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
 # ARMORRETR,SC03-OUTS,w1,aucun retrait de VALID
 # ARMORSTALL,SC03-OUTS,w1,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
-# ARMORLAT,SC03-OUTS,w2,n=640,n_verdict=535,det_avg=1231,tx_avg=1231,det_last=0,tx_last=0,det_min=0,det_max=65513,tx_min=0,tx_max=65513,det_sum=788065,tx_sum=788258
-# ARMORHW,SC03-OUTS,w2,cyc_block=8762,cyc_hold=1004,req_up=1072,req_dn=489,req_cut=583,cyc_total=52850246
+# ARMORLAT,SC03-OUTS,w2,n=745,n_verdict=643,det_avg=354,tx_avg=354,det_last=0,tx_last=0,det_min=0,det_max=65513,tx_min=0,tx_max=65513,det_sum=264168,tx_sum=264351
+# ARMORHW,SC03-OUTS,w2,cyc_block=10923,cyc_hold=936,req_up=1152,req_dn=455,req_cut=697,cyc_total=52782142
 # ARMORW,SC03-OUTS,w2,bad_id=0 fronts 0 cy | aw_dn=50 wlast_dn=50 ecart=0 | fantome=0 orphelin=0 | w_owed_max=1
-# ARMORRETR,SC03-OUTS,w2,aw=0 ar=12 w=0 b-r=0 | 1er a 25896725 cy, cause=, canal=2
+# ARMORRETR,SC03-OUTS,w2,aw=0 ar=4 w=0 b-r=0 | 1er a 31397667 cy, cause=, canal=2
 # ARMORSTALL,SC03-OUTS,w2,up aw=2 w=0 b=0 ar=4095 r=4095 | dn aw=0 w=2 b=0 ar=4095 r=4095
 # === SC01-SPOOF : N=50 accel=M mode=1 cfg=0x0 expect_block=1
 # ARMORSNAP,SC01-SPOOF,accel_status=0x6e
@@ -1720,7 +1720,7 @@ Bao Hypervisor
 # ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
 # ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=1 legit=0 fail=1 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=2 verdict_vu=1
 # ARMORCUT,pre-ctrl,w2,req_up=1 req_dn=0 cut=1 | cyc_block=0 cyc_hold=2
-# ARMORW,pre-ctrl,w2,bad_id=1 fronts 6527354 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORW,pre-ctrl,w2,bad_id=1 fronts 6527335 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
 #   MMIO -> ecriture CTRL=1 (lancement)
 #   MMIO    CTRL OK ; -> 1re lecture STATUS
 #   MMIO    1re lecture STATUS OK, sondage en cours
@@ -1753,62 +1753,62 @@ Bao Hypervisor
 # IT,2,st=0x1e,up=3,dn=0,cut=3,blk=100001,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,3,st=0x6,up=4,dn=0,cut=4,blk=100001,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,4,st=0x6,up=5,dn=0,cut=5,blk=100001,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
-# IT,5,st=0x1e,up=6,dn=0,cut=6,blk=100082,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,5,st=0x1e,up=6,dn=0,cut=6,blk=100081,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,6,st=0x6,up=7,dn=0,cut=7,blk=200002,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,7,st=0x6,up=8,dn=0,cut=8,blk=200002,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
-# IT,8,st=0x1e,up=9,dn=0,cut=9,blk=200083,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,8,st=0x1e,up=9,dn=0,cut=9,blk=200082,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,9,st=0x6,up=10,dn=0,cut=10,blk=300003,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,10,st=0x6,up=11,dn=0,cut=11,blk=300003,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
-# IT,11,st=0x1e,up=12,dn=0,cut=12,blk=300084,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,11,st=0x1e,up=12,dn=0,cut=12,blk=300083,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,12,st=0x6,up=13,dn=0,cut=13,blk=400004,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,13,st=0x6,up=14,dn=0,cut=14,blk=400004,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
-# IT,14,st=0x1e,up=15,dn=0,cut=15,blk=400085,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,14,st=0x1e,up=15,dn=0,cut=15,blk=400084,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,15,st=0x6,up=16,dn=0,cut=16,blk=500005,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,16,st=0x6,up=17,dn=0,cut=17,blk=500005,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
-# IT,17,st=0x1e,up=18,dn=0,cut=18,blk=500086,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,17,st=0x1e,up=18,dn=0,cut=18,blk=500085,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,18,st=0x6,up=19,dn=0,cut=19,blk=600006,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,19,st=0x6,up=20,dn=0,cut=20,blk=600006,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
-# IT,20,st=0x1e,up=21,dn=0,cut=21,blk=600087,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,20,st=0x1e,up=21,dn=0,cut=21,blk=600086,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,21,st=0x6,up=22,dn=0,cut=22,blk=700007,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,22,st=0x6,up=23,dn=0,cut=23,blk=700007,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
-# IT,23,st=0x1e,up=24,dn=0,cut=24,blk=700088,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,23,st=0x1e,up=24,dn=0,cut=24,blk=700087,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,24,st=0x6,up=25,dn=0,cut=25,blk=800008,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,25,st=0x6,up=26,dn=0,cut=26,blk=800008,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
-# IT,26,st=0x1e,up=27,dn=0,cut=27,blk=800089,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,26,st=0x1e,up=27,dn=0,cut=27,blk=800088,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,27,st=0x6,up=28,dn=0,cut=28,blk=900009,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,28,st=0x6,up=29,dn=0,cut=29,blk=900009,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
-# IT,29,st=0x1e,up=30,dn=0,cut=30,blk=900090,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,29,st=0x1e,up=30,dn=0,cut=30,blk=900089,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,30,st=0x6,up=31,dn=0,cut=31,blk=1000010,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,31,st=0x6,up=32,dn=0,cut=32,blk=1000010,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
-# IT,32,st=0x1e,up=33,dn=0,cut=33,blk=1000091,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,32,st=0x1e,up=33,dn=0,cut=33,blk=1000090,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,33,st=0x6,up=34,dn=0,cut=34,blk=1100011,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,34,st=0x6,up=35,dn=0,cut=35,blk=1100011,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
-# IT,35,st=0x1e,up=36,dn=0,cut=36,blk=1100092,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,35,st=0x1e,up=36,dn=0,cut=36,blk=1100091,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,36,st=0x6,up=37,dn=0,cut=37,blk=1200012,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,37,st=0x6,up=38,dn=0,cut=38,blk=1200012,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
-# IT,38,st=0x1e,up=39,dn=0,cut=39,blk=1200093,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,38,st=0x1e,up=39,dn=0,cut=39,blk=1200092,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,39,st=0x6,up=40,dn=0,cut=40,blk=1300013,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,40,st=0x6,up=41,dn=0,cut=41,blk=1300013,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
-# IT,41,st=0x1e,up=42,dn=0,cut=42,blk=1300094,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,41,st=0x1e,up=42,dn=0,cut=42,blk=1300093,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,42,st=0x6,up=43,dn=0,cut=43,blk=1400014,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,43,st=0x6,up=44,dn=0,cut=44,blk=1400014,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
-# IT,44,st=0x1e,up=45,dn=0,cut=45,blk=1400095,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,44,st=0x1e,up=45,dn=0,cut=45,blk=1400094,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,45,st=0x6,up=46,dn=0,cut=46,blk=1500015,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,46,st=0x6,up=47,dn=0,cut=47,blk=1500015,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
-# IT,47,st=0x1e,up=48,dn=0,cut=48,blk=1500096,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,47,st=0x1e,up=48,dn=0,cut=48,blk=1500095,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,48,st=0x6,up=49,dn=0,cut=49,blk=1600016,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # IT,49,st=0x6,up=50,dn=0,cut=50,blk=1600016,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
 # SC01-SPOOF STATUS_final=0x6 | DONE=0 BLOCK=0 BAN=16 STORM=0 OUTS=0 MSI=0 ERR=34 UNK=0
 # ARMORCNT,SC01-SPOOF,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0
 # ARMORCNT,SC01-SPOOF,w2,sticky=0x00004118,fail=50,ban=16,storm=0,outs=0,msi=0
 # ARMORLAT,SC01-SPOOF,w1,n=0 (aucune transaction echantillonnee)
-# ARMORHW,SC01-SPOOF,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=49987479
+# ARMORHW,SC01-SPOOF,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=49987473
 # ARMORW,SC01-SPOOF,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
 # ARMORRETR,SC01-SPOOF,w1,aucun retrait de VALID
 # ARMORSTALL,SC01-SPOOF,w1,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
 # ARMORLAT,SC01-SPOOF,w2,n=50,n_verdict=49,det_avg=0,tx_avg=0,det_last=0,tx_last=0,det_min=0,det_max=1,tx_min=0,tx_max=1,det_sum=1,tx_sum=1
-# ARMORHW,SC01-SPOOF,w2,cyc_block=1600016,cyc_hold=2,req_up=50,req_dn=0,req_cut=50,cyc_total=51815371
-# ARMORW,SC01-SPOOF,w2,bad_id=1 fronts 41547517 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORHW,SC01-SPOOF,w2,cyc_block=1600016,cyc_hold=2,req_up=50,req_dn=0,req_cut=50,cyc_total=51815357
+# ARMORW,SC01-SPOOF,w2,bad_id=1 fronts 41547505 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
 # ARMORRETR,SC01-SPOOF,w2,aucun retrait de VALID
 # ARMORSTALL,SC01-SPOOF,w2,up aw=2 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
 
@@ -1816,35 +1816,42 @@ Bao Hypervisor
 # ASOS : gamma=230/256, poids BANNED=40 OUTS=30 BLOCKED=25 STORM=20 MSI=15, 20 repetitions
 # ASOS,slot,evt,k,tlc,etat,ecritures,proc_min,proc_moy,proc_max,mmio_min,mmio_moy,mmio_max
 # ASOS : collant releve w1=0x0 w2=0x4118
-# ASOS,1,premier,0,TLC-10,ACTIVE,1,145,169,627,42,44,84
-# ASOS,2,premier,2,TLC-3,QUARANTINE,3,188,198,350,64,66,111
-# ASOS,2,repete,2,TLC-1,BANNED,3,174,178,230,64,64,64
-# ASOS,1,repete,0,TLC-4,SUSPICIOUS,2,172,175,233,53,53,53
-# ASOS,2,repete2,2,TLC-1,BANNED,3,174,176,211,64,64,64
-# ASOS,2,repete3,2,TLC-1,BANNED,3,174,175,200,64,64,64
+# ASOS,1,premier,0,TLC-10,ACTIVE,1,144,167,617,42,43,66
+# ASOS,2,premier,2,TLC-3,QUARANTINE,3,188,199,424,64,66,108
+# ASOS,2,repete,2,TLC-1,BANNED,3,175,177,225,64,64,64
+# ASOS,1,repete,0,TLC-4,SUSPICIOUS,2,168,171,233,53,53,53
+# ASOS,2,repete2,2,TLC-1,BANNED,3,175,176,204,64,64,64
+# ASOS,2,repete3,2,TLC-1,BANNED,3,175,175,194,64,64,64
 # ASOS-K,k,proc_min,proc_moy,proc_max
-# ASOS-K,0,181,199,509
-# ASOS-K,1,191,194,257
-# ASOS-K,2,196,198,240
+# ASOS-K,0,181,195,468
+# ASOS-K,1,191,192,214
+# ASOS-K,2,196,197,213
 # ASOS-K,3,199,199,211
-# ASOS-K,4,191,192,230
-# ASOS-K,5,190,190,196
+# ASOS-K,4,191,191,203
+# ASOS-K,5,190,191,223
+# ASOS-DECOMP,terme,cycles_pour_100,par_operation
+# ASOS-DECOMP,lecture_CSR_wrapper,1795,17
+# ASOS-DECOMP,ecriture+relecture_CSR,4341,43
+# ASOS-DECOMP,evaluation_seule_O(NEV),15509,155
+# ASOS-DECOMP,evaluation_seule_O(k),13201,132
+# ASOS-DECOMP,classification_TLC,10627,106
+# ASOS-DECOMP,boucle_a_vide,590,5
 # ASOS : ID_CFG et CTRL restaures (w1=1 w2=2)
 # ASOS : rappel -- retrancher le cout d'une lecture de compteur (voir `# CALIB`) pour comparer a un chiffre publie.
 
 ###### RESUME ######
-SUMMARY-DET,SC06-LHAOK,100,97,97,0,0,0,100,65,65,65,70,70
-SUMMARY-TX,SC06-LHAOK,100,97,97,0,0,0,100,69,69,69,74,74
-SUMMARY-DET,SC07-MHAOK,100,97,97,0,0,0,100,65,65,65,65,65
-SUMMARY-TX,SC07-MHAOK,100,97,97,0,0,0,100,69,69,69,69,69
-SUMMARY-DET,SC08-LAS,700,697,512,0,0,700,0,65,65,65,65,65
-SUMMARY-TX,SC08-LAS,700,697,512,0,0,700,0,69,69,69,69,69
-SUMMARY-DET,SC02-STORM,50,47,47,47,0,3,0,86,98,86,170,170
-SUMMARY-TX,SC02-STORM,50,47,47,47,0,3,0,110,128,110,179,183
-SUMMARY-DET,SC04-MSI,50,47,47,50,0,0,0,86,115,86,380,380
-SUMMARY-TX,SC04-MSI,50,47,47,50,0,0,0,211,332,289,619,667
-SUMMARY-DET,SC03-OUTS,50,47,47,50,0,0,0,65,11224,65,65564,65564
-SUMMARY-TX,SC03-OUTS,50,47,47,50,0,0,0,118,33550,65565,65593,65593
-SUMMARY-DET,SC01-SPOOF,50,47,47,50,0,0,0,44,44,44,44,44
-SUMMARY-TX,SC01-SPOOF,50,47,47,50,0,0,0,48,48,48,48,48
+SUMMARY-DET,SC06-LHAOK,100,97,97,0,0,0,100,69,69,69,70,70
+SUMMARY-TX,SC06-LHAOK,100,97,97,0,0,0,100,73,73,73,74,74
+SUMMARY-DET,SC07-MHAOK,100,97,97,0,0,0,100,69,69,69,70,70
+SUMMARY-TX,SC07-MHAOK,100,97,97,0,0,0,100,73,73,73,74,74
+SUMMARY-DET,SC08-LAS,700,697,512,0,0,700,0,69,69,69,69,70
+SUMMARY-TX,SC08-LAS,700,697,512,0,0,700,0,73,73,73,73,74
+SUMMARY-DET,SC02-STORM,50,47,47,46,0,4,0,69,95,69,169,274
+SUMMARY-TX,SC02-STORM,50,47,47,46,0,4,0,103,131,103,203,278
+SUMMARY-DET,SC04-MSI,50,47,47,49,0,1,0,69,88,69,169,169
+SUMMARY-TX,SC04-MSI,50,47,47,49,0,1,0,199,318,295,470,560
+SUMMARY-DET,SC03-OUTS,50,47,47,50,0,0,0,69,5656,69,65584,65584
+SUMMARY-TX,SC03-OUTS,50,47,47,50,0,0,0,118,22406,123,65588,65588
+SUMMARY-DET,SC01-SPOOF,50,47,47,50,0,0,0,38,38,38,38,38
+SUMMARY-TX,SC01-SPOOF,50,47,47,50,0,0,0,42,42,42,42,42
 ###### END ######
