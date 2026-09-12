@@ -75,6 +75,41 @@ tree_dirty() {
     fi
 }
 
+#  TIMING ET SURFACE, RELEVÉS À L'ENREGISTREMENT
+#
+#  Vivado réécrit ses rapports à chaque run : `work-fpga/*_utilization_placed.rpt`
+#  ne décrit QUE la dernière synthèse. Comparer la surface de deux bitstreams
+#  demandait donc d'avoir noté les chiffres à la main au bon moment — et le
+#  2026-09-13 la comparaison v13/v14 n'a pas pu se faire, faute de trace.
+#  `save` les recopie maintenant dans la provenance : quatre lignes qui pèsent
+#  moins qu'un rapport de 485 Kio et qui suivent le .bit dans git.
+timing_wns() {
+    local f="$ROOT/cva6/corev_apu/fpga/work-fpga/ariane_xilinx_timing_summary_routed.rpt"
+    [[ -f "$f" ]] || { echo "non disponible"; return; }
+    awk '/Design Timing Summary/ {found=1}
+         found && /^ *-?[0-9]+\.[0-9]+ +-?[0-9]/ {
+             printf "WNS %s ns, %s endpoint(s) en faute (WHS %s ns)", $1, $3, $5; exit }' "$f"
+}
+
+utilisation() {
+    local f="$ROOT/cva6/corev_apu/fpga/work-fpga/ariane_xilinx_utilization_placed.rpt"
+    [[ -f "$f" ]] || { echo "non disponible"; return; }
+    awk -F'|' '$2 ~ /Slice LUTs/      && !l {gsub(/ /,"",$3); l=$3}
+               $2 ~ /Slice Registers/ && !r {gsub(/ /,"",$3); r=$3}
+               END {if (l) printf "%s LUT, %s bascules (sur 203800 / 407600)", l, r;
+                    else print "non disponible"}' "$f"
+}
+
+wrappers() {
+    local f="$ROOT/cva6/corev_apu/fpga/reports/ariane.utilization.rpt"
+    [[ -f "$f" ]] || { echo "non disponible"; return; }
+    awk -F'|' '$2 ~ /i_sec_wrap[12] *$/ {
+                   gsub(/^ +| +$/,"",$2); gsub(/ /,"",$4); gsub(/ /,"",$8);
+                   sub(/.*\./,"",$2);
+                   out = out sep $2 " " $4 " LUT/" $8 " FF"; sep=", " }
+               END {print (out ? out : "non disponible")}' "$f"
+}
+
 case "$ACTION" in
 
 save)
@@ -91,6 +126,9 @@ date            : $(date -Iseconds)
 vivado          : ${VIVADO_VERSION:-2022.2}
 empreinte RTL   : $(rtl_hash)
 sha256 du .bit  : $(sha256sum "$BIT" | cut -d' ' -f1)
+timing          : $(timing_wns)
+surface         : $(utilisation)
+wrappers ARMOR  : $(wrappers)
 EOF
     echo "Versionné : ${BIT#$ROOT/}"
     echo "Pense à committer $STORE (le .bit fait $(du -h "$BIT" | cut -f1))."
