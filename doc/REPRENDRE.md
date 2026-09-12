@@ -127,6 +127,34 @@ SC03 `b-r=0`, aucune `ERR` sur SC02 ni SC04, `W V-` absent en aval du wrapper 2,
 légitime 258 cycles (`SUMMARY-TX` SC06/SC07). Une anomalie isolée, sans conséquence et non
 expliquée : `serie_bfate1_110806.log` donne SC06-LHAOK à 240–245 cycles au lieu de 258 —
 **plus rapide**, sur le seul chemin LHA, SC07 restant à 258 et les faux positifs à 0.
+**Creusée le 2026-09-12, voir ci-dessous : artefact de mesure, sans effet sur la
+détection.**
+
+**L'anomalie SC06 du 110806 est un artefact de mesure, et elle ne se reproduit pas.**
+Trois faits l'établissent. Toutes les lignes SC06 des deux journaux sont identiques au bit
+près — compteurs du wrapper (`det_sum=3712`, `req_up=req_dn=100`, `cyc_hold=200`) et
+instantanés des itérations tracées. La durée du scénario est la même à 36 cycles près sur
+71 millions (`cyc_total`), alors qu'un gain réel de 14 cycles sur 100 itérations en aurait
+retiré 1400 : **le travail a pris le même temps, seule la fenêtre chronométrée a bougé**.
+Et l'écart vaut une passe de la boucle de sondage : `tx − det = 38` partout, dont 26 pour
+la lecture de compteur que `CALIB` chiffre, donc 12 pour une passe.
+
+**21 campagnes de plus le 2026-09-12 (`results/latdump_0*.log`, `-DBENCH_DUMP_LAT`) ne l'ont
+pas reproduite** : SC06 y vaut `231` puis `220 × 96`, les 21 fois. Soit environ **1 cas sur
+38**. Vu que le régime normal est déterministe au cycle près (§ 3), c'était un événement
+ponctuel, pas un second mode de fonctionnement.
+
+Ce qui reste ouvert, et qu'on ne saura qu'en attrapant une occurrence avec le dump : la
+forme de la perturbation. Des agrégats du 110806 on déduit que `p50` et `p99` (échantillons
+triés 48 et 95 sur `n_lat=97`) valaient tous deux 207, donc **au moins 48 échantillons à
+207** — mais la moyenne de 206 interdit que les 48 autres y soient aussi, ils s'étalaient
+entre 202 et 206. Ce **n'était donc pas** un basculement propre entre deux paliers de
+quantification. Si le cas revient, les 97 valeurs de `LATDUMP` diront immédiatement s'il
+bascule en cours de scénario ou part décalé dès l'itération de chauffe.
+
+**À surveiller, sans conclusion** : ces 21 campagnes donnent SC02 **36 à 46, moyenne 40,2**,
+contre 32 à 44 et 37,4 sur les 9 `bfate0` du matin. Les plages se recouvrent largement,
+donc rien de significatif — mais la carte a été reprogrammée entre les deux séries.
 
 **Ce que `B_FATE` vaut donc** : une correction de robustesse — il supprime le gel du v11 —
 et rien de plus. Le témoin `bfate0` du v12 reproduit le v10, donc **le v12 ne change rien
@@ -270,6 +298,37 @@ Lignes produites : `ARMORLAT` (latences matérielles), `ARMORHW` (cycles,
 transferts), `ARMORSTALL` (attentes par canal), `ARMORW` / `ARMORRETR`
 (canal W, `bad_id`, retraits de VALID), et `ARMORSNAP` / `ARMORHS` / `ARMORDBG`
 avant chaque lancement tracé.
+
+**`Lmax` sur un scénario légitime, c'est l'itération de chauffe, pas du bruit.**
+Mesuré sur 21 campagnes le 2026-09-12 : la **première** itération de chaque
+scénario est plus lente, puis la valeur est **rigoureusement constante** sur
+toutes les suivantes, et les 21 runs donnent la même chose à l'échantillon près.
+
+| | 1re itération | régime établi |
+|---|---|---|
+| SC06-LHAOK | 231 | 220 × 96 |
+| SC07-MHAOK | 226 | 220 × 96 |
+| SC08-LAS | 229 puis 223 | 218 × 510 |
+| SC01-SPOOF | 149 | 143 × 46 |
+
+Deux conséquences pratiques. Ne pas chercher à expliquer un `Lmax` légitime
+supérieur de 6 à 11 cycles au `Lp99` : c'est la chauffe, et elle est elle-même
+reproductible à la valeur exacte. Et surtout, **sur le trafic légitime le
+système est déterministe au cycle près** : le moindre écart y est donc un signal,
+alors que sur SC02 il faudrait 12 points pour sortir du bruit.
+
+**Sortir les échantillons bruts** — `-DBENCH_DUMP_LAT` ajoute, à la fin de la
+campagne et à côté des `SUMMARY`, une ligne par tranche de 16 échantillons :
+
+```
+# LATDUMP,SUMMARY-DET,SC06-LHAOK,0,231,220,220,…
+```
+
+Les valeurs sont émises **dans l'ordre d'acquisition**, avant que le calcul des
+percentiles ne trie `lat[]` en place — après le tri on ne peut plus voir si un
+scénario bascule en cours de route. L'émission a lieu une fois toutes les mesures
+finies : son coût UART ne peut pas déplacer la phase d'un scénario, ce qui
+importe quand on enquête précisément sur un artefact de phase.
 
 ## 4. Banc de simulation
 
