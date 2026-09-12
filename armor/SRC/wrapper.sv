@@ -377,7 +377,15 @@ assign verdict_known_eff = ~csr_enforce_q
 //  w_owed_q compte les AW admis en aval dont le dernier beat W n'est pas encore
 //  passe. La coupure de W n'est autorisee que lorsqu'il vaut zero, ce qui
 //  preserve integralement le correctif du Bug #16.
-logic [3:0] w_owed_q;
+//
+//  LARGEUR : 4 -> 8 bits (2026-09-13). Quatre bits saturaient a 15, et la
+//  saturation n'est sure que dans un sens. Avec seize AW a la volee (mode 7 de
+//  l'accelerateur), le compteur perd une incrementation puis encaisse seize
+//  decrementations : il atteint zero alors qu'une ecriture est encore due en
+//  aval, et la coupure de W redevient autorisee au pire moment -- exactement le
+//  Bug #16 que ce compteur existe pour eviter. Huit bits couvrent les 48
+//  ecritures de SC04-MSI et les 64 entrees de la file de sort.
+logic [7:0] w_owed_q;
 logic       dn_aw_hs, dn_w_last_hs;
 
 assign dn_aw_hs     = req_wrapper_iommu_o.aw_valid & resp_wrapper_iommu_i.aw_ready;
@@ -393,11 +401,11 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
         w_owed_q <= '0;
     end else begin
-        // Saturation a 15 : au-dela le compteur cesse de decrire l'aval, mais
+        // Saturation a 255 : au-dela le compteur cesse de decrire l'aval, mais
         // il vaut mieux ne plus couper que couper a tort.
         case ({dn_aw_hs, dn_w_last_hs})
-            2'b10:   if (w_owed_q != 4'hF) w_owed_q <= w_owed_q + 4'd1;
-            2'b01:   if (w_owed_q != 4'h0) w_owed_q <= w_owed_q - 4'd1;
+            2'b10:   if (w_owed_q != 8'hFF) w_owed_q <= w_owed_q + 8'd1;
+            2'b01:   if (w_owed_q != 8'h0)  w_owed_q <= w_owed_q - 8'd1;
             default: w_owed_q <= w_owed_q;   // 00 et 11 : inchange
         endcase
     end
@@ -669,17 +677,31 @@ end
 //  BLOCAGE ; FIFO vide -> le maitre attend.
 //
 //  Limites connues : pas de contournement -- un maitre qui presenterait son W
-//  dans le cycle meme de son AW attendrait un cycle (accel_wrap ne le fait pas) ;
-//  profondeur 4, et accel_wrap n'a jamais plus d'un AW sans W en attente. Une
-//  poussee sur FIFO pleine est perdue et leve fate_ovf_q (echo STATUS[22]) : ce
-//  bit doit rester a 0.
+//  dans le cycle meme de son AW attendrait un cycle (accel_wrap ne le fait pas).
+//  Une poussee sur FIFO pleine est perdue et leve fate_ovf_q (echo STATUS[22]) :
+//  ce bit doit rester a 0.
+//
+//  PROFONDEUR : 4 -> 64 (2026-09-13). Le 4 reposait sur une phrase qui vient de
+//  cesser d'etre vraie : « accel_wrap n'a jamais plus d'un AW sans W en
+//  attente ». Le mode 7 de l'accelerateur emet ses adresses A LA VOLEE, seize
+//  avant le premier beat de donnees -- c'est ce que fait n'importe quel DMA
+//  reel, et c'est ce que la Table 5 du papier decrit deja. Avec 4 entrees, la
+//  cinquieme poussee est PERDUE : le sort d'une ecriture est inconnu, son beat
+//  W part sur la foi de la tete d'une autre, et fate_ovf_q se leve. On dimensionne
+//  donc comme la file B (64), au-dessus des 48 ecritures de SC04-MSI.
+//
+//  La profondeur ne change rien tant que le maitre n'a qu'un AW en vol : une
+//  file qui n'utilise jamais plus de 4 entrees se comporte a l'identique. Le
+//  banc le verifie -- campagne inchangee, ligne pour ligne.
 //
 //  Actif seulement avec CTRL[4] W_SKID ; supplante CTRL[7] W_CAPDEBT. A 0 au
 //  reset : comportement precedent, pour mesurer sur le meme bitstream.
 // -----------------------------------------------------------------------------
-logic [3:0] fate_q;          // fate_q[0] = tete
-logic [2:0] fate_n_q;        // 0..4 entrees
-logic       fate_ovf_q;      // poussee perdue sur FIFO pleine (collant)
+localparam int unsigned FateDepth = 64;
+
+logic [FateDepth-1:0] fate_q;    // fate_q[0] = tete
+logic [6:0]           fate_n_q;  // 0..64 entrees
+logic                 fate_ovf_q;  // poussee perdue sur FIFO pleine (collant)
 //  fate_aw_hs est le MEME signal que up_aw_hs du bloc d'observabilite, declare
 //  plus bas (vers la ligne 1280) : on ne peut pas s'en servir avant sa
 //  declaration, d'ou ce nom propre.
@@ -688,7 +710,7 @@ logic       fate_aw_hs, fate_w_last_hs, fate_empty, fate_head;
 assign fate_aw_hs     = req_IP_wrapper_i.aw_valid & resp_IP_wrapper_o.aw_ready;
 assign fate_w_last_hs = req_IP_wrapper_i.w_valid  & resp_IP_wrapper_o.w_ready
                                                   & req_IP_wrapper_i.w.last;
-assign fate_empty   = (fate_n_q == 3'd0);
+assign fate_empty   = (fate_n_q == 7'd0);
 assign fate_head    = fate_q[0];
 
 always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -701,17 +723,17 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         fate_q   <= '0;
         fate_n_q <= '0;
     end else begin
-        automatic logic [3:0] q = fate_q;
-        automatic logic [2:0] n = fate_n_q;
+        automatic logic [FateDepth-1:0] q = fate_q;
+        automatic logic [6:0]           n = fate_n_q;
         //  Depiler d'abord : un W-last et un nouvel AW peuvent tomber le meme cycle.
-        if (fate_w_last_hs && n != 3'd0) begin
-            q = {1'b0, q[3:1]};
-            n = n - 3'd1;
+        if (fate_w_last_hs && n != 7'd0) begin
+            q = {1'b0, q[FateDepth-1:1]};
+            n = n - 7'd1;
         end
         if (fate_aw_hs) begin
-            if (n != 3'd4) begin
+            if (n != 7'(FateDepth)) begin
                 q[n] = dn_aw_hs;
-                n    = n + 3'd1;
+                n    = n + 7'd1;
             end else begin
                 fate_ovf_q <= 1'b1;
             end
@@ -995,6 +1017,10 @@ response_delayer #(
 //                          (1 pour sec_wrapper #1, 2 pour #2, cf. accel_wrap.sv)
 //   0x08  MSI_ADDR     RW  adresse MSI surveillee par msi_detector
 //   0x10  CTRL         RW  b0 ENFORCE, b1 STICKY_CLR, b2 CNT_CLR,
+//                          (la file de sort de b9 W_FATE fait 64 entrees depuis
+//                          v14, contre 4 : un maitre qui emet ses adresses a la
+//                          volee en presente seize avant le premier beat, et la
+//                          cinquieme poussee etait perdue)
 //                          b12 RFM_CNT -- request_flow_monitor compte les
 //                          TRANSFERTS d'adresse accomplis en aval au lieu des
 //                          FRONTS de handshake. A 0, comportement historique :
@@ -1171,7 +1197,12 @@ response_delayer #(
 //                          HOLD de response_manager ; le banc le dit
 //                          inatteignable par cet accelerateur, ce compteur
 //                          verifie la meme chose sur la carte.
-//   0xE8  DBG_WOWED    RO  [3:0] w_owed courant, [7:4] filigrane de maximum
+//   0xE8  DBG_WOWED    RO  [7:0] w_owed courant, [15:8] filigrane de maximum
+//                          DEUX CHAMPS DE 8 BITS depuis v14 ; ils en faisaient 4
+//                          et saturaient a 15, ce qui ne tient plus face a un
+//                          maitre qui emet ses adresses a la volee. DBG_STATE
+//                          (0x70) continue de n'en porter que les quatre bits
+//                          bas : c'est ici qu'on lit la valeur entiere.
 //
 // Version 4 (2026-09-10, apres le run SC03-first qui montre le gel specifique
 // aux ECRITURES et non proportionnel a l'action d'ARMOR) :
@@ -1785,7 +1816,7 @@ end
 logic [31:0] cnt_badid_rise_q, cnt_badid_cy_q;
 logic [31:0] cnt_aw_dn_q,      cnt_wlast_dn_q;
 logic [31:0] cnt_w_ghost_q,    cnt_w_orphan_q;
-logic [3:0]  w_owed_max_q;
+logic [7:0]  w_owed_max_q;
 logic        bad_id_d_q;
 
 logic dn_w_ghost, dn_w_orphan;
@@ -1818,7 +1849,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         cnt_wlast_dn_q   <= 32'h0;
         cnt_w_ghost_q    <= 32'h0;
         cnt_w_orphan_q   <= 32'h0;
-        w_owed_max_q     <= 4'h0;
+        w_owed_max_q     <= 8'h0;
         bad_id_d_q       <= 1'b0;
     end else if (csr_cnt_clr) begin
         cnt_badid_rise_q <= 32'h0;
@@ -1827,7 +1858,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         cnt_wlast_dn_q   <= 32'h0;
         cnt_w_ghost_q    <= 32'h0;
         cnt_w_orphan_q   <= 32'h0;
-        w_owed_max_q     <= 4'h0;
+        w_owed_max_q     <= 8'h0;
         bad_id_d_q       <= bad_id;
     end else begin
         bad_id_d_q <= bad_id;
@@ -2062,7 +2093,7 @@ assign r_state_bits = r_state_q;
 
 always_comb begin
     armor_dbg_state        = 64'h0;
-    armor_dbg_state[3:0]   = w_owed_q;
+    armor_dbg_state[3:0]   = w_owed_q[3:0];   // tronque : 0xE8 porte les 8 bits
     armor_dbg_state[4]     = w_pending;
     armor_dbg_state[5]     = verdict_known_q;
     armor_dbg_state[6]     = comparison_valid;
@@ -2132,7 +2163,9 @@ always_comb begin
         5'd26:   csr_rdata = {cnt_badid_cy_q,  cnt_badid_rise_q};
         5'd27:   csr_rdata = {cnt_wlast_dn_q,  cnt_aw_dn_q};
         5'd28:   csr_rdata = {cnt_w_orphan_q,  cnt_w_ghost_q};
-        5'd29:   csr_rdata = {56'h0, w_owed_max_q, w_owed_q};
+        //  DEUX champs de 8 bits depuis v14 (ils faisaient 4 bits, et le
+        //  firmware masquait en consequence : les deux ont bouge ensemble).
+        5'd29:   csr_rdata = {48'h0, w_owed_max_q, w_owed_q};
         // VALID retire sans READY : violation AXI4, invisible aux compteurs de
         // handshake puisqu'aucun handshake ne s'accomplit.
         5'd30:   csr_rdata = {cnt_retr_br_q, cnt_retr_w_q,
