@@ -1,0 +1,41 @@
+  image   : payloads/fw_payload_v16_sc09_d8.elf (749800 octets, 2026-09-13 13:39:10)
+  DTB     : build/hw/cv64a6.dtb -> 0x82200000
+  OpenOCD : /usr/bin/openocd (0.12)
+
+Open On-Chip Debugger 0.12.0
+Licensed under GNU GPL v2
+For bug reports, read
+	http://openocd.org/doc/doxygen/bugs.html
+Info : clock speed 1000 kHz
+Info : JTAG tap: riscv.cpu tap/device found: 0x00000001 (mfg: 0x000 (<invalid>), part: 0x0000, ver: 0x0)
+Info : datacount=2 progbufsize=8
+Error: unable to halt hart 0
+Error:   dmcontrol=0x80000001
+Error:   dmstatus =0x00030c82
+Error: Fatal: Hart 0 failed to halt during examine()
+Warn : target riscv.cpu examination failed
+Info : starting gdb server for riscv.cpu on 3333
+Info : Listening on port 3333 for gdb connections
+Info : JTAG tap: riscv.cpu tap/device found: 0x00000001 (mfg: 0x000 (<invalid>), part: 0x0000, ver: 0x0)
+Info : datacount=2 progbufsize=8
+Error: Hart 0 doesn't exist.
+Error: unable to halt hart 0
+Error:   dmcontrol=0x80000001
+Error:   dmstatus =0x00030c82
+Error: Fatal: Hart 0 failed to halt during examine()
+/home/jc/Work/Git/riscv-iommu-demo/tools/load_jtag.sh : ligne 111 :  9364 Erreur de segmentation     (core dumped) "$OPENOCD" -f "$CFG" -c "
+    init
+    reset halt
+    echo \"  chargement de l'image...\"
+    $LOAD
+    $VERIFY
+    echo \"  chargement du DTB...\"
+    load_image {$DTB} $DTB_ADDR bin
+    verify_image {$DTB} $DTB_ADDR bin
+    reg a0 0x0
+    reg a1 $DTB_ADDR
+    reg pc $ENTRY
+    resume
+    echo \"  lance : OpenSBI -> Bao -> guest. Voir la capture UART.\"
+    shutdown
+"

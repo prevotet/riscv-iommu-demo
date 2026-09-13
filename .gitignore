@@ -63,3 +63,4 @@ images/
 *.ui
 *.qrc
 payloads/
+.Xil/
