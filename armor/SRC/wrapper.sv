@@ -167,6 +167,7 @@ logic                   csr_wfate_q;      // CTRL[9] : sort de chaque AW, W des 
 logic                   csr_bfate_q;      // CTRL[10] : sort de chaque ecriture cote B, un B par AW
 logic                   csr_irqen_q;      // CTRL[11] : interruption armee (v13)
 logic                   csr_rfmcnt_q;     // CTRL[12] : moniteur de flux compte les transferts (v14)
+logic [7:0]             csr_thresh_q;     // CTRL[23:16] : seuil de flux, 0 = valeur de synthese (v15)
 logic [63:0]            csr_sticky_q;
 logic [31:0]            cnt_banned_q, cnt_storm_q, cnt_outs_q, cnt_msi_q;
 logic [DevIDWidth-1:0]  dev_id_last_q;
@@ -945,6 +946,7 @@ request_flow_monitor #(
     .dn_aw_hs_i(dn_aw_hs),
     .dn_ar_hs_i(dn_ar_hs),
     .cnt_fix_i(csr_rfmcnt_q),
+    .max_req_i(csr_thresh_q),
     .storm_flag(storm_flag),
     .block_req(block_req_flow),
     .req_fire(req_fire_signal),
@@ -1021,6 +1023,14 @@ response_delayer #(
 //                          v14, contre 4 : un maitre qui emet ses adresses a la
 //                          volee en presente seize avant le premier beat, et la
 //                          cinquieme poussee etait perdue)
+//                          b[23:16] FLOW_THRESH -- seuil du moniteur de flux,
+//                          ZERO = valeur de synthese (8). Regler le seuil sans
+//                          resynthetiser est ce qui permet de tracer la courbe
+//                          detection / faux positifs en fonction du seuil : sur
+//                          carte le 2026-09-13, legitime et low-and-slow tiennent
+//                          a 1 requete par fenetre, un DMA legitime saturant
+//                          culmine a 4 sur 5,4 millions de fenetres, la tempete a
+//                          10 pour une moyenne de 4,9 -- et le seuil vaut 8. (v15)
 //                          b12 RFM_CNT -- request_flow_monitor compte les
 //                          TRANSFERTS d'adresse accomplis en aval au lieu des
 //                          FRONTS de handshake. A 0, comportement historique :
@@ -1129,7 +1139,7 @@ response_delayer #(
 //   0x40  CNT_OUTS     RO  nombre d'episodes de saturation outstanding
 //   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
 //   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
-//   0x58  MAGIC        RO  0x41524D4F5200000E ("ARMOR" + version)
+//   0x58  MAGIC        RO  0x41524D4F5200000F ("ARMOR" + version)
 //                          v11 portait deja b10, mais avec une file de 16 : elle
 //                          deborde et GELE la campagne dans SC04. Le MAGIC monte
 //                          donc a v12, seul moyen pour le logiciel de distinguer
@@ -1397,6 +1407,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         csr_bfate_q    <= 1'b0;   // reset : comportement historique
         csr_irqen_q    <= 1'b0;   // reset : aucune interruption tant qu'on ne l'arme pas
         csr_rfmcnt_q   <= 1'b0;   // reset : comptage historique par fronts
+        csr_thresh_q   <= 8'h0;   // reset : seuil de synthese (8)
         csr_sticky_clr <= 1'b0;
         csr_cnt_clr    <= 1'b0;
     end else begin
@@ -1431,6 +1442,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
                             csr_bfate_q    <= req_CPU_Wrapper__i.w.data[10];
                             csr_irqen_q    <= req_CPU_Wrapper__i.w.data[11];
                             csr_rfmcnt_q   <= req_CPU_Wrapper__i.w.data[12];
+                            csr_thresh_q   <= req_CPU_Wrapper__i.w.data[23:16];
                         end
                         default: ; // registres en lecture seule
                     endcase
@@ -2128,7 +2140,8 @@ always_comb begin
     case (r_idx_q)
         5'd0:    csr_rdata = csr_id_cfg_q;
         5'd1:    csr_rdata = csr_msi_addr_q;
-        5'd2:    csr_rdata = {51'h0, csr_rfmcnt_q, csr_irqen_q, csr_bfate_q, csr_wfate_q, csr_rhold_q, csr_wcap_q, csr_txblk_q, csr_fresh_q, csr_wskid_q,
+        5'd2:    csr_rdata = {40'h0, csr_thresh_q,
+                              3'b000, csr_rfmcnt_q, csr_irqen_q, csr_bfate_q, csr_wfate_q, csr_rhold_q, csr_wcap_q, csr_txblk_q, csr_fresh_q, csr_wskid_q,
                               csr_awfix_q, 2'b00, csr_enforce_q};
         5'd3:    csr_rdata = armor_status;
         5'd4:    csr_rdata = csr_sticky_q;
@@ -2142,7 +2155,7 @@ always_comb begin
         5'd8:    csr_rdata = {32'h0, cnt_outs_q};
         5'd9:    csr_rdata = {32'h0, cnt_msi_q};
         5'd10:   csr_rdata = {{(64-DevIDWidth){1'b0}}, dev_id_last_q};
-        5'd11:   csr_rdata = 64'h41524D4F5200000E;
+        5'd11:   csr_rdata = 64'h41524D4F5200000F;
         // Observabilite (version 2 du MAGIC). Voir la carte des registres.
         5'd12:   csr_rdata = {52'h0, dbg_up};
         5'd13:   csr_rdata = {52'h0, dbg_dn};

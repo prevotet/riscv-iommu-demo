@@ -52,6 +52,24 @@ module request_flow_monitor #(
     input  logic        dn_ar_hs_i,
     input  logic        cnt_fix_i,
 
+    // =========================================================================
+    //  SEUIL REGLABLE A L'EXECUTION (CTRL[23:16], v15).
+    //
+    //  MAX_REQ_PER_WINDOW reste le seuil de synthese ; max_req_i le remplace
+    //  quand il est non nul. ZERO SIGNIFIE « VALEUR DE SYNTHESE » : c'est ce qui
+    //  rend le bit retrocompatible sans un mot de firmware a changer -- une
+    //  image qui ecrit CTRL sans ce champ ecrit zero, donc garde 8.
+    //
+    //  Pourquoi ce reglage existe. Sur carte, le 2026-09-13 : trafic legitime
+    //  pilote par logiciel et low-and-slow a UNE requete par fenetre, DMA
+    //  legitime saturant a 4 au pic sur 5,4 millions de fenetres, tempete a 10
+    //  au pic pour une moyenne de 4,9 -- le tout contre un seuil de 8. La
+    //  question « ou placer le seuil » est donc une question a mesurer, et la
+    //  mesurer demandait jusqu'ici une synthese par valeur, soit 45 minutes par
+    //  point de courbe.
+    // =========================================================================
+    input  logic [7:0]  max_req_i,
+
     // Outputs
     output logic        storm_flag,
     output logic        block_req,
@@ -189,7 +207,11 @@ module request_flow_monitor #(
         end
     end
 
-    assign storm_flag = (req_cnt >= MAX_REQ_PER_WINDOW);
+    //  Seuil effectif : le registre s'il est arme, la valeur de synthese sinon.
+    logic [7:0] max_req_eff;
+    assign max_req_eff = (max_req_i == 8'h0) ? 8'(MAX_REQ_PER_WINDOW) : max_req_i;
+
+    assign storm_flag = (req_cnt >= max_req_eff);
 
     // window_cnt fait 8 bits en profil BENCH et 17 en DEMO -- 32 bits couvrent
     // les deux. req_cnt fait desormais exactement la largeur de sa sortie.
