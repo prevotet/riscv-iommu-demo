@@ -974,6 +974,34 @@ est l'argument d'ASOS, et elle est bien plus forte que « il reste sous le seuil
 ne voit rien — l'attaque échoue d'elle-même (42 `ERR` sur 50) sans être détectée. À
 rapprocher du « outstanding exhaustion : 100 % » du papier, qui est mesuré **sans** fond.
 
+### Décision : le seuil évalué reste 8
+
+Prise le 2026-09-13 après le balayage. **Toutes les campagnes de référence restent au seuil de
+synthèse**, `CTRL[23:16]` à zéro — c'est l'état par défaut du v15, rien à faire pour l'obtenir.
+Le balayage est une **étude de paramètre publiée à côté**, pas un changement de base : passer le
+papier à 5 obligerait à re-mesurer toute la Section 6 là-bas.
+
+Balayage mesuré, 6 campagnes par point pour les quatre seuils qui comptent
+(`results/bench_2026-09-13_11*.log`, fond LHA actif) :
+
+| seuil | SC02 /50 | SC04 /50 | écritures coupées | faux positifs | SC08 |
+|---|---|---|---|---|---|
+| 8 (synthèse) | 41,3 ± 2,3 | 47,3 ± 0,8 | 25,3 % | 0 | s'échappe |
+| 8 (registre) | 40,2 ± 3,3 | 48,0 ± 1,0 | 24,5 % | 0 | s'échappe |
+| 6 | 49,3 ± 0,7 | 50,0 | 47,9 % | 0 | s'échappe |
+| 5 | **50,0 ± 0,0** | 50,0 | 59,5 % | 0 | s'échappe |
+| 4 (k=1) | 50 | 50 | 68 % | 0 | s'échappe |
+| 3 (k=1) | 50 | 50 | 75 % | **500 575** | s'échappe |
+
+Le contrôle qui autorise à lire la courbe : champ à zéro 41,3 ± 2,3 contre champ écrit à 8
+40,2 ± 3,3. Le registre reproduit la valeur de synthèse ; l'écart de 8 détections vu sur un
+run unique était du bruit.
+
+**Ce que ça vaut pour le papier** : le seuil évalué est conservateur d'un facteur deux en
+confinement, 5 est le point de fonctionnement recommandé sur cette charge, et **aucun seuil ne
+ferme le trou du low-and-slow** — il s'échappe même à 3, là où le trafic légitime est marqué un
+demi-million de fois.
+
 ### SC09 (mode 7) GÈLE LA CARTE — les deux bras
 
 `bench_2026-09-13_090157` (`0x1731`) et `090714` (`0x731`) s'arrêtent au **même endroit** : le
