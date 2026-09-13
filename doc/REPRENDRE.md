@@ -1006,6 +1006,28 @@ Deux pièges rencontrés en écrivant le harnais, tous deux dans `armor/ooc/` :
 Et le profil compte : en DEMO les durées de blocage valent 750 000 000 cycles au lieu de 4
 et 10, soit des compteurs de 30 bits au lieu de 3. Ce n'est pas le même circuit.
 
+### Après toute synthèse : lire les CRITICAL WARNING, pas seulement les ERROR
+
+Le 2026-09-13, un registre neuf de `accel_wrap` (0x40 PIPE_DEPTH) relisait **zéro** sur
+carte. Cause : son reset était dans le `always_ff` de la FSM du générateur alors que son
+écriture est dans celui de la FSM de configuration — **deux pilotes**. Vivado l'avait
+signalé, en `CRITICAL WARNING [Synth 8-6859] multi-driven net`, pas en `ERROR` ; mes
+contrôles ne grepaient que `^ERROR: \[`, et la campagne qui a suivi a tourné à la valeur de
+synthèse en croyant balayer une profondeur.
+
+**La simulation ne peut pas attraper ça** : avec deux pilotes, le dernier écrivain gagne et
+le bloc de reset ne parle qu'au reset — au banc, le registre marchait parfaitement.
+
+Deux réflexes :
+
+```sh
+grep -c "CRITICAL WARNING" vivado.log                     # zero attendu
+grep "Synth 8-6859" vivado.log | head                      # multi-driven : jamais acceptable
+```
+
+Et côté firmware : **tout registre neuf se relit après écriture**, avec une `ATTENTION` si la
+relecture diffère. C'est ce qui manquait ici, et c'est deux lignes.
+
 ### Décision : le seuil évalué reste 8
 
 Prise le 2026-09-13 après le balayage. **Toutes les campagnes de référence restent au seuil de
