@@ -138,6 +138,12 @@ module accel_wrap #(
     logic [63:0] reg_mode_q;      // 0x28 ATTACK_MODE
     logic [31:0] reg_blkcnt_q;    // 0x30 BLOCKED_CNT
     logic [63:0] reg_msiaddr_q;   // 0x38 MSI_ADDR
+    //  0x40 PIPE_DEPTH : nombre d'adresses en vol du mode 7. ZERO = PIPE_REQS,
+    //  la valeur de synthese. Le mode 7 a GELE la carte le 2026-09-13 avec ses
+    //  seize adresses en vol, dans les deux bras -- donc independamment d'ARMOR.
+    //  Chercher ou le SoC lache demandait une synthese par profondeur, soit
+    //  45 minutes et un gel par point ; ce registre en fait une campagne.
+    logic [63:0] reg_pipe_q;      // 0x40 PIPE_DEPTH
 
     logic        start_pulse;     // impulsion issue de l'ecriture de CTRL
     logic        busy_q, done_q, error_q;
@@ -187,6 +193,7 @@ module accel_wrap #(
             5'd5:    cfg_rdata = reg_mode_q;               // ATTACK_MODE
             5'd6:    cfg_rdata = {32'h0, reg_blkcnt_q};    // BLOCKED_CNT
             5'd7:    cfg_rdata = reg_msiaddr_q;             // MSI_ADDR
+            5'd8:    cfg_rdata = reg_pipe_q;                // PIPE_DEPTH (0x40)
             5'd11:   cfg_rdata = {59'h0, btn_state};       // BTN_STATE (0x58)
             default: cfg_rdata = 64'h0;
         endcase
@@ -224,6 +231,7 @@ module accel_wrap #(
                             5'd4: reg_conf_q  <= axi_cfg.w_data;
                             5'd5: reg_mode_q    <= axi_cfg.w_data;
                             5'd7: reg_msiaddr_q <= axi_cfg.w_data;
+                            5'd8: reg_pipe_q    <= axi_cfg.w_data;
                             default: ; // lecture seule
                         endcase
                         cw_idx_q <= cw_idx_q + 1'b1;
@@ -354,7 +362,7 @@ module accel_wrap #(
                 burst_len = 8'd0;
             end
             3'd7: begin // tempete PIPELINEE : les adresses d'abord, les donnees ensuite
-                n_req     = PIPE_REQS[7:0];
+                n_req     = (reg_pipe_q[7:0] != 8'h0) ? reg_pipe_q[7:0] : PIPE_REQS[7:0];
                 pipelined = 1'b1;
                 vary_id   = 1'b1;
                 is_write  = 1'b1;
@@ -477,6 +485,7 @@ module accel_wrap #(
             done_q       <= 1'b0;
             error_q      <= 1'b0;
             reg_blkcnt_q <= 32'h0;
+            reg_pipe_q   <= 64'h0;   // 0 = PIPE_REQS
         end else begin
             // Memorisation des verdicts ARMOR pendant toute la transaction
             if (g_state_q != G_IDLE) armor_sticky_q <= armor_sticky_q | armor_status_i;

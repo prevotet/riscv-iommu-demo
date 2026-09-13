@@ -62,6 +62,8 @@ module tb_accel_armor;
     localparam logic [63:0] ACC_MODE   = 64'h28;
     localparam logic [63:0] ACC_BLKCNT = 64'h30;
     localparam logic [63:0] ACC_MSIADR = 64'h38;
+    //  0x40 PIPE_DEPTH : adresses en vol du mode 7, 0 = valeur de synthese (v16).
+    localparam logic [63:0] ACC_PIPE   = 64'h40;
 
     // Carte des registres CSR du wrapper
     localparam logic [63:0] CSR_ID_CFG = 64'h00;
@@ -143,7 +145,7 @@ module tb_accel_armor;
     int unsigned obs_ref_badid, obs_ref_badcy;
     int unsigned obs_ref_ghost, obs_ref_orph, obs_ref_awdn;
 
-    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F5200000F;   // version 15 : seuil de flux reglable en CTRL[23:16]
+    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F52000010;   // version 16 : filigrane d'en-vol en 0x40, profondeur du mode 7 reglable
 
     localparam logic [63:0] LEGIT_DST = 64'h0000_0000_9100_0000;
 
@@ -2047,6 +2049,12 @@ module tb_accel_armor;
             //  Hors campagne par defaut (`+define+PIPE`) : ses transactions
             //  supplementaires decalent SC04, comme le pas ENFORCE=0.
 `ifdef PIPE
+            //  Profondeur d'adresses en vol du mode 7. Non definie = valeur de
+            //  synthese (PIPE_REQS = 16), qui est celle qui gele la carte.
+  `ifdef PIPEDEPTH
+            acc_write(ACC_PIPE, 64'(`PIPEDEPTH));
+            $display("  SC09-PIPE : profondeur d'adresses en vol = %0d", `PIPEDEPTH);
+  `endif
   `ifdef RFMCNT
             campaign_step("SC09-PIPE", 3'd7, 1'b0, BIT_STORM[4:0], 1'b0, 8, 1'b1);
   `else

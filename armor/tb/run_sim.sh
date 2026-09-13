@@ -204,6 +204,13 @@ fi
 #   for t in 2 3 4 6 8; do THRESH=$t DN_LAT=4 ... ./run_sim.sh 3; done
 [[ -n "${THRESH:-}" ]]       && DEFINES+=("-d" "THRESH=$THRESH")
 
+# PIPEDEPTH=<n> : adresses en vol du mode 7 (registre 0x40 de l'accelerateur),
+# n'a d'effet qu'avec PIPE=1. Non defini = PIPE_REQS = 16, la profondeur qui a
+# gele la carte le 2026-09-13. Le balayage 2, 4, 8, 16 cherche ou le SoC lache ;
+# au banc il ne lache pas, faute de crossbar modelise -- ce qu'on verifie ici,
+# c'est que le wrapper tient a chaque profondeur.
+[[ -n "${PIPEDEPTH:-}" ]]    && DEFINES+=("-d" "PIPEDEPTH=$PIPEDEPTH")
+
 echo "=== xvlog ==="
 xvlog -sv --nolog \
       "${DEFINES[@]+"${DEFINES[@]}"}" \
