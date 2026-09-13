@@ -43,6 +43,7 @@ Réglages, tous par variable d'environnement :
 | `RFMCNT=1` | `CTRL[12]`, le moniteur de flux compte les **transferts** d'adresse accomplis en aval au lieu des **fronts** de handshake (v14) | 0 |
 | `STORMOFF=1` | ajoute à la campagne un pas `SC02-STORM/off` sous `ENFORCE=0` — le seul régime où l'occupation de fenêtre se lit sans écrêtage | 0 |
 | `PIPE=1` | ajoute le pas `SC09-PIPE`, mode 7 de l'accélérateur : seize adresses à la volée **avant** le premier beat de données | 0 |
+| `THRESH=<n>` | seuil du moniteur de flux, écrit dans `CTRL[23:16]` (v15). Non défini = valeur de synthèse (8) | 8 |
 | `OBS_CHECK=1` | contrôle croisé des compteurs matériels. **Perturbe SC03 et SC04** : run de vérification, pas de mesure | 0 |
 | `AWFIX=1` | `CTRL[3]`, inerte depuis la réfutation | 0 |
 
@@ -302,6 +303,32 @@ conforme. Il suit désormais une **file** : les beats appartiennent aux AW
 acquittés dans l'ordre, ce qui est la règle AXI4 et vaut pour les deux formes de
 maître. Pour un maître séquentiel la file n'a jamais plus d'une entrée, et le
 contrôle est inchangé.
+
+### Le seuil se règle à l'exécution (v15) — et la courbe a la bonne forme
+
+`CTRL[23:16]` remplace `MAX_REQ_PER_WINDOW` quand il est non nul ; **zéro veut dire « valeur
+de synthèse »**, ce qui rend le champ rétrocompatible sans toucher un mot de firmware. Une
+campagne par valeur produit la courbe détection / faux positifs, là où il fallait une
+synthèse de 45 minutes par point.
+
+Balayage au banc (`WSKID=1 FRESH=1 RHOLD=1 WFATE=1 DN_LAT=4`, `THRESH=<n>`) :
+
+| seuil | trafic légitime | SC08 low-and-slow | SC02 tempête |
+|---|---|---|---|
+| 8 (synthèse) | propre | évade, 84 passent | détecté, verdict en 111 cy |
+| 6 | propre | évade, 84 passent | détecté, **90 cy** |
+| 4 | **1 faux positif sur 8** | **9 bloquées sur 84** | détecté, 76 cy |
+| 2 | **5 faux positifs sur 8** | **56 bloquées sur 84** | détecté, 64 cy |
+
+Le seuil descend, la détection est plus rapide (le seuil est franchi plus tôt dans la
+fenêtre), et les faux positifs apparaissent entre 6 et 4.
+
+**Attention à ne pas lire ce tableau comme celui de la carte.** Au banc, les itérations
+légitimes s'enchaînent sans les 220 cycles de boucle logicielle : leur densité y vaut 4 par
+fenêtre, contre **1** sur carte pour le trafic piloté par le logiciel. Le 4 du banc est en
+revanche la densité du **fond LHA saturant** mesurée sur carte (pic 4 sur 5,4 millions de
+fenêtres) — les deux bascules tombent donc au même endroit, mais pour des raisons
+différentes, et c'est la carte qui tranche.
 
 ### Le bannissement contamine tout ce qui suit dans les 2 ms
 
