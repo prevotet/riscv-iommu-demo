@@ -974,6 +974,38 @@ est l'argument d'ASOS, et elle est bien plus forte que « il reste sous le seuil
 ne voit rien — l'attaque échoue d'elle-même (42 `ERR` sur 50) sans être détectée. À
 rapprocher du « outstanding exhaustion : 100 % » du papier, qui est mesuré **sans** fond.
 
+### Surface d'un wrapper, hors contexte (2026-09-13)
+
+`armor/ooc/run_ooc.sh` — deux minutes, licence requise. Synthèse du wrapper **seul**, profil
+BENCH, `xc7k325tffg900-2`, horloge de 20 ns :
+
+| | mesuré | papier | part du composant |
+|---|---|---|---|
+| LUT (toutes en logique) | **3 173** | 180 | 1,56 % |
+| bascules | **2 342** | 157 | 0,57 % |
+| WNS à 50 MHz | **+14,279 ns** | — | 0 endpoint en faute |
+
+**17,6 fois la surface annoncée en LUT**, 14,9 fois en bascules. Le « below 0.09% of the
+target FPGA » du papier devient **1,6 % par wrapper**, 3,1 % pour les deux instanciés.
+
+Le chiffre hors contexte est **plus grand** que celui de l'utilisation par hiérarchie
+(2 676 LUT) : c'est le sens attendu, Vivado élague à travers la frontière quand le wrapper
+est entouré de logique. Citer le hors contexte comme coût de l'IP, l'hiérarchique comme coût
+dans ce SoC, et dire lequel est lequel.
+
+Deux pièges rencontrés en écrivant le harnais, tous deux dans `armor/ooc/` :
+
+- les types des canaux AXI sont des **paramètres de type** dont le défaut est `logic`.
+  Synthétiser `wrapper` directement donne un module d'un bit de large et un chiffre qui ne
+  veut rien dire — d'où l'enveloppe `ooc_wrapper.sv`, qui lie les mêmes types que
+  `ariane_peripherals_xilinx.sv` et n'ajoute aucune logique ;
+- **un seul `read_verilog`** pour tous les fichiers : Vivado traite chaque appel comme une
+  unité de compilation séparée, et un package déclaré dans l'une n'est pas visible depuis
+  l'autre (« `ariane_axi_soc` is not declared »).
+
+Et le profil compte : en DEMO les durées de blocage valent 750 000 000 cycles au lieu de 4
+et 10, soit des compteurs de 30 bits au lieu de 3. Ce n'est pas le même circuit.
+
 ### Décision : le seuil évalué reste 8
 
 Prise le 2026-09-13 après le balayage. **Toutes les campagnes de référence restent au seuil de
