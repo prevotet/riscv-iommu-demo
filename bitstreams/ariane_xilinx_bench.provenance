@@ -1,12 +1,12 @@
 profil          : bench
-commit          : 994fe22f5f0be7926bf7cd29971d7321713d1533
-commit court    : 994fe22
+commit          : 234b8479c3331f6f71c330a24bca6a863a73c4a1
+commit court    : 234b847
 branche         : testbench
 sous-module cva6: 88a07a837dba4b1b901adb69b56e9a94990f7ba3
-date            : 2026-09-13T12:51:31+02:00
+date            : 2026-09-13T22:37:08+02:00
 vivado          : 2022.2
-empreinte RTL   : 2d7577a616a846e30358cf4f33a5418de3baf16273b24e60f2a9001c6d0b4964
-sha256 du .bit  : 8a5541504c2f2ba00a88abc60358123d1314335dc86252de106ff003990e3d7a
-timing          : WNS 0.177 ns, 0 endpoint(s) en faute (WHS 0.049 ns)
-surface         : 108485 LUT, 73747 bascules (sur 203800 / 407600)
-wrappers ARMOR  : i_sec_wrap2 2673 LUT/1933 FF, i_sec_wrap1 2634 LUT/1931 FF
+empreinte RTL   : 52a13e3299d86d477475118320116c67ce21c72eb01d0b2f1b98936664e60098
+sha256 du .bit  : aa352e6cd6de9a0eb0d399e3bb013ebc3075f40640c146ef131338be45ac7dc0
+timing          : WNS -0.007 ns, 1 endpoint(s) en faute (WHS 0.052 ns)
+surface         : 109894 LUT, 78626 bascules (sur 203800 / 407600)
+wrappers ARMOR  : i_sec_wrap2 2671 LUT/1933 FF, i_sec_wrap1 2637 LUT/1931 FF
