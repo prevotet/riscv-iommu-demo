@@ -198,6 +198,12 @@ fi
 # supplementaires decalent SC04.
 [[ "${PIPE:-0}" == "1" ]]    && DEFINES+=("-d" "PIPE")
 
+# THRESH=<n> : seuil du moniteur de flux, ecrit dans CTRL[23:16] (v15). Non
+# defini = 0 = valeur de synthese (8). C'est le balayage qui produit la courbe
+# detection / faux positifs :
+#   for t in 2 3 4 6 8; do THRESH=$t DN_LAT=4 ... ./run_sim.sh 3; done
+[[ -n "${THRESH:-}" ]]       && DEFINES+=("-d" "THRESH=$THRESH")
+
 echo "=== xvlog ==="
 xvlog -sv --nolog \
       "${DEFINES[@]+"${DEFINES[@]}"}" \

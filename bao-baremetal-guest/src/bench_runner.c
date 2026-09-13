@@ -72,6 +72,9 @@
 #define WRAP_CTRL_WFATE         (1ULL << 9)   /* sort de chaque AW, W des AW coupes absorbe (v10) */
 #define WRAP_CTRL_BFATE         (1ULL << 10)  /* un B par ecriture, dans l'ordre (v12) */
 #define WRAP_CTRL_RFMCNT        (1ULL << 12)  /* moniteur de flux : transferts et non fronts (v14) */
+/* CTRL[23:16] : seuil du moniteur de flux, 0 = valeur de synthese (8). (v15) */
+#define WRAP_CTRL_THRESH(n)     (((uint64_t)(n) & 0xFFULL) << 16)
+#define WRAP_CTRL_THRESH_GET(v) ((unsigned)(((v) >> 16) & 0xFFULL))
 /* CTRL[6] TX_BLOCK n'a volontairement AUCUNE option ici : nuisible seul
  * (retraits AW de SC04 : 1 -> 4 au banc). Voir wrapper.sv. */
 
@@ -181,6 +184,32 @@
  * information -- elle voudrait dire qu'un maitre y pipeline ses adresses. */
 #ifndef ARMOR_RFMCNT
 #define ARMOR_RFMCNT 0
+#endif
+
+/* Compiler avec -DARMOR_THRESH=<n> pour regler le seuil du moniteur de flux
+ * (CTRL[23:16], MAGIC v15). 0 = valeur de synthese, soit 8.
+ *
+ * A QUOI CA SERT. Une campagne par valeur produit la courbe detection / faux
+ * positifs en fonction du seuil -- la figure qui remplacerait le « 80 % » isole
+ * du papier. Sans ce champ il fallait une SYNTHESE par point de courbe.
+ *
+ * CE QUE LA CARTE A DEJA MESURE, le 2026-09-13, et qui dit ou chercher :
+ *   trafic legitime pilote par le logiciel  : 1 requete par fenetre (pic 1)
+ *   low-and-slow SC08                       : 1 par fenetre (pic 1)
+ *   DMA legitime SATURANT (fond LHA)        : 2,4 de moyenne, PIC 4
+ *                                             sur 5,4 millions de fenetres
+ *   tempete SC02 sans blocage               : 4,9 de moyenne, PIC 10
+ *   seuil actuel                            : 8
+ *
+ * Un seuil de 6 passe donc au-dessus du pic legitime avec deux de marge. En
+ * dessous de 5, attendre des faux positifs sous fond LHA : au banc, seuil 4
+ * suffit a marquer du trafic legitime (dont la densite y vaut 4, comme le fond
+ * de la carte) et a bloquer 9 des 84 transactions de SC08.
+ *
+ * NE PAS confondre avec un reglage de confort : toute campagne qui change ce
+ * seuil n'est comparable qu'aux campagnes du MEME seuil. */
+#ifndef ARMOR_THRESH
+#define ARMOR_THRESH 0
 #endif
 /* CONTROLE DE VERSION PAR SEUIL, ET NON PAR EGALITE.
  *
@@ -509,6 +538,10 @@ static void armor_wrap_init(int enforce) {
                    "leurs donnees font decrocher le canal B (au banc : 488 B en "
                    "trop, 50 manquants, un AW reste du). Armer CTRL[10].\r\n");
 #endif
+        if (ARMOR_THRESH && v < 15)
+            printf("# ATTENTION : ARMOR_THRESH=%d mais bitstream v%u -- CTRL[23:16] "
+                   "SANS EFFET, le seuil reste celui de la synthese\r\n",
+                   ARMOR_THRESH, v);
         if (ARMOR_RFMCNT && v < 14)
             printf("# ATTENTION : ARMOR_RFMCNT=1 mais bitstream v%u -- CTRL[12] "
                    "SANS EFFET, le moniteur de flux compte les fronts\r\n", v);
@@ -534,16 +567,22 @@ static void armor_wrap_init(int enforce) {
                   | (ARMOR_WFATE ? WRAP_CTRL_WFATE : 0ULL)
                   | (ARMOR_BFATE ? WRAP_CTRL_BFATE : 0ULL)
                   | (ARMOR_RFMCNT ? WRAP_CTRL_RFMCNT : 0ULL)
+                  | WRAP_CTRL_THRESH(ARMOR_THRESH)
                   | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
     w1[WRAP_CTRL_OFF / 8] = ctrl;
     w2[WRAP_CTRL_OFF / 8] = ctrl;
     fence();
 
     printf("# ARMOR arme : ENFORCE=%d, W_SKID=%d, FRESH=%d, WCAP=%d, RHOLD=%d, WFATE=%d, "
-           "BFATE=%d, RFMCNT=%d, ID_CFG w1=1 w2=2, MSI_ADDR=0x%08x\r\n",
+           "BFATE=%d, RFMCNT=%d, SEUIL=%s, ID_CFG w1=1 w2=2, MSI_ADDR=0x%08x\r\n",
            enforce, ARMOR_WSKID, ARMOR_FRESH, ARMOR_WCAP, ARMOR_RHOLD, ARMOR_WFATE,
            ARMOR_BFATE, ARMOR_RFMCNT,
+           ARMOR_THRESH ? "regle" : "synthese (8)",
            (unsigned)MSI_TARGET_DST);
+    if (ARMOR_THRESH)
+        printf("# ARMOR seuil de flux : %d requetes par fenetre (CTRL[23:16]) -- "
+               "cette campagne n'est comparable qu'aux campagnes du MEME seuil\r\n",
+               ARMOR_THRESH);
 
     /* Ce que le MATERIEL a retenu, et non ce qu'on lui a demande. Un bit que le
      * bitstream ne porte pas relit zero : deux images qui ne different que par

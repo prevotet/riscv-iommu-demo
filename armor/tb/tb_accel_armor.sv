@@ -130,6 +130,10 @@ module tb_accel_armor;
 `ifdef RFMCNT
         | (64'h1 << 12)
 `endif
+`ifdef THRESH
+        //  CTRL[23:16] : seuil du moniteur de flux, 0 = valeur de synthese (8).
+        | (64'(`THRESH) << 16)
+`endif
         ;
 
     int unsigned obs_fail = 0;   // defauts trouves dans le bloc d'observabilite
@@ -139,7 +143,7 @@ module tb_accel_armor;
     int unsigned obs_ref_badid, obs_ref_badcy;
     int unsigned obs_ref_ghost, obs_ref_orph, obs_ref_awdn;
 
-    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F5200000E;   // version 14 : compteur de fenetre saturant, occupation en 0x38, CTRL[12]
+    localparam logic [63:0] MAGIC_EXPECTED = 64'h41524D4F5200000F;   // version 15 : seuil de flux reglable en CTRL[23:16]
 
     localparam logic [63:0] LEGIT_DST = 64'h0000_0000_9100_0000;
 
