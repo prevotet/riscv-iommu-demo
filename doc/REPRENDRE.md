@@ -247,6 +247,39 @@ campagne avant la resynthèse. Restent ouverts par ailleurs : le point (2) de
 et la notification **inter-VM** vers une VM de service distincte, avec sa copie de 8 Kio,
 que § 5 ter ne mesure pas (la configuration y est à VM unique).
 
+## 0 ter. Reprise sur un autre PC — checklist pérenne
+
+**Principe : `doc/REPRENDRE.md` (ce fichier, versionné) est l'UNIQUE source de vérité pour
+« où on en est ». La mémoire de l'assistant vit dans `~/.claude/…/memory/` et est LOCALE à
+chaque machine : elle ne suit PAS le dépôt.** Donc, en fin de session, on met à jour le § 0
+ici ; à la reprise, on lit le § 0 ici. Rien d'autre n'est nécessaire côté état.
+
+Sur une machine neuve :
+
+```sh
+git clone --recurse-submodules git@github.com:prevotet/riscv-iommu-demo.git
+cd riscv-iommu-demo && git checkout testbench
+git submodule update --init --recursive          # si le clone n'a pas tout pris
+tools/bitstream.sh use bench                      # installe le .bit archivé dans build/hw/
+# payloads/ est ignoré (reconstruit en 3 min, § 2). Le RTL vit dans cva6-overlay/ et
+# bao-overlay/ (versionnés) ; le build les recopie dans les sous-modules (cp -a).
+```
+
+**Config PROPRE À CHAQUE MACHINE (à surcharger par variables d'env, jamais commitées) :**
+- `RISCV_BARE` — toolchain bare-metal (ici `/home/jc/Work/Software/riscv-imac/bin/riscv64-unknown-elf-`) ;
+- `VIVADO_DIR` / `VIVADO_VERSION` — installation Vivado ;
+- `RISCV=/usr` pour `make -C cva6 fpga`.
+  Les scripts (`1_build_HLB.sh`, `2_build_HB.sh`) acceptent tous ces overrides.
+
+**Licence Vivado.** La synthèse n'est possible que sur la machine licenciée (`~/Xilinx.lic`
+nodelocked, via `XILINXD_LICENSE_FILE`). Sur un PC sans licence : **pas de synthèse**, mais
+tout le reste marche (le `.bit` archivé se flashe, le banc `armor/tb` tourne, le firmware se
+construit). Choisir la machine en conséquence.
+
+**Ce qui transite par git** : RTL (overlays), `.bit` bench archivé + provenance, `results/`,
+docs, pointeurs de sous-modules. **Ce qui ne transite pas** : `payloads/` (reconstruit),
+`build/` (reconstruit), la mémoire de l'assistant (résumée ici au § 0), les sorties Vivado.
+
 ## 1. Mise en route
 
 ```sh
