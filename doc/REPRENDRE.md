@@ -35,9 +35,13 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 > **RÉSERVES à traiter avant de figer.** (i) **Timing WNS = −0.008 ns** (8 ps ; négligeable à
 > 50 MHz, carte OK, mais techniquement en faute) → registrer un étage du pacer + corriger le
 > warning `Synth 8-7137` (FIFO `aw_mem` non resettée), puis resynthèse pour WNS positif.
-> (ii) **`MAX_WR_TXN=1` sérialise TOUTES les écritures DMA** → latences légitimes plus hautes
-> (verdicts inchangés) ; relevable (la correction du gel vient du pacing AW-après-W, pas du
-> crédit).
+> (ii) **`MAX_WR_TXN=1` sérialise TOUTES les écritures DMA** → il CHANGE le régime d'écriture
+> vu par ARMOR : latences ET verdicts *rate-based* bougent (mesuré : storm ~78 %→~100 %, plus
+> MSI, occupation de fenêtre, balayage de seuil). **INCHANGÉS** : ID spoofing, outstanding
+> (ce sont des lectures), réaction ASOS. **Conséquence pour l'article** : si le bitstream
+> corrigé devient la plateforme publiée, il faut REMESURER la Section 6 (chemin d'écriture) ;
+> sinon garder la plateforme pré-fix (chiffres valides) et rapporter le fix comme *finding*.
+> Relevable (la correction du gel vient du pacing AW-après-W, pas du crédit).
 >
 > **Bitstream corrigé** : dans `build/hw/` et `cva6/corev_apu/fpga/work-fpga/` (BENCH_PROFILE,
 > genesys2). Reconstructible : le RTL est commité, `BENCH_PROFILE=1 RISCV=/usr make -C cva6 fpga`.
