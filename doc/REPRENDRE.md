@@ -934,6 +934,46 @@ l'inverse. Avec le fond actif, la densité du trafic légitime monte et la marge
 d'autant. **Mesurer `reqmax` sur SC06/SC07 avec le fond actif est le prochain chiffre à
 prendre** — une image, pas de resynthèse.
 
+### Avec le fond LHA actif : la marge de seuil, mesurée pour de bon
+
+`bench_2026-09-13_095601` (`0x331`) et `095709` (`0x330`, sans blocage). **Aucun gel**, les
+deux vont jusqu'à `END` — y compris SC01, que le commentaire de `bench_runner.c` annonçait
+comme gelant précisément sous contention. Ce diagnostic est donc **périmé** : `W_SKID`,
+`FRESH`, `RESP_HOLD` et `W_FATE` ont fermé ce gel-là, et plus rien ne le reproduit.
+
+`lha_bg_start()` est appelé **après** SC06 et SC07 : ces deux baselines tournent toujours
+sans fond et restent à `reqmax=1`. Ce que le fond donne, c'est l'occupation du **wrapper 1**
+pendant tout le reste de la campagne — un DMA légitime en mode continu, saturant :
+
+| trafic (tout mesuré sur carte, seuil = 8) | occupation moyenne | **pic `reqmax`** | fenêtres observées |
+|---|---|---|---|
+| légitime piloté par le logiciel (SC06/SC07) | 1,0 | **1** | ~100 |
+| low-and-slow SC08 | 1,0 | **1** | ~690 |
+| **fond LHA saturant (w1)** | **2,4** | **4** | **~5,4 millions** |
+| tempête SC02, sans blocage (w2) | 4,9 | **10** | ~160 |
+
+**Zéro faux positif sur le wrapper 1** dans les deux bras : `storm=0` sur 5,4 millions de
+fenêtres actives de trafic légitime à plein débit.
+
+C'est le tableau qui manquait pour discuter du seuil, et il est sans ambiguïté :
+
+- un seuil à **6** passerait au-dessus du pic d'un DMA légitime saturant (4, sur 5,4 millions
+  de fenêtres) avec deux de marge, et sous la moyenne de la tempête (4,9) comme sous son pic
+  (10) : le confinement monterait nettement, sans un faux positif de plus ;
+- **aucun seuil ne séparera jamais le low-and-slow du trafic légitime**, puisque les deux
+  valent 1. Ce n'est pas une question de calibrage, c'est une identité à l'entrée du moniteur.
+
+Le papier peut donc dire les deux choses, mesurées : le seuil actuel est **trop haut** — le
+baisser à 6 gagnerait du confinement gratuitement — et **même bien choisi il ne fermera pas
+le trou**, parce que l'attaquant patient est indiscernable du trafic sain. La seconde moitié
+est l'argument d'ASOS, et elle est bien plus forte que « il reste sous le seuil ».
+
+**Le moniteur d'outstanding, lui, devient aveugle sous contention.** SC03 passe de **33
+épisodes `outs` sans fond à 0 avec fond**, et son `reqmax` de 24 à 16 : le fond sérialise les
+24 lectures de l'attaque, la profondeur en vol n'atteint plus le seuil de 16, et le moniteur
+ne voit rien — l'attaque échoue d'elle-même (42 `ERR` sur 50) sans être détectée. À
+rapprocher du « outstanding exhaustion : 100 % » du papier, qui est mesuré **sans** fond.
+
 ### SC09 (mode 7) GÈLE LA CARTE — les deux bras
 
 `bench_2026-09-13_090157` (`0x1731`) et `090714` (`0x731`) s'arrêtent au **même endroit** : le
