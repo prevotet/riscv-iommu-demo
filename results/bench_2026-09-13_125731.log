@@ -1,0 +1,1841 @@
+
+OpenSBI v1.0
+   ____                    _____ ____ _____
+  / __ \                  / ____|  _ \_   _|
+ | |  | |_ __   ___ _ __ | (___ | |_) || |
+ | |  | | '_ \ / _ \ '_ \ \___ \|  _ < | |
+ | |__| | |_) |  __/ | | |____) | |_) || |_
+  \____/| .__/ \___|_| |_|_____/|____/_____|
+        | |
+        |_|
+
+Platform Name             : ARIANE RISC-V
+Platform Features         : medeleg
+Platform HART Count       : 1
+Platform IPI Device       : aclint-mswi
+Platform Timer Device     : aclint-mtimer @ 1000000Hz
+Platform Console Device   : uart8250
+Platform HSM Device       : ---
+Platform Reboot Device    : ---
+Platform Shutdown Device  : ---
+Firmware Base             : 0x80000000
+Firmware Size             : 220 KB
+Runtime SBI Version       : 0.3
+
+Domain0 Name              : root
+Domain0 Boot HART         : 0
+Domain0 HARTs             : 0*
+Domain0 Region00          : 0x0000000002008000-0x000000000200bfff (I)
+Domain0 Region01          : 0x0000000002000000-0x0000000002007fff (I)
+Domain0 Region02          : 0x0000000080000000-0x000000008003ffff ()
+Domain0 Region03          : 0x0000000000000000-0xffffffffffffffff (R,W,X)
+Domain0 Next Address      : 0x0000000080200000
+Domain0 Next Arg1         : 0x0000000082200000
+Domain0 Next Mode         : S-mode
+Domain0 SysReset          : yes
+
+Boot HART ID              : 0
+Boot HART Domain          : root
+Boot HART ISA             : rv64imafdcsuh
+Boot HART Features        : scounteren,mcounteren
+Boot HART PMP Count       : 16
+Boot HART PMP Granularity : 8
+Boot HART PMP Address Bits: 54
+Boot HART MHPM Count      : 0
+Boot HART MIDELEG         : 0x0000000000000666
+Boot HART MEDELEG         : 0x0000000000f0b509
+Bao Hypervisor
+BAO WARNING: trying to flush caches but the operation is not defined for this platform
+BAO INFO: ASSIGN irq 1 to vm
+BAO INFO: ASSIGN irq 4 to vm
+BAO INFO: ASSIGN irq 5 to vm
+BAO INFO: ASSIGN irq 6 to vm
+BAO INFO: ASSIGN irq 7 to vm
+BAO INFO: ASSIGN irq 2 to vm
+BAO INFO: ASSIGN irq 3 to vm
+BAO INFO: ASSIGN irq 13 to vm
+BAO INFO: ASSIGN irq 14 to vm
+
+
+###### ARMOR BENCH RUNNER ######
+# CSV header : scenario,iter,expected_block,verdict,det_lat_cy,tx_lat_cy
+# det_lat = DETECTION (lancement -> 1er verdict ARMOR/DONE)
+# tx_lat  = TRANSACTION (lancement -> BUSY=0, round-trip complet)
+# verdict : M=MSI O=OUTS S=STORM B=BANNED b=BLOCKED D=DONE E=ERROR
+# SUMMARY-DET / SUMMARY-TX,name,N,n,n_lat,TP,FP,FN,TN,Lmin,Lavg,Lp50,Lp99,Lmax
+# CALIB : une lecture de `cycle` coute 26 (min) / 26 (moy sur 64)
+# CALIB : `det` et `tx` sont separes par exactement une de ces lectures
+# UNITE : compteur = cycle, cycles coeur 50 MHz
+# IOMMU DDT init OK (DDT @ 0xaffff000, LHA=allow ID=1, MHA=allow ID=2)
+# ARMOR CSR magic : wrap1=0x41524d4f52000010 wrap2=0x41524d4f52000010
+# ARMOR arme : ENFORCE=1, W_SKID=1, FRESH=1, WCAP=0, RHOLD=1, WFATE=1, BFATE=0, RFMCNT=0, SEUIL=synthese (8), ID_CFG w1=1 w2=2, MSI_ADDR=0x91008000
+# ARMOR CTRL relu : w1=0x331 w2=0x331 (attendu 0x331)
+# ARMOR devid_last : w1=0 w2=0
+# === SC06-LHAOK : N=100 accel=L mode=0 cfg=0x0 expect_block=0
+# ARMORSNAP,SC06-LHAOK,accel_status=0x0
+# ARMORSNAP,SC06-LHAOK,w1,status=0x332000 sticky=0x0 | ENF
+# ARMORSNAP,SC06-LHAOK,w2,status=0x332000 sticky=0x0 | ENF
+# ARMORHS,SC06-LHAOK,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC06-LHAOK,w1,dn,0x440, AW --  W --  B -R  AR --  R -R
+# ARMORHS,SC06-LHAOK,w2,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC06-LHAOK,w2,dn,0x540, AW --  W --  B -R  AR -R  R -R
+# ARMORDBG,SC06-LHAOK,w1,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC06-LHAOK,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC06-LHAOK,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC06-LHAOK,w2,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC06-LHAOK,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC06-LHAOK,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x0
+# ARMORSNAP,pre-ctrl,w1,status=0x332000 sticky=0x0 | ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x332000 sticky=0x0 | ENF
+# ARMORHS,pre-ctrl,w1,up,0x440, AW --  W --  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x440, AW --  W --  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x540, AW --  W --  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,0,st=0x2,up=1,dn=1,cut=0,blk=0,hold=2,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x332000 sticky=0x0 | ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x540, AW --  W --  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=64 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=1 req_dn=1 cut=0 | cyc_block=0 cyc_hold=2
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=1 wlast_dn=1 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=1
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,1,st=0x2,up=2,dn=2,cut=0,blk=0,hold=4,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x332000 sticky=0x0 | ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x540, AW --  W --  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=29 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=2 req_dn=2 cut=0 | cyc_block=0 cyc_hold=4
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=2 wlast_dn=2 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=1
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,2,st=0x2,up=3,dn=3,cut=0,blk=0,hold=6,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,3,st=0x2,up=4,dn=4,cut=0,blk=0,hold=8,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,4,st=0x2,up=5,dn=5,cut=0,blk=0,hold=10,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,5,st=0x2,up=6,dn=6,cut=0,blk=0,hold=12,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,6,st=0x2,up=7,dn=7,cut=0,blk=0,hold=14,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,7,st=0x2,up=8,dn=8,cut=0,blk=0,hold=16,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,8,st=0x2,up=9,dn=9,cut=0,blk=0,hold=18,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,9,st=0x2,up=10,dn=10,cut=0,blk=0,hold=20,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,10,st=0x2,up=11,dn=11,cut=0,blk=0,hold=22,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,11,st=0x2,up=12,dn=12,cut=0,blk=0,hold=24,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,12,st=0x2,up=13,dn=13,cut=0,blk=0,hold=26,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,13,st=0x2,up=14,dn=14,cut=0,blk=0,hold=28,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,14,st=0x2,up=15,dn=15,cut=0,blk=0,hold=30,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,15,st=0x2,up=16,dn=16,cut=0,blk=0,hold=32,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,16,st=0x2,up=17,dn=17,cut=0,blk=0,hold=34,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,17,st=0x2,up=18,dn=18,cut=0,blk=0,hold=36,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,18,st=0x2,up=19,dn=19,cut=0,blk=0,hold=38,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,19,st=0x2,up=20,dn=20,cut=0,blk=0,hold=40,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,20,st=0x2,up=21,dn=21,cut=0,blk=0,hold=42,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,21,st=0x2,up=22,dn=22,cut=0,blk=0,hold=44,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,22,st=0x2,up=23,dn=23,cut=0,blk=0,hold=46,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,23,st=0x2,up=24,dn=24,cut=0,blk=0,hold=48,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,24,st=0x2,up=25,dn=25,cut=0,blk=0,hold=50,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,25,st=0x2,up=26,dn=26,cut=0,blk=0,hold=52,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,26,st=0x2,up=27,dn=27,cut=0,blk=0,hold=54,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,27,st=0x2,up=28,dn=28,cut=0,blk=0,hold=56,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,28,st=0x2,up=29,dn=29,cut=0,blk=0,hold=58,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,29,st=0x2,up=30,dn=30,cut=0,blk=0,hold=60,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,30,st=0x2,up=31,dn=31,cut=0,blk=0,hold=62,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,31,st=0x2,up=32,dn=32,cut=0,blk=0,hold=64,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,32,st=0x2,up=33,dn=33,cut=0,blk=0,hold=66,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,33,st=0x2,up=34,dn=34,cut=0,blk=0,hold=68,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,34,st=0x2,up=35,dn=35,cut=0,blk=0,hold=70,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,35,st=0x2,up=36,dn=36,cut=0,blk=0,hold=72,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,36,st=0x2,up=37,dn=37,cut=0,blk=0,hold=74,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,37,st=0x2,up=38,dn=38,cut=0,blk=0,hold=76,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,38,st=0x2,up=39,dn=39,cut=0,blk=0,hold=78,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,39,st=0x2,up=40,dn=40,cut=0,blk=0,hold=80,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,40,st=0x2,up=41,dn=41,cut=0,blk=0,hold=82,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,41,st=0x2,up=42,dn=42,cut=0,blk=0,hold=84,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,42,st=0x2,up=43,dn=43,cut=0,blk=0,hold=86,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,43,st=0x2,up=44,dn=44,cut=0,blk=0,hold=88,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,44,st=0x2,up=45,dn=45,cut=0,blk=0,hold=90,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,45,st=0x2,up=46,dn=46,cut=0,blk=0,hold=92,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,46,st=0x2,up=47,dn=47,cut=0,blk=0,hold=94,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,47,st=0x2,up=48,dn=48,cut=0,blk=0,hold=96,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,48,st=0x2,up=49,dn=49,cut=0,blk=0,hold=98,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,49,st=0x2,up=50,dn=50,cut=0,blk=0,hold=100,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,50,st=0x2,up=51,dn=51,cut=0,blk=0,hold=102,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,51,st=0x2,up=52,dn=52,cut=0,blk=0,hold=104,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,52,st=0x2,up=53,dn=53,cut=0,blk=0,hold=106,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,53,st=0x2,up=54,dn=54,cut=0,blk=0,hold=108,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,54,st=0x2,up=55,dn=55,cut=0,blk=0,hold=110,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,55,st=0x2,up=56,dn=56,cut=0,blk=0,hold=112,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,56,st=0x2,up=57,dn=57,cut=0,blk=0,hold=114,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,57,st=0x2,up=58,dn=58,cut=0,blk=0,hold=116,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,58,st=0x2,up=59,dn=59,cut=0,blk=0,hold=118,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,59,st=0x2,up=60,dn=60,cut=0,blk=0,hold=120,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,60,st=0x2,up=61,dn=61,cut=0,blk=0,hold=122,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,61,st=0x2,up=62,dn=62,cut=0,blk=0,hold=124,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,62,st=0x2,up=63,dn=63,cut=0,blk=0,hold=126,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,63,st=0x2,up=64,dn=64,cut=0,blk=0,hold=128,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,64,st=0x2,up=65,dn=65,cut=0,blk=0,hold=130,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,65,st=0x2,up=66,dn=66,cut=0,blk=0,hold=132,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,66,st=0x2,up=67,dn=67,cut=0,blk=0,hold=134,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,67,st=0x2,up=68,dn=68,cut=0,blk=0,hold=136,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,68,st=0x2,up=69,dn=69,cut=0,blk=0,hold=138,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,69,st=0x2,up=70,dn=70,cut=0,blk=0,hold=140,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,70,st=0x2,up=71,dn=71,cut=0,blk=0,hold=142,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,71,st=0x2,up=72,dn=72,cut=0,blk=0,hold=144,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,72,st=0x2,up=73,dn=73,cut=0,blk=0,hold=146,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,73,st=0x2,up=74,dn=74,cut=0,blk=0,hold=148,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,74,st=0x2,up=75,dn=75,cut=0,blk=0,hold=150,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,75,st=0x2,up=76,dn=76,cut=0,blk=0,hold=152,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,76,st=0x2,up=77,dn=77,cut=0,blk=0,hold=154,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,77,st=0x2,up=78,dn=78,cut=0,blk=0,hold=156,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,78,st=0x2,up=79,dn=79,cut=0,blk=0,hold=158,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,79,st=0x2,up=80,dn=80,cut=0,blk=0,hold=160,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,80,st=0x2,up=81,dn=81,cut=0,blk=0,hold=162,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,81,st=0x2,up=82,dn=82,cut=0,blk=0,hold=164,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,82,st=0x2,up=83,dn=83,cut=0,blk=0,hold=166,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,83,st=0x2,up=84,dn=84,cut=0,blk=0,hold=168,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,84,st=0x2,up=85,dn=85,cut=0,blk=0,hold=170,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,85,st=0x2,up=86,dn=86,cut=0,blk=0,hold=172,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,86,st=0x2,up=87,dn=87,cut=0,blk=0,hold=174,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,87,st=0x2,up=88,dn=88,cut=0,blk=0,hold=176,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,88,st=0x2,up=89,dn=89,cut=0,blk=0,hold=178,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,89,st=0x2,up=90,dn=90,cut=0,blk=0,hold=180,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,90,st=0x2,up=91,dn=91,cut=0,blk=0,hold=182,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,91,st=0x2,up=92,dn=92,cut=0,blk=0,hold=184,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,92,st=0x2,up=93,dn=93,cut=0,blk=0,hold=186,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,93,st=0x2,up=94,dn=94,cut=0,blk=0,hold=188,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,94,st=0x2,up=95,dn=95,cut=0,blk=0,hold=190,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,95,st=0x2,up=96,dn=96,cut=0,blk=0,hold=192,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,96,st=0x2,up=97,dn=97,cut=0,blk=0,hold=194,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,97,st=0x2,up=98,dn=98,cut=0,blk=0,hold=196,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,98,st=0x2,up=99,dn=99,cut=0,blk=0,hold=198,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,99,st=0x2,up=100,dn=100,cut=0,blk=0,hold=200,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# SC06-LHAOK STATUS_final=0x2 | DONE=100 BLOCK=0 BAN=0 STORM=0 OUTS=0 MSI=0 ERR=0 UNK=0
+# ARMORCNT,SC06-LHAOK,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=1,winact=100,outsmax=1
+# ARMORCNT,SC06-LHAOK,w2,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=0,winact=0,outsmax=0
+# ARMORLAT,SC06-LHAOK,w1,n=100,n_verdict=0,det_avg=37,tx_avg=37,det_last=37,tx_last=37,det_min=28,det_max=63,tx_min=28,tx_max=63,det_sum=3708,tx_sum=3708
+# ARMORHW,SC06-LHAOK,w1,cyc_block=0,cyc_hold=200,req_up=100,req_dn=100,req_cut=0,cyc_total=71191141
+# ARMORW,SC06-LHAOK,w1,bad_id=0 fronts 0 cy | aw_dn=100 wlast_dn=100 ecart=0 | fantome=0 orphelin=0 | w_owed_max=1
+# ARMORRETR,SC06-LHAOK,w1,aucun retrait de VALID
+# ARMORSTALL,SC06-LHAOK,w1,up aw=2 w=37 b=0 ar=0 r=0 | dn aw=0 w=37 b=0 ar=0 r=0
+# ARMORLAT,SC06-LHAOK,w2,n=0 (aucune transaction echantillonnee)
+# ARMORHW,SC06-LHAOK,w2,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=73471212
+# ARMORW,SC06-LHAOK,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORRETR,SC06-LHAOK,w2,aucun retrait de VALID
+# ARMORSTALL,SC06-LHAOK,w2,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# === SC07-MHAOK : N=100 accel=M mode=0 cfg=0x0 expect_block=0
+# ARMORSNAP,SC07-MHAOK,accel_status=0x0
+# ARMORSNAP,SC07-MHAOK,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,SC07-MHAOK,w2,status=0x332000 sticky=0x0 | ENF
+# ARMORHS,SC07-MHAOK,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC07-MHAOK,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC07-MHAOK,w2,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC07-MHAOK,w2,dn,0x540, AW --  W --  B -R  AR -R  R -R
+# ARMORDBG,SC07-MHAOK,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC07-MHAOK,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC07-MHAOK,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC07-MHAOK,w2,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC07-MHAOK,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC07-MHAOK,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x0
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x332000 sticky=0x0 | ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x440, AW --  W --  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x540, AW --  W --  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,0,st=0x2,up=1,dn=1,cut=0,blk=0,hold=2,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=104 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=1 req_dn=1 cut=0 | cyc_block=0 cyc_hold=2
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=1 wlast_dn=1 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=1
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,1,st=0x2,up=2,dn=2,cut=0,blk=0,hold=4,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=29 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=2 req_dn=2 cut=0 | cyc_block=0 cyc_hold=4
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=2 wlast_dn=2 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=1
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,2,st=0x2,up=3,dn=3,cut=0,blk=0,hold=6,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,3,st=0x2,up=4,dn=4,cut=0,blk=0,hold=8,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,4,st=0x2,up=5,dn=5,cut=0,blk=0,hold=10,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,5,st=0x2,up=6,dn=6,cut=0,blk=0,hold=12,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,6,st=0x2,up=7,dn=7,cut=0,blk=0,hold=14,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,7,st=0x2,up=8,dn=8,cut=0,blk=0,hold=16,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,8,st=0x2,up=9,dn=9,cut=0,blk=0,hold=18,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,9,st=0x2,up=10,dn=10,cut=0,blk=0,hold=20,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,10,st=0x2,up=11,dn=11,cut=0,blk=0,hold=22,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,11,st=0x2,up=12,dn=12,cut=0,blk=0,hold=24,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,12,st=0x2,up=13,dn=13,cut=0,blk=0,hold=26,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,13,st=0x2,up=14,dn=14,cut=0,blk=0,hold=28,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,14,st=0x2,up=15,dn=15,cut=0,blk=0,hold=30,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,15,st=0x2,up=16,dn=16,cut=0,blk=0,hold=32,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,16,st=0x2,up=17,dn=17,cut=0,blk=0,hold=34,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,17,st=0x2,up=18,dn=18,cut=0,blk=0,hold=36,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,18,st=0x2,up=19,dn=19,cut=0,blk=0,hold=38,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,19,st=0x2,up=20,dn=20,cut=0,blk=0,hold=40,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,20,st=0x2,up=21,dn=21,cut=0,blk=0,hold=42,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,21,st=0x2,up=22,dn=22,cut=0,blk=0,hold=44,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,22,st=0x2,up=23,dn=23,cut=0,blk=0,hold=46,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,23,st=0x2,up=24,dn=24,cut=0,blk=0,hold=48,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,24,st=0x2,up=25,dn=25,cut=0,blk=0,hold=50,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,25,st=0x2,up=26,dn=26,cut=0,blk=0,hold=52,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,26,st=0x2,up=27,dn=27,cut=0,blk=0,hold=54,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,27,st=0x2,up=28,dn=28,cut=0,blk=0,hold=56,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,28,st=0x2,up=29,dn=29,cut=0,blk=0,hold=58,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,29,st=0x2,up=30,dn=30,cut=0,blk=0,hold=60,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,30,st=0x2,up=31,dn=31,cut=0,blk=0,hold=62,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,31,st=0x2,up=32,dn=32,cut=0,blk=0,hold=64,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,32,st=0x2,up=33,dn=33,cut=0,blk=0,hold=66,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,33,st=0x2,up=34,dn=34,cut=0,blk=0,hold=68,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,34,st=0x2,up=35,dn=35,cut=0,blk=0,hold=70,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,35,st=0x2,up=36,dn=36,cut=0,blk=0,hold=72,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,36,st=0x2,up=37,dn=37,cut=0,blk=0,hold=74,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,37,st=0x2,up=38,dn=38,cut=0,blk=0,hold=76,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,38,st=0x2,up=39,dn=39,cut=0,blk=0,hold=78,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,39,st=0x2,up=40,dn=40,cut=0,blk=0,hold=80,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,40,st=0x2,up=41,dn=41,cut=0,blk=0,hold=82,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,41,st=0x2,up=42,dn=42,cut=0,blk=0,hold=84,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,42,st=0x2,up=43,dn=43,cut=0,blk=0,hold=86,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,43,st=0x2,up=44,dn=44,cut=0,blk=0,hold=88,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,44,st=0x2,up=45,dn=45,cut=0,blk=0,hold=90,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,45,st=0x2,up=46,dn=46,cut=0,blk=0,hold=92,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,46,st=0x2,up=47,dn=47,cut=0,blk=0,hold=94,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,47,st=0x2,up=48,dn=48,cut=0,blk=0,hold=96,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,48,st=0x2,up=49,dn=49,cut=0,blk=0,hold=98,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,49,st=0x2,up=50,dn=50,cut=0,blk=0,hold=100,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,50,st=0x2,up=51,dn=51,cut=0,blk=0,hold=102,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,51,st=0x2,up=52,dn=52,cut=0,blk=0,hold=104,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,52,st=0x2,up=53,dn=53,cut=0,blk=0,hold=106,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,53,st=0x2,up=54,dn=54,cut=0,blk=0,hold=108,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,54,st=0x2,up=55,dn=55,cut=0,blk=0,hold=110,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,55,st=0x2,up=56,dn=56,cut=0,blk=0,hold=112,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,56,st=0x2,up=57,dn=57,cut=0,blk=0,hold=114,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,57,st=0x2,up=58,dn=58,cut=0,blk=0,hold=116,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,58,st=0x2,up=59,dn=59,cut=0,blk=0,hold=118,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,59,st=0x2,up=60,dn=60,cut=0,blk=0,hold=120,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,60,st=0x2,up=61,dn=61,cut=0,blk=0,hold=122,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,61,st=0x2,up=62,dn=62,cut=0,blk=0,hold=124,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,62,st=0x2,up=63,dn=63,cut=0,blk=0,hold=126,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,63,st=0x2,up=64,dn=64,cut=0,blk=0,hold=128,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,64,st=0x2,up=65,dn=65,cut=0,blk=0,hold=130,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,65,st=0x2,up=66,dn=66,cut=0,blk=0,hold=132,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,66,st=0x2,up=67,dn=67,cut=0,blk=0,hold=134,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,67,st=0x2,up=68,dn=68,cut=0,blk=0,hold=136,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,68,st=0x2,up=69,dn=69,cut=0,blk=0,hold=138,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,69,st=0x2,up=70,dn=70,cut=0,blk=0,hold=140,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,70,st=0x2,up=71,dn=71,cut=0,blk=0,hold=142,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,71,st=0x2,up=72,dn=72,cut=0,blk=0,hold=144,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,72,st=0x2,up=73,dn=73,cut=0,blk=0,hold=146,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,73,st=0x2,up=74,dn=74,cut=0,blk=0,hold=148,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,74,st=0x2,up=75,dn=75,cut=0,blk=0,hold=150,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,75,st=0x2,up=76,dn=76,cut=0,blk=0,hold=152,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,76,st=0x2,up=77,dn=77,cut=0,blk=0,hold=154,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,77,st=0x2,up=78,dn=78,cut=0,blk=0,hold=156,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,78,st=0x2,up=79,dn=79,cut=0,blk=0,hold=158,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,79,st=0x2,up=80,dn=80,cut=0,blk=0,hold=160,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,80,st=0x2,up=81,dn=81,cut=0,blk=0,hold=162,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,81,st=0x2,up=82,dn=82,cut=0,blk=0,hold=164,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,82,st=0x2,up=83,dn=83,cut=0,blk=0,hold=166,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,83,st=0x2,up=84,dn=84,cut=0,blk=0,hold=168,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,84,st=0x2,up=85,dn=85,cut=0,blk=0,hold=170,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,85,st=0x2,up=86,dn=86,cut=0,blk=0,hold=172,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,86,st=0x2,up=87,dn=87,cut=0,blk=0,hold=174,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,87,st=0x2,up=88,dn=88,cut=0,blk=0,hold=176,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,88,st=0x2,up=89,dn=89,cut=0,blk=0,hold=178,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,89,st=0x2,up=90,dn=90,cut=0,blk=0,hold=180,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,90,st=0x2,up=91,dn=91,cut=0,blk=0,hold=182,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,91,st=0x2,up=92,dn=92,cut=0,blk=0,hold=184,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,92,st=0x2,up=93,dn=93,cut=0,blk=0,hold=186,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,93,st=0x2,up=94,dn=94,cut=0,blk=0,hold=188,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,94,st=0x2,up=95,dn=95,cut=0,blk=0,hold=190,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,95,st=0x2,up=96,dn=96,cut=0,blk=0,hold=192,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,96,st=0x2,up=97,dn=97,cut=0,blk=0,hold=194,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,97,st=0x2,up=98,dn=98,cut=0,blk=0,hold=196,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,98,st=0x2,up=99,dn=99,cut=0,blk=0,hold=198,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,99,st=0x2,up=100,dn=100,cut=0,blk=0,hold=200,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# SC07-MHAOK STATUS_final=0x2 | DONE=100 BLOCK=0 BAN=0 STORM=0 OUTS=0 MSI=0 ERR=0 UNK=0
+# ARMORCNT,SC07-MHAOK,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=0,winact=0,outsmax=0
+# ARMORCNT,SC07-MHAOK,w2,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=1,winact=100,outsmax=1
+# ARMORLAT,SC07-MHAOK,w1,n=0 (aucune transaction echantillonnee)
+# ARMORHW,SC07-MHAOK,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=71392750
+# ARMORW,SC07-MHAOK,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORRETR,SC07-MHAOK,w1,aucun retrait de VALID
+# ARMORSTALL,SC07-MHAOK,w1,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# ARMORLAT,SC07-MHAOK,w2,n=100,n_verdict=0,det_avg=37,tx_avg=37,det_last=37,tx_last=37,det_min=28,det_max=103,tx_min=28,tx_max=103,det_sum=3748,tx_sum=3748
+# ARMORHW,SC07-MHAOK,w2,cyc_block=0,cyc_hold=200,req_up=100,req_dn=100,req_cut=0,cyc_total=73220490
+# ARMORW,SC07-MHAOK,w2,bad_id=0 fronts 0 cy | aw_dn=100 wlast_dn=100 ecart=0 | fantome=0 orphelin=0 | w_owed_max=1
+# ARMORRETR,SC07-MHAOK,w2,aucun retrait de VALID
+# ARMORSTALL,SC07-MHAOK,w2,up aw=2 w=34 b=0 ar=0 r=0 | dn aw=0 w=34 b=0 ar=0 r=0
+# DIAG : fond LHA DESACTIVE (-DBENCH_NO_LHA_BG)
+# LHA background CONTINU arme (READ) base=0x91000000
+# === SC08 low-and-slow : 100 salves x 7 AW gap=200 cy
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,0,st=0x2,up=1,dn=1,cut=0,blk=0,hold=2,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=29 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=1 req_dn=1 cut=0 | cyc_block=0 cyc_hold=2
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=1 wlast_dn=1 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=1
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,1,st=0x2,up=2,dn=2,cut=0,blk=0,hold=4,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=29 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=2 req_dn=2 cut=0 | cyc_block=0 cyc_hold=4
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=2 wlast_dn=2 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=1
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,2,st=0x2,up=3,dn=3,cut=0,blk=0,hold=6,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,3,st=0x2,up=4,dn=4,cut=0,blk=0,hold=8,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,4,st=0x2,up=5,dn=5,cut=0,blk=0,hold=10,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,5,st=0x2,up=6,dn=6,cut=0,blk=0,hold=12,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,6,st=0x2,up=7,dn=7,cut=0,blk=0,hold=14,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,7,st=0x2,up=8,dn=8,cut=0,blk=0,hold=16,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,8,st=0x2,up=9,dn=9,cut=0,blk=0,hold=18,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,9,st=0x2,up=10,dn=10,cut=0,blk=0,hold=20,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,10,st=0x2,up=11,dn=11,cut=0,blk=0,hold=22,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,11,st=0x2,up=12,dn=12,cut=0,blk=0,hold=24,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,12,st=0x2,up=13,dn=13,cut=0,blk=0,hold=26,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,13,st=0x2,up=14,dn=14,cut=0,blk=0,hold=28,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,14,st=0x2,up=15,dn=15,cut=0,blk=0,hold=30,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,15,st=0x2,up=16,dn=16,cut=0,blk=0,hold=32,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,16,st=0x2,up=17,dn=17,cut=0,blk=0,hold=34,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,17,st=0x2,up=18,dn=18,cut=0,blk=0,hold=36,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,18,st=0x2,up=19,dn=19,cut=0,blk=0,hold=38,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,19,st=0x2,up=20,dn=20,cut=0,blk=0,hold=40,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,20,st=0x2,up=21,dn=21,cut=0,blk=0,hold=42,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,21,st=0x2,up=22,dn=22,cut=0,blk=0,hold=44,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,22,st=0x2,up=23,dn=23,cut=0,blk=0,hold=46,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,23,st=0x2,up=24,dn=24,cut=0,blk=0,hold=48,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,24,st=0x2,up=25,dn=25,cut=0,blk=0,hold=50,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,25,st=0x2,up=26,dn=26,cut=0,blk=0,hold=52,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,26,st=0x2,up=27,dn=27,cut=0,blk=0,hold=54,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,27,st=0x2,up=28,dn=28,cut=0,blk=0,hold=56,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,28,st=0x2,up=29,dn=29,cut=0,blk=0,hold=58,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,29,st=0x2,up=30,dn=30,cut=0,blk=0,hold=60,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,30,st=0x2,up=31,dn=31,cut=0,blk=0,hold=62,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,31,st=0x2,up=32,dn=32,cut=0,blk=0,hold=64,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,32,st=0x2,up=33,dn=33,cut=0,blk=0,hold=66,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,33,st=0x2,up=34,dn=34,cut=0,blk=0,hold=68,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,34,st=0x2,up=35,dn=35,cut=0,blk=0,hold=70,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,35,st=0x2,up=36,dn=36,cut=0,blk=0,hold=72,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,36,st=0x2,up=37,dn=37,cut=0,blk=0,hold=74,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,37,st=0x2,up=38,dn=38,cut=0,blk=0,hold=76,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,38,st=0x2,up=39,dn=39,cut=0,blk=0,hold=78,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,39,st=0x2,up=40,dn=40,cut=0,blk=0,hold=80,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,40,st=0x2,up=41,dn=41,cut=0,blk=0,hold=82,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,41,st=0x2,up=42,dn=42,cut=0,blk=0,hold=84,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,42,st=0x2,up=43,dn=43,cut=0,blk=0,hold=86,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,43,st=0x2,up=44,dn=44,cut=0,blk=0,hold=88,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,44,st=0x2,up=45,dn=45,cut=0,blk=0,hold=90,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,45,st=0x2,up=46,dn=46,cut=0,blk=0,hold=92,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,46,st=0x2,up=47,dn=47,cut=0,blk=0,hold=94,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,47,st=0x2,up=48,dn=48,cut=0,blk=0,hold=96,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,48,st=0x2,up=49,dn=49,cut=0,blk=0,hold=98,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,49,st=0x2,up=50,dn=50,cut=0,blk=0,hold=100,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,50,st=0x2,up=51,dn=51,cut=0,blk=0,hold=102,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,51,st=0x2,up=52,dn=52,cut=0,blk=0,hold=104,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,52,st=0x2,up=53,dn=53,cut=0,blk=0,hold=106,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,53,st=0x2,up=54,dn=54,cut=0,blk=0,hold=108,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,54,st=0x2,up=55,dn=55,cut=0,blk=0,hold=110,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,55,st=0x2,up=56,dn=56,cut=0,blk=0,hold=112,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,56,st=0x2,up=57,dn=57,cut=0,blk=0,hold=114,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,57,st=0x2,up=58,dn=58,cut=0,blk=0,hold=116,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,58,st=0x2,up=59,dn=59,cut=0,blk=0,hold=118,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,59,st=0x2,up=60,dn=60,cut=0,blk=0,hold=120,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,60,st=0x2,up=61,dn=61,cut=0,blk=0,hold=122,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,61,st=0x2,up=62,dn=62,cut=0,blk=0,hold=124,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,62,st=0x2,up=63,dn=63,cut=0,blk=0,hold=126,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,63,st=0x2,up=64,dn=64,cut=0,blk=0,hold=128,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,64,st=0x2,up=65,dn=65,cut=0,blk=0,hold=130,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,65,st=0x2,up=66,dn=66,cut=0,blk=0,hold=132,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,66,st=0x2,up=67,dn=67,cut=0,blk=0,hold=134,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,67,st=0x2,up=68,dn=68,cut=0,blk=0,hold=136,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,68,st=0x2,up=69,dn=69,cut=0,blk=0,hold=138,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,69,st=0x2,up=70,dn=70,cut=0,blk=0,hold=140,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,70,st=0x2,up=71,dn=71,cut=0,blk=0,hold=142,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,71,st=0x2,up=72,dn=72,cut=0,blk=0,hold=144,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,72,st=0x2,up=73,dn=73,cut=0,blk=0,hold=146,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,73,st=0x2,up=74,dn=74,cut=0,blk=0,hold=148,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,74,st=0x2,up=75,dn=75,cut=0,blk=0,hold=150,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,75,st=0x2,up=76,dn=76,cut=0,blk=0,hold=152,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,76,st=0x2,up=77,dn=77,cut=0,blk=0,hold=154,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,77,st=0x2,up=78,dn=78,cut=0,blk=0,hold=156,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,78,st=0x2,up=79,dn=79,cut=0,blk=0,hold=158,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,79,st=0x2,up=80,dn=80,cut=0,blk=0,hold=160,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,80,st=0x2,up=81,dn=81,cut=0,blk=0,hold=162,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,81,st=0x2,up=82,dn=82,cut=0,blk=0,hold=164,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,82,st=0x2,up=83,dn=83,cut=0,blk=0,hold=166,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,83,st=0x2,up=84,dn=84,cut=0,blk=0,hold=168,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,84,st=0x2,up=85,dn=85,cut=0,blk=0,hold=170,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,85,st=0x2,up=86,dn=86,cut=0,blk=0,hold=172,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,86,st=0x2,up=87,dn=87,cut=0,blk=0,hold=174,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,87,st=0x2,up=88,dn=88,cut=0,blk=0,hold=176,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,88,st=0x2,up=89,dn=89,cut=0,blk=0,hold=178,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,89,st=0x2,up=90,dn=90,cut=0,blk=0,hold=180,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,90,st=0x2,up=91,dn=91,cut=0,blk=0,hold=182,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,91,st=0x2,up=92,dn=92,cut=0,blk=0,hold=184,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,92,st=0x2,up=93,dn=93,cut=0,blk=0,hold=186,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,93,st=0x2,up=94,dn=94,cut=0,blk=0,hold=188,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,94,st=0x2,up=95,dn=95,cut=0,blk=0,hold=190,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,95,st=0x2,up=96,dn=96,cut=0,blk=0,hold=192,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,96,st=0x2,up=97,dn=97,cut=0,blk=0,hold=194,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,97,st=0x2,up=98,dn=98,cut=0,blk=0,hold=196,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,98,st=0x2,up=99,dn=99,cut=0,blk=0,hold=198,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,99,st=0x2,up=100,dn=100,cut=0,blk=0,hold=200,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,100,st=0x2,up=101,dn=101,cut=0,blk=0,hold=202,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,101,st=0x2,up=102,dn=102,cut=0,blk=0,hold=204,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,102,st=0x2,up=103,dn=103,cut=0,blk=0,hold=206,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,103,st=0x2,up=104,dn=104,cut=0,blk=0,hold=208,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,104,st=0x2,up=105,dn=105,cut=0,blk=0,hold=210,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,105,st=0x2,up=106,dn=106,cut=0,blk=0,hold=212,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,106,st=0x2,up=107,dn=107,cut=0,blk=0,hold=214,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,107,st=0x2,up=108,dn=108,cut=0,blk=0,hold=216,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,108,st=0x2,up=109,dn=109,cut=0,blk=0,hold=218,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,109,st=0x2,up=110,dn=110,cut=0,blk=0,hold=220,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,110,st=0x2,up=111,dn=111,cut=0,blk=0,hold=222,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,111,st=0x2,up=112,dn=112,cut=0,blk=0,hold=224,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,112,st=0x2,up=113,dn=113,cut=0,blk=0,hold=226,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,113,st=0x2,up=114,dn=114,cut=0,blk=0,hold=228,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,114,st=0x2,up=115,dn=115,cut=0,blk=0,hold=230,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,115,st=0x2,up=116,dn=116,cut=0,blk=0,hold=232,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,116,st=0x2,up=117,dn=117,cut=0,blk=0,hold=234,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,117,st=0x2,up=118,dn=118,cut=0,blk=0,hold=236,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,118,st=0x2,up=119,dn=119,cut=0,blk=0,hold=238,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,119,st=0x2,up=120,dn=120,cut=0,blk=0,hold=240,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,120,st=0x2,up=121,dn=121,cut=0,blk=0,hold=242,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,121,st=0x2,up=122,dn=122,cut=0,blk=0,hold=244,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,122,st=0x2,up=123,dn=123,cut=0,blk=0,hold=246,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,123,st=0x2,up=124,dn=124,cut=0,blk=0,hold=248,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,124,st=0x2,up=125,dn=125,cut=0,blk=0,hold=250,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,125,st=0x2,up=126,dn=126,cut=0,blk=0,hold=252,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,126,st=0x2,up=127,dn=127,cut=0,blk=0,hold=254,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,127,st=0x2,up=128,dn=128,cut=0,blk=0,hold=256,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,128,st=0x2,up=129,dn=129,cut=0,blk=0,hold=258,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,129,st=0x2,up=130,dn=130,cut=0,blk=0,hold=260,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,130,st=0x2,up=131,dn=131,cut=0,blk=0,hold=262,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,131,st=0x2,up=132,dn=132,cut=0,blk=0,hold=264,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,132,st=0x2,up=133,dn=133,cut=0,blk=0,hold=266,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,133,st=0x2,up=134,dn=134,cut=0,blk=0,hold=268,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,134,st=0x2,up=135,dn=135,cut=0,blk=0,hold=270,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,135,st=0x2,up=136,dn=136,cut=0,blk=0,hold=272,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,136,st=0x2,up=137,dn=137,cut=0,blk=0,hold=274,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,137,st=0x2,up=138,dn=138,cut=0,blk=0,hold=276,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,138,st=0x2,up=139,dn=139,cut=0,blk=0,hold=278,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,139,st=0x2,up=140,dn=140,cut=0,blk=0,hold=280,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,140,st=0x2,up=141,dn=141,cut=0,blk=0,hold=282,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,141,st=0x2,up=142,dn=142,cut=0,blk=0,hold=284,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,142,st=0x2,up=143,dn=143,cut=0,blk=0,hold=286,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,143,st=0x2,up=144,dn=144,cut=0,blk=0,hold=288,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,144,st=0x2,up=145,dn=145,cut=0,blk=0,hold=290,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,145,st=0x2,up=146,dn=146,cut=0,blk=0,hold=292,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,146,st=0x2,up=147,dn=147,cut=0,blk=0,hold=294,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,147,st=0x2,up=148,dn=148,cut=0,blk=0,hold=296,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,148,st=0x2,up=149,dn=149,cut=0,blk=0,hold=298,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,149,st=0x2,up=150,dn=150,cut=0,blk=0,hold=300,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,150,st=0x2,up=151,dn=151,cut=0,blk=0,hold=302,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,151,st=0x2,up=152,dn=152,cut=0,blk=0,hold=304,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,152,st=0x2,up=153,dn=153,cut=0,blk=0,hold=306,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,153,st=0x2,up=154,dn=154,cut=0,blk=0,hold=308,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,154,st=0x2,up=155,dn=155,cut=0,blk=0,hold=310,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,155,st=0x2,up=156,dn=156,cut=0,blk=0,hold=312,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,156,st=0x2,up=157,dn=157,cut=0,blk=0,hold=314,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,157,st=0x2,up=158,dn=158,cut=0,blk=0,hold=316,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,158,st=0x2,up=159,dn=159,cut=0,blk=0,hold=318,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,159,st=0x2,up=160,dn=160,cut=0,blk=0,hold=320,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,160,st=0x2,up=161,dn=161,cut=0,blk=0,hold=322,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,161,st=0x2,up=162,dn=162,cut=0,blk=0,hold=324,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,162,st=0x2,up=163,dn=163,cut=0,blk=0,hold=326,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,163,st=0x2,up=164,dn=164,cut=0,blk=0,hold=328,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,164,st=0x2,up=165,dn=165,cut=0,blk=0,hold=330,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,165,st=0x2,up=166,dn=166,cut=0,blk=0,hold=332,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,166,st=0x2,up=167,dn=167,cut=0,blk=0,hold=334,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,167,st=0x2,up=168,dn=168,cut=0,blk=0,hold=336,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,168,st=0x2,up=169,dn=169,cut=0,blk=0,hold=338,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,169,st=0x2,up=170,dn=170,cut=0,blk=0,hold=340,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,170,st=0x2,up=171,dn=171,cut=0,blk=0,hold=342,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,171,st=0x2,up=172,dn=172,cut=0,blk=0,hold=344,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,172,st=0x2,up=173,dn=173,cut=0,blk=0,hold=346,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,173,st=0x2,up=174,dn=174,cut=0,blk=0,hold=348,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,174,st=0x2,up=175,dn=175,cut=0,blk=0,hold=350,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,175,st=0x2,up=176,dn=176,cut=0,blk=0,hold=352,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,176,st=0x2,up=177,dn=177,cut=0,blk=0,hold=354,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,177,st=0x2,up=178,dn=178,cut=0,blk=0,hold=356,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,178,st=0x2,up=179,dn=179,cut=0,blk=0,hold=358,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,179,st=0x2,up=180,dn=180,cut=0,blk=0,hold=360,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,180,st=0x2,up=181,dn=181,cut=0,blk=0,hold=362,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,181,st=0x2,up=182,dn=182,cut=0,blk=0,hold=364,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,182,st=0x2,up=183,dn=183,cut=0,blk=0,hold=366,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,183,st=0x2,up=184,dn=184,cut=0,blk=0,hold=368,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,184,st=0x2,up=185,dn=185,cut=0,blk=0,hold=370,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,185,st=0x2,up=186,dn=186,cut=0,blk=0,hold=372,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,186,st=0x2,up=187,dn=187,cut=0,blk=0,hold=374,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,187,st=0x2,up=188,dn=188,cut=0,blk=0,hold=376,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,188,st=0x2,up=189,dn=189,cut=0,blk=0,hold=378,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,189,st=0x2,up=190,dn=190,cut=0,blk=0,hold=380,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,190,st=0x2,up=191,dn=191,cut=0,blk=0,hold=382,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,191,st=0x2,up=192,dn=192,cut=0,blk=0,hold=384,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,192,st=0x2,up=193,dn=193,cut=0,blk=0,hold=386,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,193,st=0x2,up=194,dn=194,cut=0,blk=0,hold=388,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,194,st=0x2,up=195,dn=195,cut=0,blk=0,hold=390,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,195,st=0x2,up=196,dn=196,cut=0,blk=0,hold=392,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,196,st=0x2,up=197,dn=197,cut=0,blk=0,hold=394,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,197,st=0x2,up=198,dn=198,cut=0,blk=0,hold=396,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,198,st=0x2,up=199,dn=199,cut=0,blk=0,hold=398,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,199,st=0x2,up=200,dn=200,cut=0,blk=0,hold=400,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,200,st=0x2,up=201,dn=201,cut=0,blk=0,hold=402,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,201,st=0x2,up=202,dn=202,cut=0,blk=0,hold=404,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,202,st=0x2,up=203,dn=203,cut=0,blk=0,hold=406,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,203,st=0x2,up=204,dn=204,cut=0,blk=0,hold=408,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,204,st=0x2,up=205,dn=205,cut=0,blk=0,hold=410,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,205,st=0x2,up=206,dn=206,cut=0,blk=0,hold=412,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,206,st=0x2,up=207,dn=207,cut=0,blk=0,hold=414,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,207,st=0x2,up=208,dn=208,cut=0,blk=0,hold=416,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,208,st=0x2,up=209,dn=209,cut=0,blk=0,hold=418,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,209,st=0x2,up=210,dn=210,cut=0,blk=0,hold=420,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,210,st=0x2,up=211,dn=211,cut=0,blk=0,hold=422,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,211,st=0x2,up=212,dn=212,cut=0,blk=0,hold=424,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,212,st=0x2,up=213,dn=213,cut=0,blk=0,hold=426,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,213,st=0x2,up=214,dn=214,cut=0,blk=0,hold=428,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,214,st=0x2,up=215,dn=215,cut=0,blk=0,hold=430,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,215,st=0x2,up=216,dn=216,cut=0,blk=0,hold=432,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,216,st=0x2,up=217,dn=217,cut=0,blk=0,hold=434,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,217,st=0x2,up=218,dn=218,cut=0,blk=0,hold=436,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,218,st=0x2,up=219,dn=219,cut=0,blk=0,hold=438,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,219,st=0x2,up=220,dn=220,cut=0,blk=0,hold=440,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,220,st=0x2,up=221,dn=221,cut=0,blk=0,hold=442,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,221,st=0x2,up=222,dn=222,cut=0,blk=0,hold=444,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,222,st=0x2,up=223,dn=223,cut=0,blk=0,hold=446,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,223,st=0x2,up=224,dn=224,cut=0,blk=0,hold=448,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,224,st=0x2,up=225,dn=225,cut=0,blk=0,hold=450,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,225,st=0x2,up=226,dn=226,cut=0,blk=0,hold=452,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,226,st=0x2,up=227,dn=227,cut=0,blk=0,hold=454,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,227,st=0x2,up=228,dn=228,cut=0,blk=0,hold=456,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,228,st=0x2,up=229,dn=229,cut=0,blk=0,hold=458,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,229,st=0x2,up=230,dn=230,cut=0,blk=0,hold=460,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,230,st=0x2,up=231,dn=231,cut=0,blk=0,hold=462,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,231,st=0x2,up=232,dn=232,cut=0,blk=0,hold=464,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,232,st=0x2,up=233,dn=233,cut=0,blk=0,hold=466,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,233,st=0x2,up=234,dn=234,cut=0,blk=0,hold=468,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,234,st=0x2,up=235,dn=235,cut=0,blk=0,hold=470,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,235,st=0x2,up=236,dn=236,cut=0,blk=0,hold=472,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,236,st=0x2,up=237,dn=237,cut=0,blk=0,hold=474,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,237,st=0x2,up=238,dn=238,cut=0,blk=0,hold=476,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,238,st=0x2,up=239,dn=239,cut=0,blk=0,hold=478,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,239,st=0x2,up=240,dn=240,cut=0,blk=0,hold=480,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,240,st=0x2,up=241,dn=241,cut=0,blk=0,hold=482,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,241,st=0x2,up=242,dn=242,cut=0,blk=0,hold=484,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,242,st=0x2,up=243,dn=243,cut=0,blk=0,hold=486,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,243,st=0x2,up=244,dn=244,cut=0,blk=0,hold=488,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,244,st=0x2,up=245,dn=245,cut=0,blk=0,hold=490,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,245,st=0x2,up=246,dn=246,cut=0,blk=0,hold=492,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,246,st=0x2,up=247,dn=247,cut=0,blk=0,hold=494,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,247,st=0x2,up=248,dn=248,cut=0,blk=0,hold=496,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,248,st=0x2,up=249,dn=249,cut=0,blk=0,hold=498,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,249,st=0x2,up=250,dn=250,cut=0,blk=0,hold=500,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,250,st=0x2,up=251,dn=251,cut=0,blk=0,hold=502,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,251,st=0x2,up=252,dn=252,cut=0,blk=0,hold=504,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,252,st=0x2,up=253,dn=253,cut=0,blk=0,hold=506,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,253,st=0x2,up=254,dn=254,cut=0,blk=0,hold=508,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,254,st=0x2,up=255,dn=255,cut=0,blk=0,hold=510,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,255,st=0x2,up=256,dn=256,cut=0,blk=0,hold=512,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,256,st=0x2,up=257,dn=257,cut=0,blk=0,hold=514,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,257,st=0x2,up=258,dn=258,cut=0,blk=0,hold=516,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,258,st=0x2,up=259,dn=259,cut=0,blk=0,hold=518,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,259,st=0x2,up=260,dn=260,cut=0,blk=0,hold=520,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,260,st=0x2,up=261,dn=261,cut=0,blk=0,hold=522,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,261,st=0x2,up=262,dn=262,cut=0,blk=0,hold=524,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,262,st=0x2,up=263,dn=263,cut=0,blk=0,hold=526,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,263,st=0x2,up=264,dn=264,cut=0,blk=0,hold=528,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,264,st=0x2,up=265,dn=265,cut=0,blk=0,hold=530,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,265,st=0x2,up=266,dn=266,cut=0,blk=0,hold=532,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,266,st=0x2,up=267,dn=267,cut=0,blk=0,hold=534,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,267,st=0x2,up=268,dn=268,cut=0,blk=0,hold=536,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,268,st=0x2,up=269,dn=269,cut=0,blk=0,hold=538,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,269,st=0x2,up=270,dn=270,cut=0,blk=0,hold=540,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,270,st=0x2,up=271,dn=271,cut=0,blk=0,hold=542,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,271,st=0x2,up=272,dn=272,cut=0,blk=0,hold=544,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,272,st=0x2,up=273,dn=273,cut=0,blk=0,hold=546,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,273,st=0x2,up=274,dn=274,cut=0,blk=0,hold=548,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,274,st=0x2,up=275,dn=275,cut=0,blk=0,hold=550,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,275,st=0x2,up=276,dn=276,cut=0,blk=0,hold=552,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,276,st=0x2,up=277,dn=277,cut=0,blk=0,hold=554,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,277,st=0x2,up=278,dn=278,cut=0,blk=0,hold=556,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,278,st=0x2,up=279,dn=279,cut=0,blk=0,hold=558,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,279,st=0x2,up=280,dn=280,cut=0,blk=0,hold=560,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,280,st=0x2,up=281,dn=281,cut=0,blk=0,hold=562,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,281,st=0x2,up=282,dn=282,cut=0,blk=0,hold=564,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,282,st=0x2,up=283,dn=283,cut=0,blk=0,hold=566,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,283,st=0x2,up=284,dn=284,cut=0,blk=0,hold=568,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,284,st=0x2,up=285,dn=285,cut=0,blk=0,hold=570,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,285,st=0x2,up=286,dn=286,cut=0,blk=0,hold=572,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,286,st=0x2,up=287,dn=287,cut=0,blk=0,hold=574,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,287,st=0x2,up=288,dn=288,cut=0,blk=0,hold=576,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,288,st=0x2,up=289,dn=289,cut=0,blk=0,hold=578,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,289,st=0x2,up=290,dn=290,cut=0,blk=0,hold=580,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,290,st=0x2,up=291,dn=291,cut=0,blk=0,hold=582,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,291,st=0x2,up=292,dn=292,cut=0,blk=0,hold=584,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,292,st=0x2,up=293,dn=293,cut=0,blk=0,hold=586,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,293,st=0x2,up=294,dn=294,cut=0,blk=0,hold=588,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,294,st=0x2,up=295,dn=295,cut=0,blk=0,hold=590,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,295,st=0x2,up=296,dn=296,cut=0,blk=0,hold=592,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,296,st=0x2,up=297,dn=297,cut=0,blk=0,hold=594,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,297,st=0x2,up=298,dn=298,cut=0,blk=0,hold=596,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,298,st=0x2,up=299,dn=299,cut=0,blk=0,hold=598,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,299,st=0x2,up=300,dn=300,cut=0,blk=0,hold=600,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,300,st=0x2,up=301,dn=301,cut=0,blk=0,hold=602,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,301,st=0x2,up=302,dn=302,cut=0,blk=0,hold=604,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,302,st=0x2,up=303,dn=303,cut=0,blk=0,hold=606,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,303,st=0x2,up=304,dn=304,cut=0,blk=0,hold=608,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,304,st=0x2,up=305,dn=305,cut=0,blk=0,hold=610,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,305,st=0x2,up=306,dn=306,cut=0,blk=0,hold=612,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,306,st=0x2,up=307,dn=307,cut=0,blk=0,hold=614,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,307,st=0x2,up=308,dn=308,cut=0,blk=0,hold=616,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,308,st=0x2,up=309,dn=309,cut=0,blk=0,hold=618,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,309,st=0x2,up=310,dn=310,cut=0,blk=0,hold=620,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,310,st=0x2,up=311,dn=311,cut=0,blk=0,hold=622,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,311,st=0x2,up=312,dn=312,cut=0,blk=0,hold=624,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,312,st=0x2,up=313,dn=313,cut=0,blk=0,hold=626,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,313,st=0x2,up=314,dn=314,cut=0,blk=0,hold=628,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,314,st=0x2,up=315,dn=315,cut=0,blk=0,hold=630,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,315,st=0x2,up=316,dn=316,cut=0,blk=0,hold=632,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,316,st=0x2,up=317,dn=317,cut=0,blk=0,hold=634,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,317,st=0x2,up=318,dn=318,cut=0,blk=0,hold=636,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,318,st=0x2,up=319,dn=319,cut=0,blk=0,hold=638,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,319,st=0x2,up=320,dn=320,cut=0,blk=0,hold=640,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,320,st=0x2,up=321,dn=321,cut=0,blk=0,hold=642,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,321,st=0x2,up=322,dn=322,cut=0,blk=0,hold=644,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,322,st=0x2,up=323,dn=323,cut=0,blk=0,hold=646,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,323,st=0x2,up=324,dn=324,cut=0,blk=0,hold=648,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,324,st=0x2,up=325,dn=325,cut=0,blk=0,hold=650,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,325,st=0x2,up=326,dn=326,cut=0,blk=0,hold=652,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,326,st=0x2,up=327,dn=327,cut=0,blk=0,hold=654,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,327,st=0x2,up=328,dn=328,cut=0,blk=0,hold=656,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,328,st=0x2,up=329,dn=329,cut=0,blk=0,hold=658,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,329,st=0x2,up=330,dn=330,cut=0,blk=0,hold=660,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,330,st=0x2,up=331,dn=331,cut=0,blk=0,hold=662,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,331,st=0x2,up=332,dn=332,cut=0,blk=0,hold=664,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,332,st=0x2,up=333,dn=333,cut=0,blk=0,hold=666,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,333,st=0x2,up=334,dn=334,cut=0,blk=0,hold=668,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,334,st=0x2,up=335,dn=335,cut=0,blk=0,hold=670,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,335,st=0x2,up=336,dn=336,cut=0,blk=0,hold=672,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,336,st=0x2,up=337,dn=337,cut=0,blk=0,hold=674,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,337,st=0x2,up=338,dn=338,cut=0,blk=0,hold=676,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,338,st=0x2,up=339,dn=339,cut=0,blk=0,hold=678,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,339,st=0x2,up=340,dn=340,cut=0,blk=0,hold=680,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,340,st=0x2,up=341,dn=341,cut=0,blk=0,hold=682,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,341,st=0x2,up=342,dn=342,cut=0,blk=0,hold=684,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,342,st=0x2,up=343,dn=343,cut=0,blk=0,hold=686,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,343,st=0x2,up=344,dn=344,cut=0,blk=0,hold=688,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,344,st=0x2,up=345,dn=345,cut=0,blk=0,hold=690,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,345,st=0x2,up=346,dn=346,cut=0,blk=0,hold=692,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,346,st=0x2,up=347,dn=347,cut=0,blk=0,hold=694,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,347,st=0x2,up=348,dn=348,cut=0,blk=0,hold=696,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,348,st=0x2,up=349,dn=349,cut=0,blk=0,hold=698,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,349,st=0x2,up=350,dn=350,cut=0,blk=0,hold=700,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,350,st=0x2,up=351,dn=351,cut=0,blk=0,hold=702,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,351,st=0x2,up=352,dn=352,cut=0,blk=0,hold=704,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,352,st=0x2,up=353,dn=353,cut=0,blk=0,hold=706,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,353,st=0x2,up=354,dn=354,cut=0,blk=0,hold=708,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,354,st=0x2,up=355,dn=355,cut=0,blk=0,hold=710,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,355,st=0x2,up=356,dn=356,cut=0,blk=0,hold=712,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,356,st=0x2,up=357,dn=357,cut=0,blk=0,hold=714,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,357,st=0x2,up=358,dn=358,cut=0,blk=0,hold=716,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,358,st=0x2,up=359,dn=359,cut=0,blk=0,hold=718,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,359,st=0x2,up=360,dn=360,cut=0,blk=0,hold=720,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,360,st=0x2,up=361,dn=361,cut=0,blk=0,hold=722,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,361,st=0x2,up=362,dn=362,cut=0,blk=0,hold=724,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,362,st=0x2,up=363,dn=363,cut=0,blk=0,hold=726,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,363,st=0x2,up=364,dn=364,cut=0,blk=0,hold=728,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,364,st=0x2,up=365,dn=365,cut=0,blk=0,hold=730,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,365,st=0x2,up=366,dn=366,cut=0,blk=0,hold=732,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,366,st=0x2,up=367,dn=367,cut=0,blk=0,hold=734,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,367,st=0x2,up=368,dn=368,cut=0,blk=0,hold=736,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,368,st=0x2,up=369,dn=369,cut=0,blk=0,hold=738,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,369,st=0x2,up=370,dn=370,cut=0,blk=0,hold=740,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,370,st=0x2,up=371,dn=371,cut=0,blk=0,hold=742,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,371,st=0x2,up=372,dn=372,cut=0,blk=0,hold=744,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,372,st=0x2,up=373,dn=373,cut=0,blk=0,hold=746,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,373,st=0x2,up=374,dn=374,cut=0,blk=0,hold=748,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,374,st=0x2,up=375,dn=375,cut=0,blk=0,hold=750,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,375,st=0x2,up=376,dn=376,cut=0,blk=0,hold=752,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,376,st=0x2,up=377,dn=377,cut=0,blk=0,hold=754,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,377,st=0x2,up=378,dn=378,cut=0,blk=0,hold=756,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,378,st=0x2,up=379,dn=379,cut=0,blk=0,hold=758,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,379,st=0x2,up=380,dn=380,cut=0,blk=0,hold=760,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,380,st=0x2,up=381,dn=381,cut=0,blk=0,hold=762,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,381,st=0x2,up=382,dn=382,cut=0,blk=0,hold=764,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,382,st=0x2,up=383,dn=383,cut=0,blk=0,hold=766,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,383,st=0x2,up=384,dn=384,cut=0,blk=0,hold=768,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,384,st=0x2,up=385,dn=385,cut=0,blk=0,hold=770,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,385,st=0x2,up=386,dn=386,cut=0,blk=0,hold=772,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,386,st=0x2,up=387,dn=387,cut=0,blk=0,hold=774,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,387,st=0x2,up=388,dn=388,cut=0,blk=0,hold=776,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,388,st=0x2,up=389,dn=389,cut=0,blk=0,hold=778,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,389,st=0x2,up=390,dn=390,cut=0,blk=0,hold=780,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,390,st=0x2,up=391,dn=391,cut=0,blk=0,hold=782,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,391,st=0x2,up=392,dn=392,cut=0,blk=0,hold=784,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,392,st=0x2,up=393,dn=393,cut=0,blk=0,hold=786,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,393,st=0x2,up=394,dn=394,cut=0,blk=0,hold=788,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,394,st=0x2,up=395,dn=395,cut=0,blk=0,hold=790,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,395,st=0x2,up=396,dn=396,cut=0,blk=0,hold=792,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,396,st=0x2,up=397,dn=397,cut=0,blk=0,hold=794,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,397,st=0x2,up=398,dn=398,cut=0,blk=0,hold=796,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,398,st=0x2,up=399,dn=399,cut=0,blk=0,hold=798,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,399,st=0x2,up=400,dn=400,cut=0,blk=0,hold=800,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,400,st=0x2,up=401,dn=401,cut=0,blk=0,hold=802,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,401,st=0x2,up=402,dn=402,cut=0,blk=0,hold=804,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,402,st=0x2,up=403,dn=403,cut=0,blk=0,hold=806,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,403,st=0x2,up=404,dn=404,cut=0,blk=0,hold=808,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,404,st=0x2,up=405,dn=405,cut=0,blk=0,hold=810,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,405,st=0x2,up=406,dn=406,cut=0,blk=0,hold=812,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,406,st=0x2,up=407,dn=407,cut=0,blk=0,hold=814,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,407,st=0x2,up=408,dn=408,cut=0,blk=0,hold=816,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,408,st=0x2,up=409,dn=409,cut=0,blk=0,hold=818,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,409,st=0x2,up=410,dn=410,cut=0,blk=0,hold=820,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,410,st=0x2,up=411,dn=411,cut=0,blk=0,hold=822,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,411,st=0x2,up=412,dn=412,cut=0,blk=0,hold=824,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,412,st=0x2,up=413,dn=413,cut=0,blk=0,hold=826,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,413,st=0x2,up=414,dn=414,cut=0,blk=0,hold=828,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,414,st=0x2,up=415,dn=415,cut=0,blk=0,hold=830,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,415,st=0x2,up=416,dn=416,cut=0,blk=0,hold=832,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,416,st=0x2,up=417,dn=417,cut=0,blk=0,hold=834,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,417,st=0x2,up=418,dn=418,cut=0,blk=0,hold=836,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,418,st=0x2,up=419,dn=419,cut=0,blk=0,hold=838,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,419,st=0x2,up=420,dn=420,cut=0,blk=0,hold=840,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,420,st=0x2,up=421,dn=421,cut=0,blk=0,hold=842,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,421,st=0x2,up=422,dn=422,cut=0,blk=0,hold=844,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,422,st=0x2,up=423,dn=423,cut=0,blk=0,hold=846,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,423,st=0x2,up=424,dn=424,cut=0,blk=0,hold=848,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,424,st=0x2,up=425,dn=425,cut=0,blk=0,hold=850,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,425,st=0x2,up=426,dn=426,cut=0,blk=0,hold=852,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,426,st=0x2,up=427,dn=427,cut=0,blk=0,hold=854,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,427,st=0x2,up=428,dn=428,cut=0,blk=0,hold=856,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,428,st=0x2,up=429,dn=429,cut=0,blk=0,hold=858,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,429,st=0x2,up=430,dn=430,cut=0,blk=0,hold=860,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,430,st=0x2,up=431,dn=431,cut=0,blk=0,hold=862,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,431,st=0x2,up=432,dn=432,cut=0,blk=0,hold=864,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,432,st=0x2,up=433,dn=433,cut=0,blk=0,hold=866,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,433,st=0x2,up=434,dn=434,cut=0,blk=0,hold=868,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,434,st=0x2,up=435,dn=435,cut=0,blk=0,hold=870,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,435,st=0x2,up=436,dn=436,cut=0,blk=0,hold=872,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,436,st=0x2,up=437,dn=437,cut=0,blk=0,hold=874,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,437,st=0x2,up=438,dn=438,cut=0,blk=0,hold=876,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,438,st=0x2,up=439,dn=439,cut=0,blk=0,hold=878,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,439,st=0x2,up=440,dn=440,cut=0,blk=0,hold=880,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,440,st=0x2,up=441,dn=441,cut=0,blk=0,hold=882,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,441,st=0x2,up=442,dn=442,cut=0,blk=0,hold=884,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,442,st=0x2,up=443,dn=443,cut=0,blk=0,hold=886,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,443,st=0x2,up=444,dn=444,cut=0,blk=0,hold=888,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,444,st=0x2,up=445,dn=445,cut=0,blk=0,hold=890,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,445,st=0x2,up=446,dn=446,cut=0,blk=0,hold=892,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,446,st=0x2,up=447,dn=447,cut=0,blk=0,hold=894,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,447,st=0x2,up=448,dn=448,cut=0,blk=0,hold=896,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,448,st=0x2,up=449,dn=449,cut=0,blk=0,hold=898,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,449,st=0x2,up=450,dn=450,cut=0,blk=0,hold=900,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,450,st=0x2,up=451,dn=451,cut=0,blk=0,hold=902,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,451,st=0x2,up=452,dn=452,cut=0,blk=0,hold=904,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,452,st=0x2,up=453,dn=453,cut=0,blk=0,hold=906,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,453,st=0x2,up=454,dn=454,cut=0,blk=0,hold=908,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,454,st=0x2,up=455,dn=455,cut=0,blk=0,hold=910,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,455,st=0x2,up=456,dn=456,cut=0,blk=0,hold=912,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,456,st=0x2,up=457,dn=457,cut=0,blk=0,hold=914,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,457,st=0x2,up=458,dn=458,cut=0,blk=0,hold=916,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,458,st=0x2,up=459,dn=459,cut=0,blk=0,hold=918,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,459,st=0x2,up=460,dn=460,cut=0,blk=0,hold=920,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,460,st=0x2,up=461,dn=461,cut=0,blk=0,hold=922,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,461,st=0x2,up=462,dn=462,cut=0,blk=0,hold=924,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,462,st=0x2,up=463,dn=463,cut=0,blk=0,hold=926,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,463,st=0x2,up=464,dn=464,cut=0,blk=0,hold=928,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,464,st=0x2,up=465,dn=465,cut=0,blk=0,hold=930,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,465,st=0x2,up=466,dn=466,cut=0,blk=0,hold=932,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,466,st=0x2,up=467,dn=467,cut=0,blk=0,hold=934,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,467,st=0x2,up=468,dn=468,cut=0,blk=0,hold=936,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,468,st=0x2,up=469,dn=469,cut=0,blk=0,hold=938,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,469,st=0x2,up=470,dn=470,cut=0,blk=0,hold=940,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,470,st=0x2,up=471,dn=471,cut=0,blk=0,hold=942,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,471,st=0x2,up=472,dn=472,cut=0,blk=0,hold=944,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,472,st=0x2,up=473,dn=473,cut=0,blk=0,hold=946,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,473,st=0x2,up=474,dn=474,cut=0,blk=0,hold=948,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,474,st=0x2,up=475,dn=475,cut=0,blk=0,hold=950,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,475,st=0x2,up=476,dn=476,cut=0,blk=0,hold=952,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,476,st=0x2,up=477,dn=477,cut=0,blk=0,hold=954,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,477,st=0x2,up=478,dn=478,cut=0,blk=0,hold=956,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,478,st=0x2,up=479,dn=479,cut=0,blk=0,hold=958,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,479,st=0x2,up=480,dn=480,cut=0,blk=0,hold=960,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,480,st=0x2,up=481,dn=481,cut=0,blk=0,hold=962,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,481,st=0x2,up=482,dn=482,cut=0,blk=0,hold=964,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,482,st=0x2,up=483,dn=483,cut=0,blk=0,hold=966,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,483,st=0x2,up=484,dn=484,cut=0,blk=0,hold=968,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,484,st=0x2,up=485,dn=485,cut=0,blk=0,hold=970,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,485,st=0x2,up=486,dn=486,cut=0,blk=0,hold=972,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,486,st=0x2,up=487,dn=487,cut=0,blk=0,hold=974,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,487,st=0x2,up=488,dn=488,cut=0,blk=0,hold=976,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,488,st=0x2,up=489,dn=489,cut=0,blk=0,hold=978,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,489,st=0x2,up=490,dn=490,cut=0,blk=0,hold=980,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,490,st=0x2,up=491,dn=491,cut=0,blk=0,hold=982,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,491,st=0x2,up=492,dn=492,cut=0,blk=0,hold=984,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,492,st=0x2,up=493,dn=493,cut=0,blk=0,hold=986,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,493,st=0x2,up=494,dn=494,cut=0,blk=0,hold=988,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,494,st=0x2,up=495,dn=495,cut=0,blk=0,hold=990,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,495,st=0x2,up=496,dn=496,cut=0,blk=0,hold=992,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,496,st=0x2,up=497,dn=497,cut=0,blk=0,hold=994,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,497,st=0x2,up=498,dn=498,cut=0,blk=0,hold=996,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,498,st=0x2,up=499,dn=499,cut=0,blk=0,hold=998,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,499,st=0x2,up=500,dn=500,cut=0,blk=0,hold=1000,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,500,st=0x2,up=501,dn=501,cut=0,blk=0,hold=1002,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,501,st=0x2,up=502,dn=502,cut=0,blk=0,hold=1004,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,502,st=0x2,up=503,dn=503,cut=0,blk=0,hold=1006,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,503,st=0x2,up=504,dn=504,cut=0,blk=0,hold=1008,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,504,st=0x2,up=505,dn=505,cut=0,blk=0,hold=1010,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,505,st=0x2,up=506,dn=506,cut=0,blk=0,hold=1012,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,506,st=0x2,up=507,dn=507,cut=0,blk=0,hold=1014,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,507,st=0x2,up=508,dn=508,cut=0,blk=0,hold=1016,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,508,st=0x2,up=509,dn=509,cut=0,blk=0,hold=1018,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,509,st=0x2,up=510,dn=510,cut=0,blk=0,hold=1020,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,510,st=0x2,up=511,dn=511,cut=0,blk=0,hold=1022,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,511,st=0x2,up=512,dn=512,cut=0,blk=0,hold=1024,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,512,st=0x2,up=513,dn=513,cut=0,blk=0,hold=1026,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,513,st=0x2,up=514,dn=514,cut=0,blk=0,hold=1028,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,514,st=0x2,up=515,dn=515,cut=0,blk=0,hold=1030,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,515,st=0x2,up=516,dn=516,cut=0,blk=0,hold=1032,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,516,st=0x2,up=517,dn=517,cut=0,blk=0,hold=1034,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,517,st=0x2,up=518,dn=518,cut=0,blk=0,hold=1036,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,518,st=0x2,up=519,dn=519,cut=0,blk=0,hold=1038,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,519,st=0x2,up=520,dn=520,cut=0,blk=0,hold=1040,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,520,st=0x2,up=521,dn=521,cut=0,blk=0,hold=1042,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,521,st=0x2,up=522,dn=522,cut=0,blk=0,hold=1044,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,522,st=0x2,up=523,dn=523,cut=0,blk=0,hold=1046,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,523,st=0x2,up=524,dn=524,cut=0,blk=0,hold=1048,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,524,st=0x2,up=525,dn=525,cut=0,blk=0,hold=1050,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,525,st=0x2,up=526,dn=526,cut=0,blk=0,hold=1052,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,526,st=0x2,up=527,dn=527,cut=0,blk=0,hold=1054,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,527,st=0x2,up=528,dn=528,cut=0,blk=0,hold=1056,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,528,st=0x2,up=529,dn=529,cut=0,blk=0,hold=1058,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,529,st=0x2,up=530,dn=530,cut=0,blk=0,hold=1060,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,530,st=0x2,up=531,dn=531,cut=0,blk=0,hold=1062,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,531,st=0x2,up=532,dn=532,cut=0,blk=0,hold=1064,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,532,st=0x2,up=533,dn=533,cut=0,blk=0,hold=1066,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,533,st=0x2,up=534,dn=534,cut=0,blk=0,hold=1068,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,534,st=0x2,up=535,dn=535,cut=0,blk=0,hold=1070,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,535,st=0x2,up=536,dn=536,cut=0,blk=0,hold=1072,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,536,st=0x2,up=537,dn=537,cut=0,blk=0,hold=1074,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,537,st=0x2,up=538,dn=538,cut=0,blk=0,hold=1076,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,538,st=0x2,up=539,dn=539,cut=0,blk=0,hold=1078,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,539,st=0x2,up=540,dn=540,cut=0,blk=0,hold=1080,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,540,st=0x2,up=541,dn=541,cut=0,blk=0,hold=1082,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,541,st=0x2,up=542,dn=542,cut=0,blk=0,hold=1084,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,542,st=0x2,up=543,dn=543,cut=0,blk=0,hold=1086,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,543,st=0x2,up=544,dn=544,cut=0,blk=0,hold=1088,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,544,st=0x2,up=545,dn=545,cut=0,blk=0,hold=1090,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,545,st=0x2,up=546,dn=546,cut=0,blk=0,hold=1092,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,546,st=0x2,up=547,dn=547,cut=0,blk=0,hold=1094,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,547,st=0x2,up=548,dn=548,cut=0,blk=0,hold=1096,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,548,st=0x2,up=549,dn=549,cut=0,blk=0,hold=1098,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,549,st=0x2,up=550,dn=550,cut=0,blk=0,hold=1100,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,550,st=0x2,up=551,dn=551,cut=0,blk=0,hold=1102,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,551,st=0x2,up=552,dn=552,cut=0,blk=0,hold=1104,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,552,st=0x2,up=553,dn=553,cut=0,blk=0,hold=1106,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,553,st=0x2,up=554,dn=554,cut=0,blk=0,hold=1108,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,554,st=0x2,up=555,dn=555,cut=0,blk=0,hold=1110,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,555,st=0x2,up=556,dn=556,cut=0,blk=0,hold=1112,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,556,st=0x2,up=557,dn=557,cut=0,blk=0,hold=1114,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,557,st=0x2,up=558,dn=558,cut=0,blk=0,hold=1116,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,558,st=0x2,up=559,dn=559,cut=0,blk=0,hold=1118,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,559,st=0x2,up=560,dn=560,cut=0,blk=0,hold=1120,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,560,st=0x2,up=561,dn=561,cut=0,blk=0,hold=1122,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,561,st=0x2,up=562,dn=562,cut=0,blk=0,hold=1124,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,562,st=0x2,up=563,dn=563,cut=0,blk=0,hold=1126,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,563,st=0x2,up=564,dn=564,cut=0,blk=0,hold=1128,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,564,st=0x2,up=565,dn=565,cut=0,blk=0,hold=1130,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,565,st=0x2,up=566,dn=566,cut=0,blk=0,hold=1132,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,566,st=0x2,up=567,dn=567,cut=0,blk=0,hold=1134,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,567,st=0x2,up=568,dn=568,cut=0,blk=0,hold=1136,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,568,st=0x2,up=569,dn=569,cut=0,blk=0,hold=1138,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,569,st=0x2,up=570,dn=570,cut=0,blk=0,hold=1140,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,570,st=0x2,up=571,dn=571,cut=0,blk=0,hold=1142,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,571,st=0x2,up=572,dn=572,cut=0,blk=0,hold=1144,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,572,st=0x2,up=573,dn=573,cut=0,blk=0,hold=1146,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,573,st=0x2,up=574,dn=574,cut=0,blk=0,hold=1148,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,574,st=0x2,up=575,dn=575,cut=0,blk=0,hold=1150,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,575,st=0x2,up=576,dn=576,cut=0,blk=0,hold=1152,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,576,st=0x2,up=577,dn=577,cut=0,blk=0,hold=1154,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,577,st=0x2,up=578,dn=578,cut=0,blk=0,hold=1156,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,578,st=0x2,up=579,dn=579,cut=0,blk=0,hold=1158,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,579,st=0x2,up=580,dn=580,cut=0,blk=0,hold=1160,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,580,st=0x2,up=581,dn=581,cut=0,blk=0,hold=1162,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,581,st=0x2,up=582,dn=582,cut=0,blk=0,hold=1164,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,582,st=0x2,up=583,dn=583,cut=0,blk=0,hold=1166,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,583,st=0x2,up=584,dn=584,cut=0,blk=0,hold=1168,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,584,st=0x2,up=585,dn=585,cut=0,blk=0,hold=1170,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,585,st=0x2,up=586,dn=586,cut=0,blk=0,hold=1172,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,586,st=0x2,up=587,dn=587,cut=0,blk=0,hold=1174,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,587,st=0x2,up=588,dn=588,cut=0,blk=0,hold=1176,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,588,st=0x2,up=589,dn=589,cut=0,blk=0,hold=1178,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,589,st=0x2,up=590,dn=590,cut=0,blk=0,hold=1180,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,590,st=0x2,up=591,dn=591,cut=0,blk=0,hold=1182,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,591,st=0x2,up=592,dn=592,cut=0,blk=0,hold=1184,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,592,st=0x2,up=593,dn=593,cut=0,blk=0,hold=1186,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,593,st=0x2,up=594,dn=594,cut=0,blk=0,hold=1188,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,594,st=0x2,up=595,dn=595,cut=0,blk=0,hold=1190,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,595,st=0x2,up=596,dn=596,cut=0,blk=0,hold=1192,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,596,st=0x2,up=597,dn=597,cut=0,blk=0,hold=1194,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,597,st=0x2,up=598,dn=598,cut=0,blk=0,hold=1196,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,598,st=0x2,up=599,dn=599,cut=0,blk=0,hold=1198,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,599,st=0x2,up=600,dn=600,cut=0,blk=0,hold=1200,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,600,st=0x2,up=601,dn=601,cut=0,blk=0,hold=1202,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,601,st=0x2,up=602,dn=602,cut=0,blk=0,hold=1204,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,602,st=0x2,up=603,dn=603,cut=0,blk=0,hold=1206,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,603,st=0x2,up=604,dn=604,cut=0,blk=0,hold=1208,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,604,st=0x2,up=605,dn=605,cut=0,blk=0,hold=1210,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,605,st=0x2,up=606,dn=606,cut=0,blk=0,hold=1212,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,606,st=0x2,up=607,dn=607,cut=0,blk=0,hold=1214,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,607,st=0x2,up=608,dn=608,cut=0,blk=0,hold=1216,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,608,st=0x2,up=609,dn=609,cut=0,blk=0,hold=1218,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,609,st=0x2,up=610,dn=610,cut=0,blk=0,hold=1220,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,610,st=0x2,up=611,dn=611,cut=0,blk=0,hold=1222,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,611,st=0x2,up=612,dn=612,cut=0,blk=0,hold=1224,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,612,st=0x2,up=613,dn=613,cut=0,blk=0,hold=1226,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,613,st=0x2,up=614,dn=614,cut=0,blk=0,hold=1228,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,614,st=0x2,up=615,dn=615,cut=0,blk=0,hold=1230,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,615,st=0x2,up=616,dn=616,cut=0,blk=0,hold=1232,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,616,st=0x2,up=617,dn=617,cut=0,blk=0,hold=1234,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,617,st=0x2,up=618,dn=618,cut=0,blk=0,hold=1236,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,618,st=0x2,up=619,dn=619,cut=0,blk=0,hold=1238,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,619,st=0x2,up=620,dn=620,cut=0,blk=0,hold=1240,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,620,st=0x2,up=621,dn=621,cut=0,blk=0,hold=1242,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,621,st=0x2,up=622,dn=622,cut=0,blk=0,hold=1244,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,622,st=0x2,up=623,dn=623,cut=0,blk=0,hold=1246,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,623,st=0x2,up=624,dn=624,cut=0,blk=0,hold=1248,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,624,st=0x2,up=625,dn=625,cut=0,blk=0,hold=1250,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,625,st=0x2,up=626,dn=626,cut=0,blk=0,hold=1252,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,626,st=0x2,up=627,dn=627,cut=0,blk=0,hold=1254,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,627,st=0x2,up=628,dn=628,cut=0,blk=0,hold=1256,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,628,st=0x2,up=629,dn=629,cut=0,blk=0,hold=1258,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,629,st=0x2,up=630,dn=630,cut=0,blk=0,hold=1260,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,630,st=0x2,up=631,dn=631,cut=0,blk=0,hold=1262,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,631,st=0x2,up=632,dn=632,cut=0,blk=0,hold=1264,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,632,st=0x2,up=633,dn=633,cut=0,blk=0,hold=1266,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,633,st=0x2,up=634,dn=634,cut=0,blk=0,hold=1268,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,634,st=0x2,up=635,dn=635,cut=0,blk=0,hold=1270,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,635,st=0x2,up=636,dn=636,cut=0,blk=0,hold=1272,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,636,st=0x2,up=637,dn=637,cut=0,blk=0,hold=1274,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,637,st=0x2,up=638,dn=638,cut=0,blk=0,hold=1276,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,638,st=0x2,up=639,dn=639,cut=0,blk=0,hold=1278,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,639,st=0x2,up=640,dn=640,cut=0,blk=0,hold=1280,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,640,st=0x2,up=641,dn=641,cut=0,blk=0,hold=1282,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,641,st=0x2,up=642,dn=642,cut=0,blk=0,hold=1284,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,642,st=0x2,up=643,dn=643,cut=0,blk=0,hold=1286,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,643,st=0x2,up=644,dn=644,cut=0,blk=0,hold=1288,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,644,st=0x2,up=645,dn=645,cut=0,blk=0,hold=1290,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,645,st=0x2,up=646,dn=646,cut=0,blk=0,hold=1292,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,646,st=0x2,up=647,dn=647,cut=0,blk=0,hold=1294,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,647,st=0x2,up=648,dn=648,cut=0,blk=0,hold=1296,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,648,st=0x2,up=649,dn=649,cut=0,blk=0,hold=1298,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,649,st=0x2,up=650,dn=650,cut=0,blk=0,hold=1300,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,650,st=0x2,up=651,dn=651,cut=0,blk=0,hold=1302,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,651,st=0x2,up=652,dn=652,cut=0,blk=0,hold=1304,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,652,st=0x2,up=653,dn=653,cut=0,blk=0,hold=1306,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,653,st=0x2,up=654,dn=654,cut=0,blk=0,hold=1308,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,654,st=0x2,up=655,dn=655,cut=0,blk=0,hold=1310,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,655,st=0x2,up=656,dn=656,cut=0,blk=0,hold=1312,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,656,st=0x2,up=657,dn=657,cut=0,blk=0,hold=1314,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,657,st=0x2,up=658,dn=658,cut=0,blk=0,hold=1316,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,658,st=0x2,up=659,dn=659,cut=0,blk=0,hold=1318,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,659,st=0x2,up=660,dn=660,cut=0,blk=0,hold=1320,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,660,st=0x2,up=661,dn=661,cut=0,blk=0,hold=1322,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,661,st=0x2,up=662,dn=662,cut=0,blk=0,hold=1324,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,662,st=0x2,up=663,dn=663,cut=0,blk=0,hold=1326,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,663,st=0x2,up=664,dn=664,cut=0,blk=0,hold=1328,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,664,st=0x2,up=665,dn=665,cut=0,blk=0,hold=1330,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,665,st=0x2,up=666,dn=666,cut=0,blk=0,hold=1332,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,666,st=0x2,up=667,dn=667,cut=0,blk=0,hold=1334,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,667,st=0x2,up=668,dn=668,cut=0,blk=0,hold=1336,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,668,st=0x2,up=669,dn=669,cut=0,blk=0,hold=1338,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,669,st=0x2,up=670,dn=670,cut=0,blk=0,hold=1340,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,670,st=0x2,up=671,dn=671,cut=0,blk=0,hold=1342,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,671,st=0x2,up=672,dn=672,cut=0,blk=0,hold=1344,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,672,st=0x2,up=673,dn=673,cut=0,blk=0,hold=1346,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,673,st=0x2,up=674,dn=674,cut=0,blk=0,hold=1348,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,674,st=0x2,up=675,dn=675,cut=0,blk=0,hold=1350,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,675,st=0x2,up=676,dn=676,cut=0,blk=0,hold=1352,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,676,st=0x2,up=677,dn=677,cut=0,blk=0,hold=1354,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,677,st=0x2,up=678,dn=678,cut=0,blk=0,hold=1356,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,678,st=0x2,up=679,dn=679,cut=0,blk=0,hold=1358,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,679,st=0x2,up=680,dn=680,cut=0,blk=0,hold=1360,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,680,st=0x2,up=681,dn=681,cut=0,blk=0,hold=1362,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,681,st=0x2,up=682,dn=682,cut=0,blk=0,hold=1364,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,682,st=0x2,up=683,dn=683,cut=0,blk=0,hold=1366,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,683,st=0x2,up=684,dn=684,cut=0,blk=0,hold=1368,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,684,st=0x2,up=685,dn=685,cut=0,blk=0,hold=1370,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,685,st=0x2,up=686,dn=686,cut=0,blk=0,hold=1372,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,686,st=0x2,up=687,dn=687,cut=0,blk=0,hold=1374,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,687,st=0x2,up=688,dn=688,cut=0,blk=0,hold=1376,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,688,st=0x2,up=689,dn=689,cut=0,blk=0,hold=1378,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,689,st=0x2,up=690,dn=690,cut=0,blk=0,hold=1380,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,690,st=0x2,up=691,dn=691,cut=0,blk=0,hold=1382,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,691,st=0x2,up=692,dn=692,cut=0,blk=0,hold=1384,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,692,st=0x2,up=693,dn=693,cut=0,blk=0,hold=1386,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,693,st=0x2,up=694,dn=694,cut=0,blk=0,hold=1388,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,694,st=0x2,up=695,dn=695,cut=0,blk=0,hold=1390,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,695,st=0x2,up=696,dn=696,cut=0,blk=0,hold=1392,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,696,st=0x2,up=697,dn=697,cut=0,blk=0,hold=1394,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,697,st=0x2,up=698,dn=698,cut=0,blk=0,hold=1396,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,698,st=0x2,up=699,dn=699,cut=0,blk=0,hold=1398,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# IT,699,st=0x2,up=700,dn=700,cut=0,blk=0,hold=1400,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/0/0/0
+# SC08 : passed=700 blocked=0 (FN=700, débit_évasion attendu)
+# ARMORCNT,SC08-LAS,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=0,winact=0,outsmax=0
+# ARMORCNT,SC08-LAS,w2,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=1,winact=698,outsmax=1
+# === SC02-STORM : N=50 accel=M mode=4 cfg=0x0 expect_block=1
+# ARMORSNAP,SC02-STORM,accel_status=0x2
+# ARMORSNAP,SC02-STORM,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,SC02-STORM,w2,status=0x333000 sticky=0x0 | legit ENF
+# ARMORHS,SC02-STORM,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC02-STORM,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC02-STORM,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,SC02-STORM,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,SC02-STORM,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC02-STORM,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC02-STORM,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC02-STORM,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC02-STORM,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC02-STORM,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x540, AW --  W --  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,0,st=0x2e,up=16,dn=16,cut=0,blk=15,hold=32,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2e
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x228 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=10 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=16 req_dn=16 cut=0 | cyc_block=15 cyc_hold=32
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=16 wlast_dn=16 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=2
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,1,st=0x2e,up=32,dn=24,cut=8,blk=62,hold=48,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2e
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x228 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=1 verdict_vu=1
+# ARMORCUT,pre-ctrl,w2,req_up=32 req_dn=24 cut=8 | cyc_block=62 cyc_hold=48
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=24 wlast_dn=24 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=2
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,2,st=0x2e,up=48,dn=32,cut=16,blk=110,hold=64,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,3,st=0x2e,up=64,dn=40,cut=24,blk=147,hold=80,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,4,st=0x2e,up=80,dn=48,cut=32,blk=211,hold=96,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,5,st=0x2e,up=96,dn=61,cut=35,blk=228,hold=123,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,6,st=0x2e,up=112,dn=69,cut=43,blk=286,hold=139,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,7,st=0x2,up=128,dn=85,cut=43,blk=286,hold=171,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,8,st=0x2e,up=144,dn=93,cut=51,blk=327,hold=187,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,9,st=0x2e,up=160,dn=106,cut=54,blk=359,hold=213,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,10,st=0x2e,up=176,dn=114,cut=62,blk=395,hold=229,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,11,st=0x2e,up=192,dn=122,cut=70,blk=448,hold=245,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,12,st=0x2,up=208,dn=138,cut=70,blk=448,hold=277,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,13,st=0x2e,up=224,dn=154,cut=70,blk=455,hold=309,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,14,st=0x2,up=240,dn=170,cut=70,blk=455,hold=341,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,15,st=0x2e,up=256,dn=182,cut=74,blk=476,hold=365,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,16,st=0x2e,up=272,dn=191,cut=81,blk=531,hold=383,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,17,st=0x2e,up=288,dn=200,cut=88,blk=587,hold=401,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,18,st=0x2,up=304,dn=216,cut=88,blk=587,hold=433,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,19,st=0x2e,up=320,dn=228,cut=92,blk=608,hold=457,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,20,st=0x2e,up=336,dn=236,cut=100,blk=672,hold=473,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,21,st=0x2e,up=352,dn=250,cut=102,blk=688,hold=501,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,22,st=0x2e,up=368,dn=262,cut=106,blk=708,hold=526,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,23,st=0x2,up=384,dn=278,cut=106,blk=708,hold=558,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,24,st=0x2e,up=400,dn=288,cut=112,blk=734,hold=579,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,25,st=0x2,up=416,dn=304,cut=112,blk=734,hold=611,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,26,st=0x2e,up=432,dn=317,cut=115,blk=752,hold=637,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,27,st=0x2,up=448,dn=333,cut=115,blk=752,hold=669,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,28,st=0x2e,up=464,dn=341,cut=123,blk=791,hold=685,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,29,st=0x2e,up=480,dn=353,cut=127,blk=826,hold=709,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,30,st=0x2e,up=496,dn=366,cut=130,blk=844,hold=735,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,31,st=0x2e,up=512,dn=382,cut=130,blk=854,hold=767,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,32,st=0x2e,up=528,dn=391,cut=137,blk=910,hold=785,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,33,st=0x2e,up=544,dn=407,cut=137,blk=921,hold=817,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,34,st=0x2e,up=560,dn=415,cut=145,blk=988,hold=833,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,35,st=0x2,up=576,dn=431,cut=145,blk=988,hold=865,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,36,st=0x2e,up=592,dn=439,cut=153,blk=1027,hold=881,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,37,st=0x2e,up=608,dn=447,cut=161,blk=1082,hold=897,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,38,st=0x2e,up=624,dn=463,cut=161,blk=1090,hold=929,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,39,st=0x2e,up=640,dn=472,cut=168,blk=1146,hold=947,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,40,st=0x2e,up=656,dn=484,cut=172,blk=1180,hold=972,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,41,st=0x2e,up=672,dn=494,cut=178,blk=1208,hold=992,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,42,st=0x2,up=688,dn=510,cut=178,blk=1208,hold=1024,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,43,st=0x2,up=704,dn=526,cut=178,blk=1208,hold=1056,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,44,st=0x2e,up=720,dn=534,cut=186,blk=1269,hold=1072,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,45,st=0x2e,up=736,dn=547,cut=189,blk=1301,hold=1098,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,46,st=0x2,up=752,dn=563,cut=189,blk=1301,hold=1130,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,47,st=0x2e,up=768,dn=571,cut=197,blk=1333,hold=1147,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,48,st=0x2e,up=784,dn=579,cut=205,blk=1371,hold=1163,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,49,st=0x2e,up=800,dn=587,cut=213,blk=1433,hold=1179,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# SC02-STORM STATUS_final=0x2e | DONE=11 BLOCK=0 BAN=0 STORM=39 OUTS=0 MSI=0 ERR=0 UNK=0
+# ARMORCNT,SC02-STORM,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=0,winact=0,outsmax=0
+# ARMORCNT,SC02-STORM,w2,sticky=0x00000228,fail=0,ban=0,storm=39,outs=0,msi=0,reqmax=8,winact=114,outsmax=7
+# ARMORLAT,SC02-STORM,w1,n=0 (aucune transaction echantillonnee)
+# ARMORHW,SC02-STORM,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=50896784
+# ARMORW,SC02-STORM,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORRETR,SC02-STORM,w1,aucun retrait de VALID
+# ARMORSTALL,SC02-STORM,w1,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# ARMORLAT,SC02-STORM,w2,n=489,n_verdict=213,det_avg=7,tx_avg=7,det_last=0,tx_last=0,det_min=0,det_max=30,tx_min=0,tx_max=30,det_sum=3659,tx_sum=3672
+# ARMORHW,SC02-STORM,w2,cyc_block=1433,cyc_hold=1179,req_up=800,req_dn=587,req_cut=213,cyc_total=52724554
+# ARMORW,SC02-STORM,w2,bad_id=0 fronts 0 cy | aw_dn=587 wlast_dn=587 ecart=0 | fantome=0 orphelin=0 | w_owed_max=2
+# ARMORRETR,SC02-STORM,w2,aucun retrait de VALID
+# ARMORSTALL,SC02-STORM,w2,up aw=2 w=23 b=0 ar=0 r=0 | dn aw=0 w=27 b=0 ar=0 r=0
+# === SC04-MSI : N=50 accel=M mode=6 cfg=0x0 expect_block=1
+# ARMORSNAP,SC04-MSI,accel_status=0x2e
+# ARMORSNAP,SC04-MSI,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,SC04-MSI,w2,status=0x333000 sticky=0x0 | legit ENF
+# ARMORHS,SC04-MSI,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC04-MSI,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC04-MSI,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,SC04-MSI,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,SC04-MSI,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC04-MSI,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC04-MSI,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC04-MSI,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC04-MSI,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC04-MSI,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2e
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,0,st=0xae,up=48,dn=31,cut=17,blk=99,hold=62,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0xae
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0xaa8 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=27 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=48 req_dn=31 cut=17 | cyc_block=99 cyc_hold=62
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=31 wlast_dn=31 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=2
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,1,st=0xae,up=96,dn=74,cut=22,blk=258,hold=148,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0xae
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0xaa8 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=1 verdict_vu=1
+# ARMORCUT,pre-ctrl,w2,req_up=96 req_dn=74 cut=22 | cyc_block=258 cyc_hold=148
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=74 wlast_dn=74 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=2
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,2,st=0x2,up=144,dn=122,cut=22,blk=258,hold=244,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,3,st=0xae,up=192,dn=143,cut=49,blk=577,hold=286,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,4,st=0xae,up=240,dn=158,cut=82,blk=1148,hold=316,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,5,st=0xae,up=288,dn=171,cut=117,blk=1544,hold=343,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,6,st=0xae,up=336,dn=189,cut=147,blk=2097,hold=379,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,7,st=0xae,up=384,dn=206,cut=178,blk=2341,hold=413,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,8,st=0x2,up=432,dn=254,cut=178,blk=2341,hold=509,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,9,st=0x2e,up=480,dn=302,cut=178,blk=2350,hold=605,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,10,st=0xae,up=528,dn=318,cut=210,blk=2611,hold=638,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,11,st=0x8e,up=576,dn=352,cut=224,blk=2916,hold=706,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,12,st=0x2,up=624,dn=400,cut=224,blk=3045,hold=802,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,13,st=0x2e,up=672,dn=429,cut=243,blk=3110,hold=861,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,14,st=0xae,up=720,dn=444,cut=276,blk=3454,hold=892,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,15,st=0x2e,up=768,dn=485,cut=283,blk=3799,hold=974,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,16,st=0xae,up=816,dn=505,cut=311,blk=4141,hold=1014,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,17,st=0x8e,up=864,dn=537,cut=327,blk=4710,hold=1078,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,18,st=0x8e,up=912,dn=579,cut=333,blk=5105,hold=1162,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,19,st=0x2e,up=960,dn=621,cut=339,blk=5149,hold=1246,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,20,st=0xae,up=1008,dn=658,cut=350,blk=5210,hold=1320,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,21,st=0x2e,up=1056,dn=692,cut=364,blk=5260,hold=1389,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,22,st=0x8e,up=1104,dn=724,cut=380,blk=5600,hold=1453,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,23,st=0xae,up=1152,dn=753,cut=399,blk=5732,hold=1511,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,24,st=0x2e,up=1200,dn=798,cut=402,blk=5765,hold=1601,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,25,st=0x8e,up=1248,dn=838,cut=410,blk=6067,hold=1681,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,26,st=0x8e,up=1296,dn=870,cut=426,blk=6441,hold=1745,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,27,st=0xae,up=1344,dn=899,cut=445,blk=6575,hold=1803,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,28,st=0xae,up=1392,dn=913,cut=479,blk=6820,hold=1831,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,29,st=0xae,up=1440,dn=952,cut=488,blk=7129,hold=1910,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,30,st=0xae,up=1488,dn=983,cut=505,blk=7458,hold=1972,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,31,st=0xae,up=1536,dn=1006,cut=530,blk=7677,hold=2019,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,32,st=0xae,up=1584,dn=1038,cut=546,blk=7942,hold=2083,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,33,st=0x2e,up=1632,dn=1084,cut=548,blk=8116,hold=2176,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,34,st=0xae,up=1680,dn=1116,cut=564,blk=8229,hold=2240,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,35,st=0x8e,up=1728,dn=1156,cut=572,blk=8531,hold=2320,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,36,st=0xae,up=1776,dn=1172,cut=604,blk=8870,hold=2352,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,37,st=0xae,up=1824,dn=1190,cut=634,blk=9221,hold=2388,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,38,st=0xae,up=1872,dn=1237,cut=635,blk=9754,hold=2482,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,39,st=0xae,up=1920,dn=1281,cut=639,blk=9873,hold=2570,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,40,st=0xae,up=1968,dn=1307,cut=661,blk=10194,hold=2622,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,41,st=0xae,up=2016,dn=1330,cut=686,blk=10758,hold=2668,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,42,st=0xae,up=2064,dn=1362,cut=702,blk=11278,hold=2732,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,43,st=0xae,up=2112,dn=1393,cut=719,blk=11699,hold=2794,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,44,st=0xae,up=2160,dn=1418,cut=742,blk=12125,hold=2844,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,45,st=0xae,up=2208,dn=1441,cut=767,blk=12732,hold=2890,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,46,st=0x8e,up=2256,dn=1473,cut=783,blk=13367,hold=2954,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,47,st=0xae,up=2304,dn=1499,cut=805,blk=13808,hold=3006,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,48,st=0x8e,up=2352,dn=1531,cut=821,blk=14445,hold=3070,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# IT,49,st=0xae,up=2400,dn=1549,cut=851,blk=14899,hold=3106,bad=0,ecart=0,fant=0,orph=0,owed=0/2,retr=0/0/0/0
+# SC04-MSI STATUS_final=0xae | DONE=3 BLOCK=0 BAN=0 STORM=7 OUTS=0 MSI=40 ERR=0 UNK=0
+# ARMORCNT,SC04-MSI,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=0,winact=0,outsmax=0
+# ARMORCNT,SC04-MSI,w2,sticky=0x00000aa8,fail=0,ban=0,storm=38,outs=0,msi=40,reqmax=8,winact=334,outsmax=7
+# ARMORLAT,SC04-MSI,w1,n=0 (aucune transaction echantillonnee)
+# ARMORHW,SC04-MSI,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=51501481
+# ARMORW,SC04-MSI,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORRETR,SC04-MSI,w1,aucun retrait de VALID
+# ARMORSTALL,SC04-MSI,w1,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# ARMORLAT,SC04-MSI,w2,n=1952,n_verdict=851,det_avg=7,tx_avg=7,det_last=0,tx_last=0,det_min=0,det_max=30,tx_min=0,tx_max=30,det_sum=14063,tx_sum=14175
+# ARMORHW,SC04-MSI,w2,cyc_block=15262,cyc_hold=3106,req_up=2400,req_dn=1549,req_cut=851,cyc_total=53284510
+# ARMORW,SC04-MSI,w2,bad_id=0 fronts 0 cy | aw_dn=1549 wlast_dn=1549 ecart=0 | fantome=0 orphelin=0 | w_owed_max=2
+# ARMORRETR,SC04-MSI,w2,aucun retrait de VALID
+# ARMORSTALL,SC04-MSI,w2,up aw=2 w=23 b=0 ar=0 r=0 | dn aw=0 w=27 b=0 ar=0 r=0
+# === SC03-OUTS : N=50 accel=M mode=5 cfg=0x0 expect_block=1
+# ARMORSNAP,SC03-OUTS,accel_status=0xae
+# ARMORSNAP,SC03-OUTS,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,SC03-OUTS,w2,status=0x333000 sticky=0x0 | legit ENF
+# ARMORHS,SC03-OUTS,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC03-OUTS,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC03-OUTS,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,SC03-OUTS,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,SC03-OUTS,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC03-OUTS,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC03-OUTS,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC03-OUTS,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC03-OUTS,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC03-OUTS,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0xae
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,0,st=0x6,up=12,dn=12,cut=0,blk=0,hold=26,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x6
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=65514 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=12 req_dn=12 cut=0 | cyc_block=0 cyc_hold=26
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=1 wlast_dn=1 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=1
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,1,st=0x2e,up=36,dn=23,cut=13,blk=35,hold=48,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2e
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x228 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=1 verdict_vu=1
+# ARMORCUT,pre-ctrl,w2,req_up=36 req_dn=23 cut=13 | cyc_block=35 cyc_hold=48
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=2 wlast_dn=2 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=1
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,2,st=0x6e,up=60,dn=30,cut=30,blk=408,hold=64,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
+# IT,3,st=0x6e,up=84,dn=43,cut=41,blk=445,hold=86,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
+# IT,4,st=0x6e,up=108,dn=50,cut=58,blk=759,hold=102,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
+# IT,5,st=0x6e,up=132,dn=57,cut=75,blk=1121,hold=118,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/1/0/0
+# IT,6,st=0x6,up=144,dn=69,cut=75,blk=1193,hold=144,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/2/0/0
+# IT,7,st=0x6e,up=168,dn=76,cut=92,blk=1497,hold=160,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/2/0/0
+# IT,8,st=0x6,up=180,dn=88,cut=92,blk=1565,hold=186,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,9,st=0x6e,up=204,dn=95,cut=109,blk=1869,hold=202,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,10,st=0x2e,up=228,dn=105,cut=123,blk=1988,hold=222,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,11,st=0x6e,up=252,dn=112,cut=140,blk=2292,hold=238,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,12,st=0x6e,up=276,dn=123,cut=153,blk=2404,hold=256,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,13,st=0x6e,up=300,dn=130,cut=170,blk=2718,hold=272,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,14,st=0x6e,up=324,dn=142,cut=182,blk=2824,hold=292,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,15,st=0x6e,up=348,dn=150,cut=198,blk=3135,hold=308,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,16,st=0x6e,up=372,dn=157,cut=215,blk=3517,hold=324,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/3/0/0
+# IT,17,st=0x6,up=384,dn=169,cut=215,blk=3589,hold=350,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,18,st=0x6e,up=408,dn=176,cut=232,blk=3893,hold=366,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,19,st=0x6e,up=432,dn=183,cut=249,blk=4264,hold=382,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,20,st=0x2e,up=456,dn=193,cut=263,blk=4383,hold=402,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,21,st=0x6e,up=480,dn=200,cut=280,blk=4687,hold=418,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,22,st=0x6e,up=504,dn=207,cut=297,blk=5059,hold=434,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,23,st=0x6e,up=528,dn=214,cut=314,blk=5431,hold=450,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,24,st=0x6e,up=552,dn=221,cut=331,blk=5803,hold=466,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,25,st=0x2e,up=576,dn=231,cut=345,blk=5923,hold=486,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,26,st=0x6e,up=600,dn=238,cut=362,blk=6227,hold=502,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,27,st=0x6e,up=624,dn=245,cut=379,blk=6599,hold=518,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,28,st=0x6e,up=648,dn=252,cut=396,blk=6971,hold=534,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,29,st=0x2e,up=672,dn=263,cut=409,blk=7083,hold=556,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,30,st=0x2e,up=696,dn=276,cut=420,blk=7104,hold=578,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,31,st=0x6e,up=720,dn=285,cut=435,blk=7236,hold=594,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,32,st=0x6e,up=744,dn=292,cut=452,blk=7540,hold=610,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,33,st=0x6e,up=768,dn=299,cut=469,blk=7916,hold=626,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,34,st=0x2e,up=792,dn=308,cut=484,blk=8054,hold=644,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/4/0/0
+# IT,35,st=0x6,up=804,dn=320,cut=484,blk=8054,hold=670,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/5/0/0
+# IT,36,st=0x6e,up=828,dn=327,cut=501,blk=8358,hold=686,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/5/0/0
+# IT,37,st=0x6,up=840,dn=339,cut=501,blk=8433,hold=712,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/6/0/0
+# IT,38,st=0x2e,up=864,dn=349,cut=515,blk=8486,hold=732,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/6/0/0
+# IT,39,st=0x6e,up=888,dn=356,cut=532,blk=8790,hold=748,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/6/0/0
+# IT,40,st=0x2e,up=912,dn=366,cut=546,blk=8911,hold=768,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/6/0/0
+# IT,41,st=0x6e,up=936,dn=373,cut=563,blk=9215,hold=784,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/6/0/0
+# IT,42,st=0x6,up=948,dn=385,cut=563,blk=9288,hold=810,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/7/0/0
+# IT,43,st=0x6e,up=972,dn=392,cut=580,blk=9592,hold=826,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/7/0/0
+# IT,44,st=0x6,up=984,dn=404,cut=580,blk=9667,hold=852,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/8/0/0
+# IT,45,st=0x2e,up=1008,dn=414,cut=594,blk=9720,hold=872,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/8/0/0
+# IT,46,st=0x6e,up=1032,dn=421,cut=611,blk=10024,hold=888,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/8/0/0
+# IT,47,st=0x6e,up=1056,dn=428,cut=628,blk=10400,hold=904,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/8/0/0
+# IT,48,st=0x6,up=1068,dn=440,cut=628,blk=10473,hold=930,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/9/0/0
+# IT,49,st=0x6e,up=1092,dn=447,cut=645,blk=10777,hold=946,bad=0,ecart=0,fant=0,orph=0,owed=0/1,retr=0/9/0/0
+# SC03-OUTS STATUS_final=0x6e | DONE=0 BLOCK=0 BAN=0 STORM=10 OUTS=31 MSI=0 ERR=9 UNK=0
+# ARMORCNT,SC03-OUTS,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=0,winact=0,outsmax=0
+# ARMORCNT,SC03-OUTS,w2,sticky=0x00000668,fail=0,ban=0,storm=48,outs=31,msi=0,reqmax=24,winact=80,outsmax=23
+# ARMORLAT,SC03-OUTS,w1,n=0 (aucune transaction echantillonnee)
+# ARMORHW,SC03-OUTS,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=51177699
+# ARMORW,SC03-OUTS,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORRETR,SC03-OUTS,w1,aucun retrait de VALID
+# ARMORSTALL,SC03-OUTS,w1,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# ARMORLAT,SC03-OUTS,w2,n=669,n_verdict=597,det_avg=884,tx_avg=884,det_last=0,tx_last=0,det_min=0,det_max=65513,tx_min=0,tx_max=65513,det_sum=591416,tx_sum=591542
+# ARMORHW,SC03-OUTS,w2,cyc_block=10849,cyc_hold=946,req_up=1092,req_dn=447,req_cut=645,cyc_total=52982990
+# ARMORW,SC03-OUTS,w2,bad_id=0 fronts 0 cy | aw_dn=50 wlast_dn=50 ecart=0 | fantome=0 orphelin=0 | w_owed_max=1
+# ARMORRETR,SC03-OUTS,w2,aw=0 ar=9 w=0 b-r=0 | 1er a 11394725 cy, cause=, canal=2
+# ARMORSTALL,SC03-OUTS,w2,up aw=2 w=0 b=0 ar=4095 r=4095 | dn aw=0 w=2 b=0 ar=4095 r=4095
+# === SC01-SPOOF : N=50 accel=M mode=1 cfg=0x0 expect_block=1
+# ARMORSNAP,SC01-SPOOF,accel_status=0x6e
+# ARMORSNAP,SC01-SPOOF,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,SC01-SPOOF,w2,status=0x333000 sticky=0x0 | legit ENF
+# ARMORHS,SC01-SPOOF,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC01-SPOOF,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC01-SPOOF,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,SC01-SPOOF,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,SC01-SPOOF,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC01-SPOOF,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC01-SPOOF,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC01-SPOOF,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC01-SPOOF,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC01-SPOOF,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x6e
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x333000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x540, AW --  W --  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,0,st=0x6,up=1,dn=0,cut=1,blk=0,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x6
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x336000 sticky=0x4000 | ENF BAD_ID
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0xf7a, AW -R  W -R last  B VR  AR -R  R VR last
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=1 legit=0 fail=1 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=2 verdict_vu=1
+# ARMORCUT,pre-ctrl,w2,req_up=1 req_dn=0 cut=1 | cyc_block=0 cyc_hold=2
+# ARMORW,pre-ctrl,w2,bad_id=1 fronts 6527328 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,1,st=0x6,up=2,dn=0,cut=2,blk=0,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x6
+# ARMORSNAP,pre-ctrl,w1,status=0x333000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x336000 sticky=0x4000 | ENF BAD_ID
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0xf7a, AW -R  W -R last  B VR  AR -R  R VR last
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=1 legit=0 fail=2 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=1 verdict_vu=1
+# ARMORCUT,pre-ctrl,w2,req_up=2 req_dn=0 cut=2 | cyc_block=0 cyc_hold=2
+# ARMORW,pre-ctrl,w2,bad_id=1 fronts 13775978 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# IT,2,st=0x1e,up=3,dn=0,cut=3,blk=100001,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,3,st=0x6,up=4,dn=0,cut=4,blk=100001,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,4,st=0x6,up=5,dn=0,cut=5,blk=100001,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,5,st=0x1e,up=6,dn=0,cut=6,blk=100261,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,6,st=0x6,up=7,dn=0,cut=7,blk=200002,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,7,st=0x6,up=8,dn=0,cut=8,blk=200002,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,8,st=0x1e,up=9,dn=0,cut=9,blk=200262,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,9,st=0x6,up=10,dn=0,cut=10,blk=300003,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,10,st=0x6,up=11,dn=0,cut=11,blk=300003,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,11,st=0x1e,up=12,dn=0,cut=12,blk=300263,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,12,st=0x6,up=13,dn=0,cut=13,blk=400004,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,13,st=0x6,up=14,dn=0,cut=14,blk=400004,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,14,st=0x1e,up=15,dn=0,cut=15,blk=400264,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,15,st=0x6,up=16,dn=0,cut=16,blk=500005,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,16,st=0x6,up=17,dn=0,cut=17,blk=500005,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,17,st=0x1e,up=18,dn=0,cut=18,blk=500265,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,18,st=0x6,up=19,dn=0,cut=19,blk=600006,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,19,st=0x6,up=20,dn=0,cut=20,blk=600006,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,20,st=0x1e,up=21,dn=0,cut=21,blk=600266,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,21,st=0x6,up=22,dn=0,cut=22,blk=700007,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,22,st=0x6,up=23,dn=0,cut=23,blk=700007,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,23,st=0x1e,up=24,dn=0,cut=24,blk=700267,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,24,st=0x6,up=25,dn=0,cut=25,blk=800008,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,25,st=0x6,up=26,dn=0,cut=26,blk=800008,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,26,st=0x1e,up=27,dn=0,cut=27,blk=800268,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,27,st=0x6,up=28,dn=0,cut=28,blk=900009,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,28,st=0x6,up=29,dn=0,cut=29,blk=900009,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,29,st=0x1e,up=30,dn=0,cut=30,blk=900269,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,30,st=0x6,up=31,dn=0,cut=31,blk=1000010,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,31,st=0x6,up=32,dn=0,cut=32,blk=1000010,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,32,st=0x1e,up=33,dn=0,cut=33,blk=1000270,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,33,st=0x6,up=34,dn=0,cut=34,blk=1100011,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,34,st=0x6,up=35,dn=0,cut=35,blk=1100011,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,35,st=0x1e,up=36,dn=0,cut=36,blk=1100271,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,36,st=0x6,up=37,dn=0,cut=37,blk=1200012,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,37,st=0x6,up=38,dn=0,cut=38,blk=1200012,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,38,st=0x1e,up=39,dn=0,cut=39,blk=1200272,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,39,st=0x6,up=40,dn=0,cut=40,blk=1300013,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,40,st=0x6,up=41,dn=0,cut=41,blk=1300013,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,41,st=0x1e,up=42,dn=0,cut=42,blk=1300273,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,42,st=0x6,up=43,dn=0,cut=43,blk=1400014,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,43,st=0x6,up=44,dn=0,cut=44,blk=1400014,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,44,st=0x1e,up=45,dn=0,cut=45,blk=1400274,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,45,st=0x6,up=46,dn=0,cut=46,blk=1500015,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,46,st=0x6,up=47,dn=0,cut=47,blk=1500015,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,47,st=0x1e,up=48,dn=0,cut=48,blk=1500275,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,48,st=0x6,up=49,dn=0,cut=49,blk=1600016,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# IT,49,st=0x6,up=50,dn=0,cut=50,blk=1600016,hold=2,bad=1,ecart=0,fant=0,orph=0,owed=0/0,retr=0/0/0/0
+# SC01-SPOOF STATUS_final=0x6 | DONE=0 BLOCK=0 BAN=16 STORM=0 OUTS=0 MSI=0 ERR=34 UNK=0
+# ARMORCNT,SC01-SPOOF,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=0,winact=0,outsmax=0
+# ARMORCNT,SC01-SPOOF,w2,sticky=0x00004118,fail=50,ban=16,storm=0,outs=0,msi=0,reqmax=0,winact=0,outsmax=0
+# ARMORLAT,SC01-SPOOF,w1,n=0 (aucune transaction echantillonnee)
+# ARMORHW,SC01-SPOOF,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=50238271
+# ARMORW,SC01-SPOOF,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORRETR,SC01-SPOOF,w1,aucun retrait de VALID
+# ARMORSTALL,SC01-SPOOF,w1,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# ARMORLAT,SC01-SPOOF,w2,n=50,n_verdict=49,det_avg=0,tx_avg=0,det_last=0,tx_last=0,det_min=0,det_max=1,tx_min=0,tx_max=1,det_sum=1,tx_sum=1
+# ARMORHW,SC01-SPOOF,w2,cyc_block=1600016,cyc_hold=2,req_up=50,req_dn=0,req_cut=50,cyc_total=52065995
+# ARMORW,SC01-SPOOF,w2,bad_id=1 fronts 41798459 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORRETR,SC01-SPOOF,w2,aucun retrait de VALID
+# ARMORSTALL,SC01-SPOOF,w2,up aw=2 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+
+###### RESUME ######
+SUMMARY-DET,SC06-LHAOK,100,97,97,0,0,0,100,226,226,226,226,232
+SUMMARY-TX,SC06-LHAOK,100,97,97,0,0,0,100,271,271,271,271,277
+SUMMARY-DET,SC07-MHAOK,100,97,97,0,0,0,100,226,226,226,226,232
+SUMMARY-TX,SC07-MHAOK,100,97,97,0,0,0,100,271,271,271,271,277
+SUMMARY-DET,SC08-LAS,700,697,512,0,0,700,0,219,219,219,219,225
+SUMMARY-TX,SC08-LAS,700,697,512,0,0,700,0,264,264,264,264,270
+SUMMARY-DET,SC02-STORM,50,47,47,39,0,11,0,219,284,219,477,477
+SUMMARY-TX,SC02-STORM,50,47,47,39,0,11,0,264,359,345,522,522
+SUMMARY-DET,SC04-MSI,50,47,47,47,0,3,0,219,375,229,1141,1191
+SUMMARY-TX,SC04-MSI,50,47,47,47,0,3,0,410,762,788,1186,1236
+SUMMARY-DET,SC03-OUTS,50,47,47,50,0,0,0,219,11365,219,65697,65697
+SUMMARY-TX,SC03-OUTS,50,47,47,50,0,0,0,264,18376,264,65742,65742
+SUMMARY-DET,SC01-SPOOF,50,47,47,50,0,0,0,148,148,148,148,154
+SUMMARY-TX,SC01-SPOOF,50,47,47,50,0,0,0,193,193,193,193,199
+###### END ######
