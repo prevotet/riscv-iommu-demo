@@ -35,6 +35,9 @@
 #define MHA_CONFIG_OFF          (0x20ULL)
 #define MHA_ATTACK_MODE_OFF     (0x28ULL)
 #define MHA_MSI_ADDR_OFF        (0x38ULL)
+/* 0x40 PIPE_DEPTH : adresses en vol du mode 7. 0 = valeur de synthese (16),
+ * celle qui a gele la carte le 2026-09-13. (v16) */
+#define MHA_PIPE_DEPTH_OFF      (0x40ULL)
 
 #define LHA_BASE_ADDR           (0x50000000ULL)
 #define LHA_CTRL_OFF            (0x00ULL)
@@ -211,6 +214,23 @@
 #ifndef ARMOR_THRESH
 #define ARMOR_THRESH 0
 #endif
+
+/* Profondeur d'adresses en vol de SC09 (registre 0x40 de l'accelerateur), a
+ * n'utiliser qu'avec -DBENCH_SC09. 0 = valeur de synthese, soit 16.
+ *
+ * POURQUOI CE REGLAGE EXISTE. Le mode 7 a GELE la carte a 16 adresses en vol,
+ * dans les deux bras -- donc independamment d'ARMOR. Chercher la profondeur a
+ * laquelle le SoC lache demandait jusqu'ici une synthese par point, soit
+ * 45 minutes et un gel par essai. COMMENCER PAR 2, monter progressivement, et
+ * ne pas sauter a 16 : chaque gel coute un `pkill -x hw_server` suivi d'un
+ * `2_build_HB.sh program`, le chargement JTAG seul ne suffisant pas.
+ *
+ * Au banc, de 2 a 16, le wrapper tient a toutes les profondeurs : appariement
+ * W et B propre, aucune file de sort debordee. Le banc ne modelise pas le
+ * crossbar, c'est-a-dire precisement le suspect. */
+#ifndef BENCH_SC09_DEPTH
+#define BENCH_SC09_DEPTH 0
+#endif
 /* CONTROLE DE VERSION PAR SEUIL, ET NON PAR EGALITE.
  *
  * La version precedente comparait le magic a une constante exacte. Elle m'a
@@ -351,6 +371,7 @@ static volatile uint64_t *mha_size    = (volatile uint64_t *)(MHA_BASE_ADDR + MH
 static volatile uint64_t *mha_config  = (volatile uint64_t *)(MHA_BASE_ADDR + MHA_CONFIG_OFF);
 static volatile uint64_t *mha_mode    = (volatile uint64_t *)(MHA_BASE_ADDR + MHA_ATTACK_MODE_OFF);
 static volatile uint64_t *mha_msi_addr= (volatile uint64_t *)(MHA_BASE_ADDR + MHA_MSI_ADDR_OFF);
+static volatile uint64_t *mha_pipe_depth = (volatile uint64_t *)(MHA_BASE_ADDR + MHA_PIPE_DEPTH_OFF);
 
 static volatile uint64_t *lha_ctrl    = (volatile uint64_t *)(LHA_BASE_ADDR + LHA_CTRL_OFF);
 static volatile uint64_t *lha_status  = (volatile uint64_t *)(LHA_BASE_ADDR + LHA_STATUS_OFF);
@@ -538,6 +559,15 @@ static void armor_wrap_init(int enforce) {
                    "leurs donnees font decrocher le canal B (au banc : 488 B en "
                    "trop, 50 manquants, un AW reste du). Armer CTRL[10].\r\n");
 #endif
+        if (v < 16)
+            printf("# ARMOR v%u : 0x40[39:32] lira zero -- pas de filigrane de "
+                   "profondeur d'en-vol\r\n", v);
+#ifdef BENCH_SC09
+        if (BENCH_SC09_DEPTH && v < 16)
+            printf("# ATTENTION : BENCH_SC09_DEPTH=%d mais bitstream v%u -- le "
+                   "registre 0x40 de l'accelerateur n'existe pas, la profondeur "
+                   "restera a 16 et la carte GELERA\r\n", BENCH_SC09_DEPTH, v);
+#endif
         if (ARMOR_THRESH && v < 15)
             printf("# ATTENTION : ARMOR_THRESH=%d mais bitstream v%u -- CTRL[23:16] "
                    "SANS EFFET, le seuil reste celui de la synthese\r\n",
@@ -636,17 +666,22 @@ static void armor_wrap_report_one(const char *tag, const char *who, uint64_t bas
      * Sur un bitstream anterieur a v14 les deux champs lisent zero, et le
      * controle de version l'a deja dit en tete de campagne. */
     uint64_t stm = w[WRAP_CNT_STORM_OFF / 8];
+    uint64_t out = w[WRAP_CNT_OUTS_OFF  / 8];
     printf("# ARMORCNT,%s,%s,sticky=0x%08x,fail=%lu,ban=%lu,storm=%lu,outs=%lu,msi=%lu,"
-           "reqmax=%lu,winact=%lu\r\n",
+           "reqmax=%lu,winact=%lu,outsmax=%lu\r\n",
            tag, who,
            (unsigned)w[WRAP_STICKY_OFF      / 8],
            (unsigned long)w[WRAP_FAILCNT_OFF    / 8],
            (unsigned long)w[WRAP_CNT_BANNED_OFF / 8],
            (unsigned long)(stm & 0xFFFFFFFFULL),
-           (unsigned long)w[WRAP_CNT_OUTS_OFF   / 8],
+           (unsigned long)(out & 0xFFFFFFFFULL),
            (unsigned long)w[WRAP_CNT_MSI_OFF    / 8],
            (unsigned long)((stm >> 32) & 0xFFULL),
-           (unsigned long)(stm >> 40));
+           (unsigned long)(stm >> 40),
+           /* OUTS_MAX : plus forte profondeur d'en-vol atteinte, seuil 16.
+            * C'est ce chiffre qui dira si une campagne non detectee est passee
+            * SOUS le seuil -- la question laissee ouverte le 2026-09-13. */
+           (unsigned long)((out >> 32) & 0xFFULL));
 }
 
 static void armor_wrap_report(const char *tag) {
@@ -2361,6 +2396,12 @@ void main(void) {
      * Le chargement JTAG seul NE SUFFIT PAS (capture vide, 0 ligne).
      * ========================================================================== */
 #ifdef BENCH_SC09
+    if (BENCH_SC09_DEPTH) {
+        *mha_pipe_depth = (uint64_t)BENCH_SC09_DEPTH;
+        fence();
+        printf("# SC09 : profondeur d'adresses en vol = %d (relu %lu)\r\n",
+               BENCH_SC09_DEPTH, (unsigned long)*mha_pipe_depth);
+    }
     run_scenario("SC09-PIPE",  'M', /*mode*/7, LEGIT_DST, /*cfg*/0, N_ATK,
                  ARMOR_RFMCNT ? 1 : 0, &s[n++]);
 #endif
