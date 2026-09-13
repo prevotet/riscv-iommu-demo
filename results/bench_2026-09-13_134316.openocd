@@ -1,0 +1,1 @@
+ERREUR : hw_server (Vivado) tient le cable JTAG. Fermer Vivado, ou : pkill -x hw_server
