@@ -896,6 +896,44 @@ Et `reqmax=24` sur SC03 prouve que **le compteur de 4 bits rebouclait bel et bie
 (24 > 15), pas seulement au banc : les épisodes `STORM` de SC03 passent de 63 (v12) à 50
 (v14), dans le sens attendu. Un seul run, donc un signe ; le mécanisme, lui, est établi.
 
+### L'occupation sans écrêtage : le low-and-slow est indiscernable du trafic légitime
+
+Deux campagnes de plus le 2026-09-13, avec `run_sc08()` enfin instrumenté :
+`bench_2026-09-13_092952` (référence, `0x331`) et `093043` (**`ARMOR_ENFORCE=0`**, `0x330`,
+où rien n'est coupé — `req_cut=0` partout — donc où l'occupation se lit sans écrêtage).
+
+| scénario | `req_up` | `winact` | occupation moyenne | **`reqmax`** |
+|---|---|---|---|---|
+| SC07-MHAOK (légitime) | 100 | 99 | 1,01 | **1** |
+| **SC08 low-and-slow** | 700 | 687 | **1,02** | **1** |
+| SC02-STORM | 800 | 162 | 4,94 | **10** |
+| SC04-MSI | 2400 | 516 | 4,65 | 10 |
+| SC03-OUTS | 600 | 95 | 6,3 | 12 |
+
+**SC08 met une requête par fenêtre. Exactement comme le trafic légitime.** Son énoncé —
+« salves de 7, sous le seuil de 8, espacées de 200 cycles, au-delà de la fenêtre de 100 » —
+ne décrit pas ce qui arrive au moniteur : les 220 cycles de la boucle logicielle espacent
+déjà chaque requête au-delà d'une fenêtre, si bien que la salve de 7 s'étale sur une
+quinzaine de fenêtres à une requête chacune. Le gap de 200 cycles ne joue aucun rôle.
+
+C'est une correction à porter dans le papier, et elle **renforce** l'argument au lieu de
+l'affaiblir. L'évasion n'est pas « il reste sous le seuil » mais **« il est identique au
+trafic légitime à l'entrée du moniteur »** : aucun seuil de débit, quel qu'il soit, ne peut
+séparer les deux. C'est la forme forte de la limite qu'ARMOR doit admettre et qu'ASOS
+existe pour couvrir.
+
+Et la tempête, mesurée sans blocage, culmine à **10 requêtes par fenêtre pour une moyenne
+de 4,94** — le seuil de 8 n'est franchi que par ses pics, d'où les ~80 % de salves détectées.
+Un seuil à 2 ou 3 attraperait presque toutes ses fenêtres **sans toucher ni au légitime ni
+au low-and-slow, tous deux à 1**. C'est le balayage de seuil à mesurer, et la marge est
+beaucoup plus large qu'on ne le croyait.
+
+**Limite de ces chiffres, à énoncer avec eux** : le générateur de fond LHA est DÉSACTIVÉ
+(`-DBENCH_NO_LHA_BG`) dans toutes ces campagnes, alors que le § 6.2.1 du papier décrit
+l'inverse. Avec le fond actif, la densité du trafic légitime monte et la marge se réduit
+d'autant. **Mesurer `reqmax` sur SC06/SC07 avec le fond actif est le prochain chiffre à
+prendre** — une image, pas de resynthèse.
+
 ### SC09 (mode 7) GÈLE LA CARTE — les deux bras
 
 `bench_2026-09-13_090157` (`0x1731`) et `090714` (`0x731`) s'arrêtent au **même endroit** : le
