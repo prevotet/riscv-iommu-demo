@@ -2399,8 +2399,23 @@ void main(void) {
     if (BENCH_SC09_DEPTH) {
         *mha_pipe_depth = (uint64_t)BENCH_SC09_DEPTH;
         fence();
+        uint64_t relu = *mha_pipe_depth;
         printf("# SC09 : profondeur d'adresses en vol = %d (relu %lu)\r\n",
-               BENCH_SC09_DEPTH, (unsigned long)*mha_pipe_depth);
+               BENCH_SC09_DEPTH, (unsigned long)relu);
+        /* LE 2026-09-13, CE GARDE-FOU N'EXISTAIT PAS ET IL A COUTE UNE
+         * CAMPAGNE. 0x40 relisait 0 parce que reg_pipe_q avait deux pilotes
+         * dans le RTL -- Vivado l'avait dit en CRITICAL WARNING, pas en ERROR,
+         * et la simulation n'y voyait rien. Le mode 7 tournait donc a sa valeur
+         * de synthese, 16, et le gel obtenu ne mesurait rien de neuf.
+         *
+         * Un registre qui ne relit pas ce qu'on y a ecrit invalide la campagne
+         * ENTIERE : on croit balayer une profondeur et on rejoue toujours la
+         * meme. */
+        if (relu != (uint64_t)BENCH_SC09_DEPTH)
+            printf("# ATTENTION : 0x40 relit %lu au lieu de %d -- LA PROFONDEUR "
+                   "N'EST PAS CELLE DEMANDEE, cette campagne ne mesure pas ce "
+                   "qu'elle annonce\r\n",
+                   (unsigned long)relu, BENCH_SC09_DEPTH);
     }
     run_scenario("SC09-PIPE",  'M', /*mode*/7, LEGIT_DST, /*cfg*/0, N_ATK,
                  ARMOR_RFMCNT ? 1 : 0, &s[n++]);

@@ -206,6 +206,14 @@ module accel_wrap #(
             cw_idx_q    <= '0;
             reg_base_q  <= 64'h0;
             reg_size_q  <= 64'h0;
+            //  reg_pipe_q est remis a zero ICI et nulle part ailleurs : il est
+            //  ECRIT par cette FSM, et un registre ecrit dans un always_ff ne
+            //  peut pas etre remis a zero dans un autre. Mis d'abord dans le
+            //  reset de la FSM du generateur, il avait DEUX pilotes : la
+            //  simulation n'y voyait rien (dernier ecrivain gagne, et le bloc
+            //  de reset ne parle qu'au reset) mais la synthese a garde le zero.
+            //  Sur carte, 0x40 relisait 0 et le mode 7 tournait a PIPE_REQS.
+            reg_pipe_q  <= 64'h0;   // 0 = PIPE_REQS
             reg_conf_q  <= 64'h0;
             reg_mode_q    <= 64'h0;
             reg_msiaddr_q <= 64'h0;
@@ -485,7 +493,6 @@ module accel_wrap #(
             done_q       <= 1'b0;
             error_q      <= 1'b0;
             reg_blkcnt_q <= 32'h0;
-            reg_pipe_q   <= 64'h0;   // 0 = PIPE_REQS
         end else begin
             // Memorisation des verdicts ARMOR pendant toute la transaction
             if (g_state_q != G_IDLE) armor_sticky_q <= armor_sticky_q | armor_status_i;
