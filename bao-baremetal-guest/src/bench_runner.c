@@ -251,6 +251,18 @@
 #ifndef BENCH_SC09_QUIESCE_CY
 #define BENCH_SC09_QUIESCE_CY 0
 #endif
+
+/* Nombre d'iterations de SC09 (-DBENCH_SC09_N=n, defaut 0 = N_ATK).
+ *
+ * COMPAGNON de BENCH_SC09_QUIESCE_CY. Le gel mode 7 profond etant tire a
+ * CHAQUE *ctrl=1 de SC09, les 50 iterations par defaut ne laissent presque
+ * jamais SC09 survivre jusqu'a la quiescence : reduire n abaisse l'exposition
+ * pour que SC09 aille au bout et que le gap AVANT SC04 soit enfin teste.
+ * Compromis : trop bas, SC09 ne stresse plus assez l'aval pour que SC04
+ * bascule, et le test de quiescence devient vide. n=3 tient les deux. */
+#ifndef BENCH_SC09_N
+#define BENCH_SC09_N 0
+#endif
 /* CONTROLE DE VERSION PAR SEUIL, ET NON PAR EGALITE.
  *
  * La version precedente comparait le magic a une constante exacte. Elle m'a
@@ -2460,7 +2472,8 @@ void main(void) {
                    "qu'elle annonce\r\n",
                    (unsigned long)relu, BENCH_SC09_DEPTH);
     }
-    run_scenario("SC09-PIPE",  'M', /*mode*/7, LEGIT_DST, /*cfg*/0, N_ATK,
+    run_scenario("SC09-PIPE",  'M', /*mode*/7, LEGIT_DST, /*cfg*/0,
+                 BENCH_SC09_N ? BENCH_SC09_N : N_ATK,
                  ARMOR_RFMCNT ? 1 : 0, &s[n++]);
 #if BENCH_SC09_QUIESCE_CY
     printf("# DIAG : quiescence de %d cycles avant SC04 "
