@@ -231,6 +231,26 @@
 #ifndef BENCH_SC09_DEPTH
 #define BENCH_SC09_DEPTH 0
 #endif
+
+/* Quiescence entre SC09 et SC04 (-DBENCH_SC09_QUIESCE_CY=N, defaut 0 = rien).
+ *
+ * DIAGNOSTIC du gel SC09(profondeur >= 8) -> SC04-MSI mesure le 2026-09-13.
+ * Insere wait_cycles(N) APRES SC09 et AVANT le *ctrl=1 de SC04, pour laisser
+ * l'interconnexion partagee (crossbar + IOMMU) se drainer. La salve mode 7
+ * profonde congestionne l'aval que le banc ne modelise pas ; la question, et
+ * une seule : cette congestion est-elle TRANSITOIRE (elle se vide avec du
+ * temps) ou un ETAT COINCE (AW orphelin, B jamais rendu, qu'aucun delai ne
+ * libere) ?
+ *   d8 ET d16 vont au bout -> congestion transitoire : le wedge est un temps
+ *                             de drain, une mitigation firmware est jouable,
+ *                             ARMOR est hors de cause ;
+ *   gele encore            -> etat coince en aval : correction RTL obligatoire,
+ *                             aucun delai ne suffit.
+ * N en cycles coeur (50 MHz). 1000000 ~ 20 ms, tres au-dela de tout drain
+ * plausible d'une salve de 50 x profondeur ecritures de 64 B. */
+#ifndef BENCH_SC09_QUIESCE_CY
+#define BENCH_SC09_QUIESCE_CY 0
+#endif
 /* CONTROLE DE VERSION PAR SEUIL, ET NON PAR EGALITE.
  *
  * La version precedente comparait le magic a une constante exacte. Elle m'a
@@ -2395,6 +2415,29 @@ void main(void) {
      * Reprise après gel : `pkill -x hw_server` puis `2_build_HB.sh program`.
      * Le chargement JTAG seul NE SUFFIT PAS (capture vide, 0 ligne).
      * ========================================================================== */
+#ifdef BENCH_SC04_FIRST
+    /* DIAGNOSTIC (-DBENCH_SC04_FIRST) — SC04-MSI JOUE AVANT SC09.
+     *
+     * La question, et une seule : SC04-MSI gele-t-il SEUL a XFER=64, ou
+     * seulement lorsque la tempete pipelinee profonde SC09 l'a precede et a
+     * congestionne le crossbar/IOMMU ? Ici SC04 tourne sur un aval NON stresse
+     * par mode 7 (SC09 est deplace apres lui) :
+     *   SC04 va au bout -> le wedge exige la contention laissee par SC09
+     *                      profond : c'est l'interaction ordre/congestion, pas
+     *                      SC04 intrinseque ;
+     *   SC04 gele        -> le wedge SC04 (block_req MSI -> AW orphelin -> B
+     *                      IOMMU non draine) suffit seul a XFER=64, la
+     *                      profondeur SC09 n'y est pour rien.
+     *
+     * CE QUE CET ORDRE DETRUIT : SC04 s'execute avant SC09 au lieu d'apres ;
+     * les latences comparatives SC09/SC04 et tout classement dependant de
+     * l'ordre ne valent plus. Seule la question du gel a un sens ici — elle ne
+     * depend que de l'endroit ou le log s'arrete. Ne rien publier de chiffre
+     * issu d'un build portant ce drapeau. */
+    printf("# DIAG : SC04 JOUE AVANT SC09 (-DBENCH_SC04_FIRST) — "
+           "ordre de campagne modifie, latences comparatives invalides\r\n");
+    run_scenario("SC04-MSI",   'M', /*mode*/6, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
+#endif
 #ifdef BENCH_SC09
     if (BENCH_SC09_DEPTH) {
         *mha_pipe_depth = (uint64_t)BENCH_SC09_DEPTH;
@@ -2419,13 +2462,21 @@ void main(void) {
     }
     run_scenario("SC09-PIPE",  'M', /*mode*/7, LEGIT_DST, /*cfg*/0, N_ATK,
                  ARMOR_RFMCNT ? 1 : 0, &s[n++]);
+#if BENCH_SC09_QUIESCE_CY
+    printf("# DIAG : quiescence de %d cycles avant SC04 "
+           "(-DBENCH_SC09_QUIESCE_CY)\r\n", BENCH_SC09_QUIESCE_CY);
+    wait_cycles((uint64_t)BENCH_SC09_QUIESCE_CY);
+#endif
 #endif
 
     /* SC-04 : MSI storm — attendu MSI
      *   Le MSI-monitor voit l'AW avant l'IOMMU, donc la dest configurée
      *   sur le MHA importe peu (le mode 6 redirige vers la zone MSI). On
-     *   reste néanmoins sur LEGIT_DST pour homogénéité. */
+     *   reste néanmoins sur LEGIT_DST pour homogénéité.
+     *   Saute si -DBENCH_SC04_FIRST (SC04 a deja joue avant SC09). */
+#ifndef BENCH_SC04_FIRST
     run_scenario("SC04-MSI",   'M', /*mode*/6, LEGIT_DST, /*cfg*/0, N_ATK, 1, &s[n++]);
+#endif
 
     /* SC-03 : Outstanding overflow — attendu OUTS — EXÉCUTÉ EN DERNIER.
      * Le mode 5 inonde des lectures AR avec r_ready=0 : ces lectures ne se
