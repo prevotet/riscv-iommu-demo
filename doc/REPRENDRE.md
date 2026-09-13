@@ -858,6 +858,76 @@ v13/v14 de se faire proprement : le `*_utilization_placed.rpt` du v13 n'existait
 `tools/bitstream.sh save` recopie désormais timing, surface et surface par wrapper dans le
 `.provenance`, qui lui suit le `.bit` dans git.
 
+### CE QUE LA CARTE A DIT, 2026-09-13
+
+**Campagne de référence : le v14 ne change rien à la détection, et les nouveaux compteurs
+marchent.** Deux campagnes (`results/bench_2026-09-13_085622.log` et `091154`), `CTRL` relu
+`0x331`, MAGIC `…0E`, aucune `ATTENTION`, et **aucun débordement des files de sort** — c'était
+la première campagne carte avec 64 entrées, aucun `sticky` ne porte le bit 22 ni le bit 24.
+
+| | v12 (`serie_bfate0_115531`) | v14 (`085622`) | v14 (`091154`) |
+|---|---|---|---|
+| SC02-STORM | 35/50 | 40/50 | 36/50 |
+| SC04-MSI | 47/50 | 47/50 | 47/50 |
+| SC03 / SC01 | 50/50 | 50/50 | 50/50 |
+| faux positifs SC06/SC07 | 0 | 0 | 0 |
+| SC08 | 700 passent | 700 passent | 700 passent |
+
+Tout est dans les plages archivées : **la correction de largeur n'agit pas sous `ENFORCE=1`**,
+comme le banc l'annonçait. La latence matérielle est identique au cycle près (`det_avg=37`,
+`det_min=28`) ; les ±5 cycles des latences logicielles viennent du binaire firmware, qui a
+changé.
+
+**Les nouveaux compteurs, eux, donnent enfin le chiffre qui manquait :**
+
+| scénario | `req_up` | `winact` | occupation moyenne | `reqmax` |
+|---|---|---|---|---|
+| SC06 / SC07 (légitime) | 100 | 100 | **1,00** | **1** |
+| SC02-STORM | 800 | 113 | **7,08** | 8 |
+| SC04-MSI | 2400 | 362 | 6,63 | 8 |
+| SC03-OUTS | 1098 | 87 | 12,6 | **24** |
+
+La tempête vit à **7,08 requêtes par fenêtre de 100 cycles pour un seuil de 8** — 88 % du
+seuil, mesuré et non plus déduit. Le trafic légitime est à **1,00**, soit une marge d'un
+facteur 8. Confinement au niveau transaction : `req_cut=216` sur 800, **27 %**, à mettre en
+face des 80 % de salves marquées.
+
+Et `reqmax=24` sur SC03 prouve que **le compteur de 4 bits rebouclait bel et bien sur carte**
+(24 > 15), pas seulement au banc : les épisodes `STORM` de SC03 passent de 63 (v12) à 50
+(v14), dans le sens attendu. Un seul run, donc un signe ; le mécanisme, lui, est établi.
+
+### SC09 (mode 7) GÈLE LA CARTE — les deux bras
+
+`bench_2026-09-13_090157` (`0x1731`) et `090714` (`0x731`) s'arrêtent au **même endroit** : le
+`*ctrl = 1` de la **première** itération de SC09, après un SC02 parfaitement normal. État
+d'entrée propre dans les deux cas (`w_owed=0`, `req_cnt=0`, `sticky=0`, `status=0xb33000`).
+
+**Le gel ne dépend pas de `CTRL[12]`.** Le bras témoin ne compte qu'un front par salve, ne
+franchit jamais le seuil, ne coupe rien — et gèle pareil. Ce n'est donc pas le chemin de
+coupure d'ARMOR : c'est la forme du trafic. Le banc, qui ne modélise ni l'IOMMU ni le
+crossbar partagé, déclarait ce mode propre — cinquième fois qu'il valide du vide.
+
+**Hypothèse à vérifier** : le port de configuration ne traverse pas ARMOR mais **traverse le
+crossbar**. Seize AW en vol saturent l'interconnexion partagée et l'écriture MMIO du CPU
+reste bloquée derrière. Si elle se confirme, c'est un résultat pour le papier et pas
+seulement un bug : **un maître qui pipeline ses adresses verrouille le CPU hors de ses
+propres périphériques**, et aucun moniteur ne peut plus être reprogrammé une fois que c'est
+parti.
+
+**Reprise après gel, à connaître avant de rejouer SC09 :**
+
+```sh
+pkill -x hw_server                 # sinon `program` échoue sur current_hw_device
+./2_build_HB.sh program            # le chargement JTAG SEUL ne suffit pas (capture vide)
+pkill -x hw_server
+```
+
+**Prochaine mesure, à ne pas faire à l'aveugle** : rendre la profondeur du pipeline réglable
+à l'exécution (par exemple via le registre `SIZE` de l'accélérateur, inutilisé en mode 7)
+pour balayer 2, 4, 8, 16 AW en vol sur **un seul** bitstream et trouver le seuil de survie.
+En l'état, `PIPE_REQS` est un paramètre de module : chaque valeur coûte 45 minutes de
+synthèse, et un gel par essai.
+
 ### À faire sur carte
 
 Le bitstream est déjà synthétisé et archivé (`tools/bitstream.sh use bench` pour le
