@@ -493,6 +493,10 @@ static void armor_wrap_init(int enforce) {
             printf("# ATTENTION : ARMOR_BFATE=1 sans ARMOR_WSKID et ARMOR_WFATE -- "
                    "CTRL[10] n'agit qu'avec les deux, il est ici sans effet\r\n");
 #ifdef BENCH_SC09
+        printf("# ATTENTION : SC09 (mode 7) A GELE LA CARTE le 2026-09-13, "
+               "sur son PREMIER lancement, dans LES DEUX bras (0x1731 et 0x731). "
+               "Reprise : pkill -x hw_server puis 2_build_HB.sh program -- le "
+               "chargement JTAG seul ne suffit pas. Voir doc/REPRENDRE.md\r\n");
         if (v < 14)
             printf("# ATTENTION : BENCH_SC09=1 mais bitstream v%u -- le mode 7 "
                    "n'existe pas dans cet accelerateur, SC09 emettra du TRAFIC "
@@ -1346,6 +1350,17 @@ static void run_scenario(const char *tag, char accel, uint64_t mode,
 static void run_sc08(stats_t *st) {
     stat_init(st, "SC08-LAS");
     TRACE_ARM();
+    /* CNT_CLR ici et ARMORCNT a la fin, comme run_scenario le fait pour tous les
+     * autres scenarios (2026-09-13). SC08 en etait le seul depourvu, et c'est
+     * precisement celui dont l'occupation de fenetre decide de tout l'argument :
+     * la campagne du 2026-09-13 08:56 a mesure le trafic legitime a 1,00 requete
+     * par fenetre et la tempete a 7,08 pour un seuil de 8, sans pouvoir dire ou
+     * se situe le low-and-slow entre les deux. `winact` et `reqmax` le diront.
+     *
+     * Le cout est deux lectures CSR et deux printf entre SC08 et SC02, au repos
+     * -- SC02 repart de son propre CNT_CLR. C'est la meme instrumentation que
+     * les autres pas, pas une sonde supplementaire. */
+    armor_wrap_clear();
     printf("# === SC08 low-and-slow : %d salves x %d AW gap=%d cy\r\n",
            LAS_REPEAT, LAS_BURST, LAS_GAP_CY);
     int passed = 0, blocked = 0;
@@ -1367,6 +1382,7 @@ static void run_sc08(stats_t *st) {
     }
     printf("# SC08 : passed=%d blocked=%d (FN=%d, débit_évasion attendu)\r\n",
            passed, blocked, passed);
+    armor_wrap_report("SC08-LAS");
 }
 
 /* ============================================================
@@ -2282,7 +2298,29 @@ void main(void) {
      * mesure 488 B en trop, 50 manquants et un AW resté dû en aval — la
      * condition du gel carte. Avec, 128 B appariés et aw_owed = 0. B_FATE était
      * jusqu'ici une correction de robustesse sans gain mesurable ; ce mode est
-     * le premier à en avoir besoin. */
+     * le premier à en avoir besoin.
+     *
+     * ==========================================================================
+     * IL GÈLE LA CARTE. MESURÉ LE 2026-09-13, LES DEUX BRAS.
+     *
+     * `bench_2026-09-13_090157` (0x1731) et `090714` (0x731) s'arrêtent au MÊME
+     * endroit : le `*ctrl = 1` de la PREMIÈRE itération de SC09, après un SC02
+     * parfaitement normal (38 et 36 détections sur 50). L'état d'entrée est
+     * propre dans les deux cas — `w_owed=0`, `req_cnt=0`, `sticky=0`.
+     *
+     * Le gel ne dépend donc PAS de CTRL[12] : le bras témoin ne compte qu'un
+     * front par salve, ne franchit jamais le seuil, ne coupe rien — et gèle
+     * pareil. Ce n'est pas le chemin de coupure d'ARMOR qui est en cause, c'est
+     * la forme du trafic elle-même.
+     *
+     * Hypothèse, NON VÉRIFIÉE : le port de configuration ne traverse pas ARMOR
+     * mais il traverse le CROSSBAR. Seize AW en vol saturent l'interconnexion
+     * partagée et l'écriture MMIO du CPU reste bloquée derrière. Le banc ne
+     * modélise ni l'IOMMU ni le crossbar : il déclarait ce mode propre.
+     *
+     * Reprise après gel : `pkill -x hw_server` puis `2_build_HB.sh program`.
+     * Le chargement JTAG seul NE SUFFIT PAS (capture vide, 0 ligne).
+     * ========================================================================== */
 #ifdef BENCH_SC09
     run_scenario("SC09-PIPE",  'M', /*mode*/7, LEGIT_DST, /*cfg*/0, N_ATK,
                  ARMOR_RFMCNT ? 1 : 0, &s[n++]);
