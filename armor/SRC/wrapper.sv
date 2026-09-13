@@ -199,6 +199,24 @@ logic [31:0]            flow_window_cnt; // position dans la fenetre
 // =============================================================================
 logic [7:0]             cnt_reqmax_q;
 logic [23:0]            cnt_winact_q;
+
+// =============================================================================
+//  FILIGRANE DE LA PROFONDEUR D'EN-VOL (v16).
+//
+//  Le moniteur d'outstanding expose sa profondeur INSTANTANEE (outs_depth,
+//  echo dans DBG_STATE[31:24]), et rien d'autre. Le 2026-09-13 sur carte, ses
+//  verdicts passent de 32,3 par campagne a 0,3 des que du trafic legitime
+//  partage le bus -- plages disjointes sur six campagnes par bras. L'explication
+//  proposee est que l'attaquant, ralenti, n'accumule plus assez de lectures en
+//  vol pour franchir le seuil de 16 ; mais elle reste une DEDUCTION a partir des
+//  compteurs de requetes et de blocage, parce qu'aucun registre ne garde le
+//  maximum atteint.
+//
+//  Ce filigrane le dit directement : si la campagne sous fond lit 9 la ou celle
+//  sans fond lit 24, le mecanisme est etabli ; si elle lit 16 ou plus, c'est
+//  autre chose et l'hypothese tombe. Remis a zero par CNT_CLR comme les autres.
+// =============================================================================
+logic [7:0]             cnt_outsmax_q;
 logic                   flow_win_close;  // dernier cycle de la fenetre courante
 
 assign flow_win_close = (flow_window_cnt == FLOW_WINDOW_C - 1);
@@ -1136,10 +1154,17 @@ response_delayer #(
 //                          par salve, qui n'en est le double que si la salve
 //                          tient dans une seule fenetre.
 //                          Les deux sont remis a zero par CNT_CLR (v14).
-//   0x40  CNT_OUTS     RO  nombre d'episodes de saturation outstanding
+//   0x40  CNT_OUTS     RO  [31:0]  nombre d'episodes de saturation outstanding
+//                          [39:32] OUTS_MAX -- plus forte profondeur d'en-vol
+//                          atteinte depuis CNT_CLR, a comparer au seuil de 16.
+//                          Dit si une campagne non detectee est passee SOUS le
+//                          seuil ou si le moniteur l'a manquee pour une autre
+//                          raison ; c'est la question ouverte du 2026-09-13,
+//                          quand ses verdicts tombent de 32,3 a 0,3 sous
+//                          contention. (v16)
 //   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
 //   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
-//   0x58  MAGIC        RO  0x41524D4F5200000F ("ARMOR" + version)
+//   0x58  MAGIC        RO  0x41524D4F52000010 ("ARMOR" + version)
 //                          v11 portait deja b10, mais avec une file de 16 : elle
 //                          deborde et GELE la campagne dans SC04. Le MAGIC monte
 //                          donc a v12, seul moyen pour le logiciel de distinguer
@@ -1322,6 +1347,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         cnt_msi_q     <= 32'h0;
         cnt_reqmax_q  <= 8'h0;
         cnt_winact_q  <= 24'h0;
+        cnt_outsmax_q <= 8'h0;
         dev_id_last_q <= '0;
     end else begin
         ban_d   <= block_ip_o;
@@ -1345,8 +1371,9 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
             cnt_storm_q  <= 32'h0;
             cnt_outs_q   <= 32'h0;
             cnt_msi_q    <= 32'h0;
-            cnt_reqmax_q <= 8'h0;
-            cnt_winact_q <= 24'h0;
+            cnt_reqmax_q  <= 8'h0;
+            cnt_winact_q  <= 24'h0;
+            cnt_outsmax_q <= 8'h0;
         end else begin
             if (block_ip_o     && !ban_d)   cnt_banned_q <= cnt_banned_q + 1;
             if (block_req_flow && !storm_d) cnt_storm_q  <= cnt_storm_q  + 1;
@@ -1359,6 +1386,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
             // instant d'echantillonnage. Les fenetres actives se comptent au
             // DERNIER cycle de la fenetre, le seul ou le compte est complet.
             if (flow_req_cnt > cnt_reqmax_q) cnt_reqmax_q <= flow_req_cnt;
+            if (outs_depth   > cnt_outsmax_q) cnt_outsmax_q <= outs_depth;
             if (flow_win_close && flow_req_cnt != 8'h0 &&
                 cnt_winact_q != 24'hFF_FFFF)
                 cnt_winact_q <= cnt_winact_q + 24'd1;
@@ -2152,10 +2180,13 @@ always_comb begin
         // libres du compteur STORM plutot que dans un index neuf : les 32 index
         // du wrapper sont tous pris, et ces trois chiffres se lisent ensemble.
         5'd7:    csr_rdata = {cnt_winact_q, cnt_reqmax_q, cnt_storm_q};
-        5'd8:    csr_rdata = {32'h0, cnt_outs_q};
+        // [31:0] episodes de saturation ; [39:32] OUTS_MAX, plus forte profondeur
+        // d'en-vol atteinte depuis CNT_CLR (seuil MAX_OUTSTANDING = 16). Meme
+        // logement que REQ_MAX dans 0x38, et pour la meme raison.
+        5'd8:    csr_rdata = {24'h0, cnt_outsmax_q, cnt_outs_q};
         5'd9:    csr_rdata = {32'h0, cnt_msi_q};
         5'd10:   csr_rdata = {{(64-DevIDWidth){1'b0}}, dev_id_last_q};
-        5'd11:   csr_rdata = 64'h41524D4F5200000F;
+        5'd11:   csr_rdata = 64'h41524D4F52000010;
         // Observabilite (version 2 du MAGIC). Voir la carte des registres.
         5'd12:   csr_rdata = {52'h0, dbg_up};
         5'd13:   csr_rdata = {52'h0, dbg_dn};
