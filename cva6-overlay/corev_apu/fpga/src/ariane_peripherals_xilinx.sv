@@ -905,7 +905,7 @@ module ariane_peripherals #(
                 .AXI_DATA_WIDTH   ( AxiDataWidth            ),
                 .AXI_USER_WIDTH   ( AxiUserWidth            ),
                 .NO_SLV_PORTS     ( 2                       ),
-                .MAX_W_TRANS      ( 4                       ),
+                .MAX_W_TRANS      ( 16                      ),
                 .FALL_THROUGH     ( 1'b0                    ),
                 .SPILL_AW         ( 1'b1                    ),
                 .SPILL_AR         ( 1'b1                    )
@@ -915,67 +915,82 @@ module ariane_peripherals #(
                 .mst ( dma_muxed               )
             );
 
+            // ----- Correctif : pacer d'ecriture apres le mux (MAX_W_TRANS=16) -----
+            ariane_axi_soc::req_mmu_t muxed_req;
+            ariane_axi_soc::resp_t    muxed_rsp;
+
             // dma_muxed → IOMMU TR IF
             // stream_id sélectionné selon le bit MSB de l'ID (0=accel1, 1=accel2)
-            assign axi_iommu_tr_req.aw_valid        = dma_muxed.aw_valid;
-            assign dma_muxed.aw_ready               = axi_iommu_tr_rsp.aw_ready;
-            assign axi_iommu_tr_req.aw.id           = dma_muxed.aw_id;
-            assign axi_iommu_tr_req.aw.addr         = dma_muxed.aw_addr;
-            assign axi_iommu_tr_req.aw.len          = dma_muxed.aw_len;
-            assign axi_iommu_tr_req.aw.size         = dma_muxed.aw_size;
-            assign axi_iommu_tr_req.aw.burst        = dma_muxed.aw_burst;
-            assign axi_iommu_tr_req.aw.lock         = dma_muxed.aw_lock;
-            assign axi_iommu_tr_req.aw.cache        = dma_muxed.aw_cache;
-            assign axi_iommu_tr_req.aw.prot         = dma_muxed.aw_prot;
-            assign axi_iommu_tr_req.aw.qos          = dma_muxed.aw_qos;
-            assign axi_iommu_tr_req.aw.region       = dma_muxed.aw_region;
-            assign axi_iommu_tr_req.aw.atop         = dma_muxed.aw_atop;
-            assign axi_iommu_tr_req.aw.user         = dma_muxed.aw_user;
-            assign axi_iommu_tr_req.aw.stream_id    =
+            assign muxed_req.aw_valid        = dma_muxed.aw_valid;
+            assign dma_muxed.aw_ready               = muxed_rsp.aw_ready;
+            assign muxed_req.aw.id           = dma_muxed.aw_id;
+            assign muxed_req.aw.addr         = dma_muxed.aw_addr;
+            assign muxed_req.aw.len          = dma_muxed.aw_len;
+            assign muxed_req.aw.size         = dma_muxed.aw_size;
+            assign muxed_req.aw.burst        = dma_muxed.aw_burst;
+            assign muxed_req.aw.lock         = dma_muxed.aw_lock;
+            assign muxed_req.aw.cache        = dma_muxed.aw_cache;
+            assign muxed_req.aw.prot         = dma_muxed.aw_prot;
+            assign muxed_req.aw.qos          = dma_muxed.aw_qos;
+            assign muxed_req.aw.region       = dma_muxed.aw_region;
+            assign muxed_req.aw.atop         = dma_muxed.aw_atop;
+            assign muxed_req.aw.user         = dma_muxed.aw_user;
+            assign muxed_req.aw.stream_id    =
                 dma_muxed.aw_id[ariane_soc::IdWidth-1] ?
                     accel2_sec.aw_stream_id : accel1_sec.aw_stream_id;
-            assign axi_iommu_tr_req.aw.ss_id_valid  = 1'b0;
-            assign axi_iommu_tr_req.aw.substream_id = 20'd0;
+            assign muxed_req.aw.ss_id_valid  = 1'b0;
+            assign muxed_req.aw.substream_id = 20'd0;
 
-            assign axi_iommu_tr_req.w_valid  = dma_muxed.w_valid;
-            assign dma_muxed.w_ready         = axi_iommu_tr_rsp.w_ready;
-            assign axi_iommu_tr_req.w.data   = dma_muxed.w_data;
-            assign axi_iommu_tr_req.w.strb   = dma_muxed.w_strb;
-            assign axi_iommu_tr_req.w.last   = dma_muxed.w_last;
-            assign axi_iommu_tr_req.w.user   = dma_muxed.w_user;
+            assign muxed_req.w_valid  = dma_muxed.w_valid;
+            assign dma_muxed.w_ready         = muxed_rsp.w_ready;
+            assign muxed_req.w.data   = dma_muxed.w_data;
+            assign muxed_req.w.strb   = dma_muxed.w_strb;
+            assign muxed_req.w.last   = dma_muxed.w_last;
+            assign muxed_req.w.user   = dma_muxed.w_user;
 
-            assign dma_muxed.b_valid         = axi_iommu_tr_rsp.b_valid;
-            assign axi_iommu_tr_req.b_ready  = dma_muxed.b_ready;
-            assign dma_muxed.b_id            = axi_iommu_tr_rsp.b.id;
-            assign dma_muxed.b_resp          = axi_iommu_tr_rsp.b.resp;
-            assign dma_muxed.b_user          = axi_iommu_tr_rsp.b.user;
+            assign dma_muxed.b_valid         = muxed_rsp.b_valid;
+            assign muxed_req.b_ready  = dma_muxed.b_ready;
+            assign dma_muxed.b_id            = muxed_rsp.b.id;
+            assign dma_muxed.b_resp          = muxed_rsp.b.resp;
+            assign dma_muxed.b_user          = muxed_rsp.b.user;
 
-            assign axi_iommu_tr_req.ar_valid        = dma_muxed.ar_valid;
-            assign dma_muxed.ar_ready               = axi_iommu_tr_rsp.ar_ready;
-            assign axi_iommu_tr_req.ar.id           = dma_muxed.ar_id;
-            assign axi_iommu_tr_req.ar.addr         = dma_muxed.ar_addr;
-            assign axi_iommu_tr_req.ar.len          = dma_muxed.ar_len;
-            assign axi_iommu_tr_req.ar.size         = dma_muxed.ar_size;
-            assign axi_iommu_tr_req.ar.burst        = dma_muxed.ar_burst;
-            assign axi_iommu_tr_req.ar.lock         = dma_muxed.ar_lock;
-            assign axi_iommu_tr_req.ar.cache        = dma_muxed.ar_cache;
-            assign axi_iommu_tr_req.ar.prot         = dma_muxed.ar_prot;
-            assign axi_iommu_tr_req.ar.qos          = dma_muxed.ar_qos;
-            assign axi_iommu_tr_req.ar.region       = dma_muxed.ar_region;
-            assign axi_iommu_tr_req.ar.user         = dma_muxed.ar_user;
-            assign axi_iommu_tr_req.ar.stream_id    =
+            assign muxed_req.ar_valid        = dma_muxed.ar_valid;
+            assign dma_muxed.ar_ready               = muxed_rsp.ar_ready;
+            assign muxed_req.ar.id           = dma_muxed.ar_id;
+            assign muxed_req.ar.addr         = dma_muxed.ar_addr;
+            assign muxed_req.ar.len          = dma_muxed.ar_len;
+            assign muxed_req.ar.size         = dma_muxed.ar_size;
+            assign muxed_req.ar.burst        = dma_muxed.ar_burst;
+            assign muxed_req.ar.lock         = dma_muxed.ar_lock;
+            assign muxed_req.ar.cache        = dma_muxed.ar_cache;
+            assign muxed_req.ar.prot         = dma_muxed.ar_prot;
+            assign muxed_req.ar.qos          = dma_muxed.ar_qos;
+            assign muxed_req.ar.region       = dma_muxed.ar_region;
+            assign muxed_req.ar.user         = dma_muxed.ar_user;
+            assign muxed_req.ar.stream_id    =
                 dma_muxed.ar_id[ariane_soc::IdWidth-1] ?
                     accel2_sec.ar_stream_id : accel1_sec.ar_stream_id;
-            assign axi_iommu_tr_req.ar.ss_id_valid  = 1'b0;
-            assign axi_iommu_tr_req.ar.substream_id = 20'd0;
+            assign muxed_req.ar.ss_id_valid  = 1'b0;
+            assign muxed_req.ar.substream_id = 20'd0;
 
-            assign dma_muxed.r_valid         = axi_iommu_tr_rsp.r_valid;
-            assign axi_iommu_tr_req.r_ready  = dma_muxed.r_ready;
-            assign dma_muxed.r_id            = axi_iommu_tr_rsp.r.id;
-            assign dma_muxed.r_data          = axi_iommu_tr_rsp.r.data;
-            assign dma_muxed.r_resp          = axi_iommu_tr_rsp.r.resp;
-            assign dma_muxed.r_last          = axi_iommu_tr_rsp.r.last;
-            assign dma_muxed.r_user          = axi_iommu_tr_rsp.r.user;
+            assign dma_muxed.r_valid         = muxed_rsp.r_valid;
+            assign muxed_req.r_ready  = dma_muxed.r_ready;
+            assign dma_muxed.r_id            = muxed_rsp.r.id;
+            assign dma_muxed.r_data          = muxed_rsp.r.data;
+            assign dma_muxed.r_resp          = muxed_rsp.r.resp;
+            assign dma_muxed.r_last          = muxed_rsp.r.last;
+            assign dma_muxed.r_user          = muxed_rsp.r.user;
+
+
+            axi_wr_pacer #(
+                .aw_chan_t ( ariane_axi_soc::aw_chan_mmu_t ), .w_chan_t ( ariane_axi_soc::w_chan_t ),
+                .b_chan_t ( ariane_axi_soc::b_chan_t ), .axi_req_t ( ariane_axi_soc::req_mmu_t ),
+                .axi_rsp_t ( ariane_axi_soc::resp_t ), .FIFO_DEPTH ( 32 ), .MAX_WR_TXN ( 1 )
+            ) i_wr_pacer (
+                .clk_i, .rst_ni,
+                .slv_req_i ( muxed_req ), .slv_rsp_o ( muxed_rsp ),
+                .mst_req_o ( axi_iommu_tr_req ), .mst_rsp_i ( axi_iommu_tr_rsp )
+            );
 
         end else begin : gen_accel2_disabled
 

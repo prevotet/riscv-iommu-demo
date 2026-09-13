@@ -5,6 +5,53 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-13 (soir) — GEL MODE 7 (SC09) DIAGNOSTIQUÉ ET CORRIGÉ, VALIDÉ SUR CARTE
+>
+> **Le problème.** Le mode 7 de `accel_wrap` (tempête PIPELINÉE : N adresses d'écriture EN VOL
+> AVANT la moindre donnée, profondeur réglable via le registre `0x40`) GÈLE le SoC à
+> profondeur ≥ 8 (d2/d4 passent, d8/d16 gèlent — gel non déterministe : parfois la 1ʳᵉ
+> itération de SC09, parfois le `*ctrl=1` du scénario suivant). Cause : le décalage
+> AW-avant-W du mode 7 face à une **capacité d'outstanding-write FINIE** en aval. **Ni ARMOR**
+> (au gel : `sticky=0`, `STATUS[22]/[24]=0`, file B_FATE 8/64, zéro orphelin — falsifie
+> l'ancienne hypothèse « débordement B_FATE »), **ni SC04, ni l'IOMMU en soi.**
+>
+> **Certitude (triple).** (a) `armor/tb` (VRAI accel + VRAI ARMOR) : `PIPE=1 PIPEDEPTH=8
+> RFMCNT=1 … DN_AWOUT=4 DN_WGATE=1` → gel (« AW SANS W EN AVAL : 4 — condition du gel
+> carte »), `DN_AWOUT=8` → passe. (b) Carte : frontière d4/d8. (c) Banc `riscv_iommu`
+> (`armor/tb/run_iommu_sim.sh`, mode Bare) : reproduit l'interblocage.
+>
+> **LE CORRECTIF (validé carte le 2026-09-13, d2/d4/d8/d16 tous COMPLETS ; avant d8/d16
+> gelaient). Il est HYBRIDE — les deux morceaux sont nécessaires :**
+> 1. `ariane_peripherals_xilinx.sv`, `axi_mux_intf` du chemin DMA : **`MAX_W_TRANS` 4 → 16**
+>    (le mux à 4 = 1er goulot = frontière carte ; le relever seul échoue → le goulot passe
+>    en aval à <8).
+> 2. **`axi_wr_pacer` inséré APRÈS le mux** (`dma_muxed`→IOMMU, bloc `gen_accel2`),
+>    `MAX_WR_TXN=1` : le mux à 16 laisse l'accel vider ses 16 AW dans le FIFO du pacer, qui
+>    débite ≤1 AW-sans-W vers l'aval partagé (IOMMU/XBAR/DRAM). Module :
+>    `cva6-overlay/corev_apu/fpga/src/axi_wr_pacer.sv` (commit `ebc77b5`), validé isolément
+>    par `armor/tb/tb_pacer.sv` (`run_pacer.sh` : sans pacer N≥8 gèle à MAXOPEN=4, avec pacer
+>    N=16 passe).
+>
+> **RÉSERVES à traiter avant de figer.** (i) **Timing WNS = −0.008 ns** (8 ps ; négligeable à
+> 50 MHz, carte OK, mais techniquement en faute) → registrer un étage du pacer + corriger le
+> warning `Synth 8-7137` (FIFO `aw_mem` non resettée), puis resynthèse pour WNS positif.
+> (ii) **`MAX_WR_TXN=1` sérialise TOUTES les écritures DMA** → latences légitimes plus hautes
+> (verdicts inchangés) ; relevable (la correction du gel vient du pacing AW-après-W, pas du
+> crédit).
+>
+> **Bitstream corrigé** : dans `build/hw/` et `cva6/corev_apu/fpga/work-fpga/` (BENCH_PROFILE,
+> genesys2). Reconstructible : le RTL est commité, `BENCH_PROFILE=1 RISCV=/usr make -C cva6 fpga`.
+>
+> **Drapeaux de diagnostic firmware ajoutés** (`bao-baremetal-guest/src/bench_runner.c`,
+> commits `42cf5a6`, `2412293`, inertes par défaut) : `BENCH_SC09_QUIESCE_CY`,
+> `BENCH_SC04_FIRST`, `BENCH_SC09_N`.
+>
+> **Prochaines étapes** : (1) nettoyer le timing + resynthèse ; (2) commiter le bitstream
+> corrigé (`tools/bitstream.sh`) ; (3) éventuellement relever `MAX_WR_TXN` et remesurer les
+> latences pour l'article ; (4) mettre l'artefact « article » à jour. **Mémoire détaillée** :
+> `~/.claude/.../memory/sc09_wedge_mode7.md` (locale — non versionnée, cf. § multi-PC).
+
+
 > **Bitstream v14 synthétisé et archivé le 2026-09-13 à 01h30** (§ 5 quater) : compteur de
 > fenêtre saturant, `CTRL[12]`, occupation de fenêtre en `0x38`, file de sort à 64,
 > `w_owed` à 8 bits, et le mode 7 de `accel_wrap` (tempête pipelinée). `check bench` dit
