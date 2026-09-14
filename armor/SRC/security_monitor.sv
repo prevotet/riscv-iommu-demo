@@ -8,6 +8,9 @@ module security_monitor #(
     input  logic        rst_ni,
     input  logic        legit_hit,
     input  logic        comparison_valid,
+    //  Nombre d'echecs consecutifs avant blocage, a l'execution.
+    //  ZERO = MAX_FAILURES (synthese).
+    input  logic [7:0]  max_fail_i,
     output logic        block_ip_o,
     output logic [7:0]  failure_count,
     output logic        threat_detected
@@ -53,7 +56,8 @@ end
                     consecutive_failures <= consecutive_failures + 1;
                     failure_count        <= failure_count + 1;
                     
-                    if ((consecutive_failures + 1) >= (MAX_FAILURES )) begin
+                    if ((consecutive_failures + 1) >=
+                        ((max_fail_i == 8'h0) ? 8'(MAX_FAILURES) : max_fail_i)) begin
                         block_ip_o   <= 1'b1;
                         threat_detected <= 1'b1;
                         block_timer  <= BLOCK_DURATION;

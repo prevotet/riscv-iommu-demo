@@ -5,6 +5,56 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-14 (soir) — v18 SYNTHÉTISÉ MAIS **NON VALIDÉ SUR CARTE**
+>
+> **REPRENDRE ICI.** Le v18 rend configurables les **trois derniers seuils de détection**,
+> ceux que la Table 4 de l'article fait varier et qui étaient figés à la synthèse :
+> registre **`0x110 CFG_PARAMS`** — `[15:0]` largeur de fenêtre, `[23:16]` seuil d'en-vol,
+> `[31:24]` échecs consécutifs. Convention du seuil de flux : **zéro = valeur de synthèse**,
+> donc un firmware qui ignore le registre ne change rien. MAGIC **v18** (`0x…012`).
+>
+> **Synthèse faite** : WNS **+0,061 ns**, 0 endpoint en faute, 109 518 LUT / 74 493 bascules,
+> soit **+131 LUT et +84 bascules** sur le v17 pour les trois seuils. **ATTENTION : la marge
+> a fondu** (+0,154 → +0,061 ns). Encore positive, mais c'est la plus serrée du projet. Pour
+> en regagner : ramener la fenêtre à 12 bits (4095 couvre les 200 de CFG-C) ou registrer les
+> comparaisons de seuil.
+>
+> **CE QUI N'EST PAS FAIT : aucune campagne sur le v18.** Le bitstream est dans `build/hw/`
+> mais **PAS archivé** — `bitstreams/` garde le **v17**, qui lui est validé (7 campagnes).
+> Ne pas faire `tools/bitstream.sh save bench` avant d'avoir validé le v18 sur carte, sinon
+> on perd la seule archive éprouvée. Secours : `build/hw/ariane_xilinx_v17_scan.bit`.
+>
+> **Les quatre campagnes de la Table 4**, prêtes à jouer (le firmware sait écrire `0x110`) :
+>
+> ```
+> CFG-A   (référence, aucun flag)
+> CFG-B   -DXFER_SIZE=512
+> CFG-C   -DARMOR_THRESH=16 -DARMOR_WINDOW=200 -DARMOR_MAXOUTS=32
+> CFG-D   -DARMOR_THRESH=4  -DARMOR_WINDOW=50  -DARMOR_MAXOUTS=8 -DARMOR_MAXFAIL=2
+> ```
+>
+> **Commencer par CFG-A en non-régression** : le RTL des trois moniteurs a changé (compteurs
+> de fenêtre et d'en-vol élargis, comparaison d'échecs déplacée). Vérifier **MAGIC `…012`**
+> — une campagne du 14/09 15:02 a tourné sur le v17 sans que rien ne le signale, parce que le
+> flash avait échoué et que le `| tail` du script masquait son code de retour.
+>
+> **PIÈGES DE LA CHAÎNE JTAG, rencontrés ce jour :**
+> - `2_build_HB.sh program` (Vivado) exige que **`ftdi_sio` soit détaché** : `sudo modprobe -r
+>   ftdi_sio`, flasher, puis `sudo modprobe ftdi_sio` pour retrouver `/dev/ttyUSB0`. Sans ça,
+>   « No devices detected on target …/Digilent/… » alors que le câble EST vu.
+> - « No matching hw_devices were found » (sans nom de câble) = Vivado ne voit pas le câble :
+>   débrancher/rebrancher le PROG a suffi.
+> - **`JTAG scan chain interrogation failed: all ones`** = **le FPGA n'est pas alimenté**. Le
+>   câble reste visible (l'USB le nourrit) et Vivado le nomme par son numéro de série : ça ne
+>   prouve rien sur l'alimentation de la carte. C'est là-dessus que la session s'est arrêtée.
+> - OpenOCD (`capture_uart.sh -j`) et Vivado ne se partagent pas le câble : un seul à la fois.
+>
+> **Artefact « article » : version 24**, restructuré en **parcours linéaire de 25 étapes**
+> dans l'ordre du manuscrit, chacune marquée *Change* (le passage à remplacer, cité en entier)
+> ou *Add* (la sous-section à créer, avec son point d'insertion). Tables 5 et 6 fournies **en
+> LaTeX** aux étapes 7 et 9. Le balayage mémoire y est **SC-08** (pas SC-09).
+
+
 > ### 2026-09-14 — LE BALAYAGE MÉMOIRE : LA PREMIÈRE ATTAQUE QU'ARMOR NE PEUT PAS VOIR
 >
 > **Bitstream v17 archivé** (`tools/bitstream.sh use bench`, MAGIC `0x…011`), WNS **+0,154 ns,

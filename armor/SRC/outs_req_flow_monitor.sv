@@ -10,6 +10,8 @@ module outs_req_monitor #(
 
     // Signal réutilisé du request_flow_monitor
     input  logic        req_fire,
+    //  Seuil d'en-vol a l'execution. ZERO = MAX_OUTSTANDING (synthese).
+    input  logic [7:0]  max_outs_i,
 
     // Response interface (depuis IOMMU)
     input  resp_slv_t   resp_wrapper_iommu_i,
@@ -37,7 +39,11 @@ module outs_req_monitor #(
     assign resp_complete = b_handshake | r_handshake;
 
     // Compteur de requêtes outstanding
-    logic [$clog2(MAX_OUTSTANDING+1):0] outstanding;
+    //  8 bits fixes : le seuil est reglable, le compteur doit porter la plus
+    //  grande valeur demandable et non celle de la synthese.
+    logic [7:0] outstanding;
+    logic [7:0] max_outs_eff;
+    assign max_outs_eff = (max_outs_i == 8'h0) ? 8'(MAX_OUTSTANDING) : max_outs_i;
 
     // Mécanisme de blocage temporaire (déclaré avant le compteur : la fin de
     // blocage purge l'outstanding).
@@ -79,7 +85,7 @@ module outs_req_monitor #(
     end
 
     // Détection de l'overflow
-    assign overflow_flag = (outstanding >= MAX_OUTSTANDING);
+    assign overflow_flag = (outstanding >= max_outs_eff);
 
     // Extension zero implicite vers 8 bits : `outstanding` est un vecteur non
     // signe de $clog2(MAX+1)+1 bits, soit 6 pour MAX_OUTSTANDING = 16.
