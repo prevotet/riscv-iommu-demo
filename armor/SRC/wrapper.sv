@@ -149,7 +149,12 @@ logic                  block_msi;
 
 // Registres de configuration/statut ARMOR — declares ici car referencés
 // des la gate ci-dessous ; leur logique est en fin de module.
-localparam int unsigned CSR_IDX_W = 5;   // 32 registres de 8 octets
+//  6 bits depuis le v17 : les 32 emplacements de 8 octets etaient tous pris et
+//  l'observation d'adresses en demandait deux de plus. La fenetre MMIO de
+//  chaque wrapper fait 4 Kio (0x5000_2000 et 0x5000_3000), donc 64 registres
+//  n'empietent sur rien. Les litteraux 5'dN des case existants s'etendent
+//  d'eux-memes a 6 bits : aucun n'est a reecrire.
+localparam int unsigned CSR_IDX_W = 6;   // 64 registres de 8 octets
 // bits [11:3] + [14] bad_id. Les bits [12] legit_hit et [13] ENFORCE restent
 // exclus : ce sont des echos d'etat, les rendre collants n'apprendrait rien.
 localparam logic [63:0] ARMOR_STICKY_MASK = 64'h0000_0000_0000_4FF8;
@@ -1164,7 +1169,7 @@ response_delayer #(
 //                          contention. (v16)
 //   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
 //   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
-//   0x58  MAGIC        RO  0x41524D4F52000010 ("ARMOR" + version)
+//   0x58  MAGIC        RO  0x41524D4F52000011 ("ARMOR" + version)
 //                          v11 portait deja b10, mais avec une file de 16 : elle
 //                          deborde et GELE la campagne dans SC04. Le MAGIC monte
 //                          donc a v12, seul moyen pour le logiciel de distinguer
@@ -1249,6 +1254,21 @@ response_delayer #(
 //                          compteurs sont les seuls a pouvoir le voir : aucun
 //                          handshake ne s'accomplit, donc aucun autre ne bouge.
 //   0xF8  DBG_RETRACT  RO  [31:0] cycle du PREMIER retrait (base CYC_TOTAL)
+//   0x100 ADDR_SPAN   RO  [31:0] plus petite adresse vue, [63:32] plus grande
+//   0x108 ADDR_WALK   RO  [31:0] changements de page, [51:32] derniere page
+//
+//  ADDR_SPAN / ADDR_WALK : ce que les moniteurs de DEBIT ne peuvent pas voir.
+//  Un accelerateur compromis qui emet au rythme NOMINAL mais parcourt l'espace
+//  d'adresses ne fait franchir aucun seuil -- ni le flux, ni l'outstanding, ni
+//  l'IOMMU tant qu'il reste dans les pages qu'on lui a donnees. Ce qui le
+//  distingue du trafic legitime est l'ETENDUE qu'il touche et la FREQUENCE a
+//  laquelle il en change, deux grandeurs qu'aucun compteur par fenetre ne
+//  porte. Elles ne decident de rien ici : le wrapper les EXPOSE, et c'est un
+//  superviseur echantillonnant sur un horizon long qui en tire une conclusion.
+//
+//  Les adresses sont observees sur 32 bits : la DRAM de la carte occupe
+//  0x8000_0000 + 1 Gio, donc rien d'interessant ne vit au-dessus de 4 Gio, et
+//  deux comparateurs 64 bits par wrapper coutaient le double pour rien.
 //                          [35:32] cause : b0 block_req, b1 !legit_hit,
 //                                  b2 !verdict_known, b3 bad_id
 //                          [39:36] canal : 1 AW, 2 AR, 3 W, 4 B/R
@@ -1446,7 +1466,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
             ARMOR_W_IDLE: begin
                 if (req_CPU_Wrapper__i.aw_valid) begin
                     aw_id_q   <= req_CPU_Wrapper__i.aw.id;
-                    w_idx_q   <= req_CPU_Wrapper__i.aw.addr[7:3];
+                    w_idx_q   <= req_CPU_Wrapper__i.aw.addr[8:3];
                     w_state_q <= ARMOR_W_DATA;
                 end
             end
@@ -1502,7 +1522,7 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
                 if (req_CPU_Wrapper__i.ar_valid) begin
                     ar_id_q   <= req_CPU_Wrapper__i.ar.id;
                     ar_len_q  <= req_CPU_Wrapper__i.ar.len;
-                    r_idx_q   <= req_CPU_Wrapper__i.ar.addr[7:3];
+                    r_idx_q   <= req_CPU_Wrapper__i.ar.addr[8:3];
                     r_beat_q  <= 8'h0;
                     r_state_q <= ARMOR_R_DATA;
                 end
@@ -1681,6 +1701,22 @@ assign lat_tx_sat  = (lat_cnt_q   > 32'd65535) ? 16'hFFFF : lat_cnt_q[15:0];
 // -----------------------------------------------------------------------------
 logic [31:0] cnt_cyc_block_q, cnt_cyc_hold_q;
 logic [31:0] cnt_req_up_q,    cnt_req_dn_q;
+
+//  Etendue d'adresses touchee par le maitre surveille (v17). Voir la carte des
+//  registres, 0x100 / 0x108. Observees sur les MEMES poignees de main que
+//  cnt_req_up_q, donc une adresse par requete PRESENTEE et acceptee.
+logic [31:0] addr_min_q, addr_max_q;
+logic [31:0] cnt_pgchg_q;      // changements de page d'une requete a la suivante
+logic [19:0] last_pg_q;        // page de la derniere requete, addr[31:12]
+logic        pg_seen_q;        // une premiere page a-t-elle ete vue
+logic [31:0] addr_obs;
+logic        addr_fire;
+//  AW prioritaire sur AR : si les deux tirent le meme cycle, on en perd une.
+//  C'est sans effet sur l'etendue, qui est un min/max cumulatif, et sur le
+//  compte de pages cela sous-estime -- jamais l'inverse.
+assign addr_fire = up_aw_hs | up_ar_hs;
+assign addr_obs  = up_aw_hs ? req_IP_wrapper_i.aw.addr[31:0]
+                            : req_IP_wrapper_i.ar.addr[31:0];
 logic [63:0] cyc_total_q;
 
 //  HOLD : la fenetre pendant laquelle response_manager tient le maitre sans
@@ -1761,6 +1797,11 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
             cnt_req_up_q    <= 32'h0;
             cnt_req_dn_q    <= 32'h0;
             cyc_total_q     <= 64'h0;
+            addr_min_q      <= 32'hFFFF_FFFF;
+            addr_max_q      <= 32'h0;
+            cnt_pgchg_q     <= 32'h0;
+            last_pg_q       <= 20'h0;
+            pg_seen_q       <= 1'b0;
         end else begin
             cyc_total_q <= cyc_total_q + 64'd1;
 
@@ -1771,6 +1812,18 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
 
             cnt_req_up_q <= cnt_req_up_q + {30'h0, req_up_inc};
             cnt_req_dn_q <= cnt_req_dn_q + {30'h0, req_dn_inc};
+
+            if (addr_fire) begin
+                if (addr_obs < addr_min_q) addr_min_q <= addr_obs;
+                if (addr_obs > addr_max_q) addr_max_q <= addr_obs;
+                //  La premiere requete n'est pas un changement : sans ce garde,
+                //  tout scenario compterait un deplacement qui n'a pas eu lieu.
+                if (pg_seen_q && (addr_obs[31:12] != last_pg_q) &&
+                    cnt_pgchg_q != 32'hFFFF_FFFF)
+                    cnt_pgchg_q <= cnt_pgchg_q + 32'd1;
+                last_pg_q <= addr_obs[31:12];
+                pg_seen_q <= 1'b1;
+            end
 
             if (lat_busy_q) begin
                 if (lat_cnt_q != 32'hFFFF_FFFF) lat_cnt_q <= lat_cnt_q + 32'd1;
@@ -2166,6 +2219,24 @@ end
 // Multiplexeur de lecture
 always_comb begin
     case (r_idx_q)
+//  ARMOR_NO_OBSERVE : mesure seulement, JAMAIS un bitstream de campagne.
+//
+//  Les compteurs d'enquete (latences, cycles, attentes par canal, retractations,
+//  episodes) n'ont qu'une destination : csr_rdata. Renvoyer zero a leur index
+//  les prive de toute charge, et la synthese les elague d'elle-meme -- aucun
+//  compteur n'est a toucher, et l'elagage ne peut pas emporter ce qui sert
+//  encore a decider. On mesure ainsi le COUT DU MECANISME, a comparer au
+//  wrapper complet pour chiffrer ce que l'instrumentation d'evaluation ajoute.
+//
+//  CONSERVES : la configuration et les verdicts (0x00-0x20), MAGIC, et
+//  l'etendue d'adresses (0x100/0x108), qui est un mecanisme propose et non
+//  une sonde.
+`ifdef ARMOR_NO_OBSERVE
+  `define OBS(x) 64'h0
+`else
+  `define OBS(x) x
+`endif
+
         5'd0:    csr_rdata = csr_id_cfg_q;
         5'd1:    csr_rdata = csr_msi_addr_q;
         5'd2:    csr_rdata = {40'h0, csr_thresh_q,
@@ -2173,49 +2244,55 @@ always_comb begin
                               csr_awfix_q, 2'b00, csr_enforce_q};
         5'd3:    csr_rdata = armor_status;
         5'd4:    csr_rdata = csr_sticky_q;
-        5'd5:    csr_rdata = {56'h0, failure_count};
-        5'd6:    csr_rdata = {32'h0, cnt_banned_q};
+        5'd5:    csr_rdata = `OBS({56'h0, failure_count});
+        5'd6:    csr_rdata = `OBS({32'h0, cnt_banned_q});
         // [31:0] verdicts STORM ; [39:32] occupation max d'une fenetre de flux ;
         // [63:40] fenetres fermees avec au moins une requete. Loge dans les bits
         // libres du compteur STORM plutot que dans un index neuf : les 32 index
         // du wrapper sont tous pris, et ces trois chiffres se lisent ensemble.
-        5'd7:    csr_rdata = {cnt_winact_q, cnt_reqmax_q, cnt_storm_q};
+        5'd7:    csr_rdata = `OBS({cnt_winact_q, cnt_reqmax_q, cnt_storm_q});
         // [31:0] episodes de saturation ; [39:32] OUTS_MAX, plus forte profondeur
         // d'en-vol atteinte depuis CNT_CLR (seuil MAX_OUTSTANDING = 16). Meme
         // logement que REQ_MAX dans 0x38, et pour la meme raison.
-        5'd8:    csr_rdata = {24'h0, cnt_outsmax_q, cnt_outs_q};
-        5'd9:    csr_rdata = {32'h0, cnt_msi_q};
-        5'd10:   csr_rdata = {{(64-DevIDWidth){1'b0}}, dev_id_last_q};
-        5'd11:   csr_rdata = 64'h41524D4F52000010;
+        5'd8:    csr_rdata = `OBS({24'h0, cnt_outsmax_q, cnt_outs_q});
+        5'd9:    csr_rdata = `OBS({32'h0, cnt_msi_q});
+        5'd10:   csr_rdata = `OBS({{(64-DevIDWidth){1'b0}}, dev_id_last_q});
+        5'd11:   csr_rdata = 64'h41524D4F52000011;
         // Observabilite (version 2 du MAGIC). Voir la carte des registres.
-        5'd12:   csr_rdata = {52'h0, dbg_up};
-        5'd13:   csr_rdata = {52'h0, dbg_dn};
-        5'd14:   csr_rdata = armor_dbg_state;
-        5'd15:   csr_rdata = armor_dbg_stall_up;
-        5'd16:   csr_rdata = armor_dbg_stall_dn;
-        5'd17:   csr_rdata = {cnt_cyc_hold_q, cnt_cyc_block_q};
-        5'd18:   csr_rdata = {cnt_req_dn_q,   cnt_req_up_q};
-        5'd19:   csr_rdata = {lat_tx_last_q,  lat_det_last_q};
-        5'd20:   csr_rdata = lat_det_sum_q;
-        5'd21:   csr_rdata = lat_tx_sum_q;
-        5'd22:   csr_rdata = {lat_n_blk_q,    lat_n_q};
-        5'd23:   csr_rdata = {lat_tx_max_q, lat_tx_min_q,
-                              lat_det_max_q, lat_det_min_q};
-        5'd24:   csr_rdata = {30'h0, lat_evt_q, lat_busy_q, lat_cnt_q};
-        5'd25:   csr_rdata = cyc_total_q;
+        5'd12:   csr_rdata = `OBS({52'h0, dbg_up});
+        5'd13:   csr_rdata = `OBS({52'h0, dbg_dn});
+        5'd14:   csr_rdata = `OBS(armor_dbg_state);
+        5'd15:   csr_rdata = `OBS(armor_dbg_stall_up);
+        5'd16:   csr_rdata = `OBS(armor_dbg_stall_dn);
+        5'd17:   csr_rdata = `OBS({cnt_cyc_hold_q, cnt_cyc_block_q});
+        5'd18:   csr_rdata = `OBS({cnt_req_dn_q,   cnt_req_up_q});
+        5'd19:   csr_rdata = `OBS({lat_tx_last_q,  lat_det_last_q});
+        5'd20:   csr_rdata = `OBS(lat_det_sum_q);
+        5'd21:   csr_rdata = `OBS(lat_tx_sum_q);
+        5'd22:   csr_rdata = `OBS({lat_n_blk_q,    lat_n_q});
+        5'd23:   csr_rdata = `OBS({lat_tx_max_q, lat_tx_min_q,
+                              lat_det_max_q, lat_det_min_q});
+        5'd24:   csr_rdata = `OBS({30'h0, lat_evt_q, lat_busy_q, lat_cnt_q});
+        5'd25:   csr_rdata = `OBS(cyc_total_q);
         // Fermeture des trois angles morts du 2026-09-10 (MAGIC ...0003).
-        5'd26:   csr_rdata = {cnt_badid_cy_q,  cnt_badid_rise_q};
-        5'd27:   csr_rdata = {cnt_wlast_dn_q,  cnt_aw_dn_q};
-        5'd28:   csr_rdata = {cnt_w_orphan_q,  cnt_w_ghost_q};
+        5'd26:   csr_rdata = `OBS({cnt_badid_cy_q,  cnt_badid_rise_q});
+        5'd27:   csr_rdata = `OBS({cnt_wlast_dn_q,  cnt_aw_dn_q});
+        5'd28:   csr_rdata = `OBS({cnt_w_orphan_q,  cnt_w_ghost_q});
         //  DEUX champs de 8 bits depuis v14 (ils faisaient 4 bits, et le
         //  firmware masquait en consequence : les deux ont bouge ensemble).
-        5'd29:   csr_rdata = {48'h0, w_owed_max_q, w_owed_q};
+        5'd29:   csr_rdata = `OBS({48'h0, w_owed_max_q, w_owed_q});
         // VALID retire sans READY : violation AXI4, invisible aux compteurs de
         // handshake puisqu'aucun handshake ne s'accomplit.
-        5'd30:   csr_rdata = {cnt_retr_br_q, cnt_retr_w_q,
-                              cnt_retr_ar_q, cnt_retr_aw_q};
-        5'd31:   csr_rdata = {23'h0, retr_seen_q, retr_first_chan_q,
-                              retr_first_cause_q, retr_first_cyc_q};
+        5'd30:   csr_rdata = `OBS({cnt_retr_br_q, cnt_retr_w_q,
+                              cnt_retr_ar_q, cnt_retr_aw_q});
+        5'd31:   csr_rdata = `OBS({23'h0, retr_seen_q, retr_first_chan_q,
+                              retr_first_cause_q, retr_first_cyc_q});
+        //  Etendue d'adresses (v17). ADDR_SPAN donne les bornes brutes : c'est
+        //  au lecteur de faire la difference, parce qu'un min egal a 0xFFFFFFFF
+        //  signale « aucune requete vue » et ne doit pas etre confondu avec une
+        //  etendue nulle.
+        6'd32:   csr_rdata = {addr_max_q, addr_min_q};
+        6'd33:   csr_rdata = {12'h0, last_pg_q, cnt_pgchg_q};
         default: csr_rdata = 64'h0;
     endcase
 end
