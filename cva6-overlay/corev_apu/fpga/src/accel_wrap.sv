@@ -31,6 +31,12 @@
 //                           classe en MSI toute ecriture vers l'adresse
 //                           configuree, donc les faire coincider revient a
 //                           compter toute la charge normale comme des MSI.
+//    0x48  SCAN_SPAN    RW  mode 8 : nombre de pages balayees avant de
+//                           reboucler. ZERO = SCAN_PAGES, la valeur de
+//                           synthese. L'etendue balayee vaut SCAN_SPAN pages
+//                           de 2^SCAN_SHIFT octets a partir de BASE_ADDR, et
+//                           DOIT tenir dans ce que l'IOMMU autorise : le but
+//                           est une attaque qui reste dans ses droits.
 //    0x58  BTN_STATE    R   {btnc, btnr, btnl, btnd, btnu}
 //
 //  Modes d'attaque :
@@ -42,6 +48,17 @@
 //    5 Saturation outstanding OUTS_REQS lectures sans consommer les reponses
 //    6 Tempete MSI          MSI_REQS ecritures vers l'adresse surveillee
 //    7 Tempete PIPELINEE    PIPE_REQS adresses a la volee, PUIS leurs donnees
+//    8 Balayage memoire     UNE requete par lancement -- le rythme du mode 0 --
+//                           mais l'adresse avance d'une page a chaque transfert
+//
+//  POURQUOI LE MODE 8. Les modes 4 a 7 sont tous des attaques de DEBIT, et un
+//  moniteur a fenetre les voit par construction. Le mode 8 n'augmente rien :
+//  il emet exactement ce qu'emet le mode 0, au meme rythme, vers des adresses
+//  que l'IOMMU autorise deja. Ce qui le distingue du trafic legitime n'est ni
+//  sa cadence, ni sa profondeur, ni ses droits : c'est l'ETENDUE qu'il touche.
+//  Aucun compteur de requetes par fenetre ne porte cette grandeur -- il faut
+//  l'observer sur un horizon long, ce qui est le travail d'un superviseur et
+//  non d'un moniteur de transaction.
 //
 //  NOTE sur les identifiants AXI : request_flow_monitor comptait autrefois une
 //  requete par changement d'identifiant, ce qui obligeait les modes de flood a
@@ -103,6 +120,9 @@ module accel_wrap #(
     // STORM_REQS pour que les deux tempetes soient comparables a salve egale --
     // seule leur FORME change, et c'est tout l'interet de la comparaison.
     parameter int unsigned PIPE_REQS        = 16,
+    // Mode 8 : etendue balayee par defaut, et pas entre deux adresses.
+    parameter int unsigned SCAN_PAGES       = 256,
+    parameter int unsigned SCAN_SHIFT       = 12,      // 4 Kio par pas
     // Garde-fou : une requete bloquee par ARMOR ne recoit jamais son ready
     parameter int unsigned TIMEOUT_CYCLES   = 32'd65536
 ) (
@@ -138,6 +158,8 @@ module accel_wrap #(
     logic [63:0] reg_mode_q;      // 0x28 ATTACK_MODE
     logic [31:0] reg_blkcnt_q;    // 0x30 BLOCKED_CNT
     logic [63:0] reg_msiaddr_q;   // 0x38 MSI_ADDR
+    logic [63:0] reg_scan_q;      // 0x48 SCAN_SPAN (mode 8)
+    logic [31:0] scan_idx_q;      // page courante du balayage
     //  0x40 PIPE_DEPTH : nombre d'adresses en vol du mode 7. ZERO = PIPE_REQS,
     //  la valeur de synthese. Le mode 7 a GELE la carte le 2026-09-13 avec ses
     //  seize adresses en vol, dans les deux bras -- donc independamment d'ARMOR.
@@ -194,6 +216,7 @@ module accel_wrap #(
             5'd6:    cfg_rdata = {32'h0, reg_blkcnt_q};    // BLOCKED_CNT
             5'd7:    cfg_rdata = reg_msiaddr_q;             // MSI_ADDR
             5'd8:    cfg_rdata = reg_pipe_q;                // PIPE_DEPTH (0x40)
+            5'd9:    cfg_rdata = reg_scan_q;                // SCAN_SPAN  (0x48)
             5'd11:   cfg_rdata = {59'h0, btn_state};       // BTN_STATE (0x58)
             default: cfg_rdata = 64'h0;
         endcase
@@ -217,6 +240,7 @@ module accel_wrap #(
             reg_conf_q  <= 64'h0;
             reg_mode_q    <= 64'h0;
             reg_msiaddr_q <= 64'h0;
+            reg_scan_q    <= 64'h0;
             start_pulse   <= 1'b0;
         end else begin
             start_pulse <= 1'b0;
@@ -240,6 +264,7 @@ module accel_wrap #(
                             5'd5: reg_mode_q    <= axi_cfg.w_data;
                             5'd7: reg_msiaddr_q <= axi_cfg.w_data;
                             5'd8: reg_pipe_q    <= axi_cfg.w_data;
+                            5'd9: reg_scan_q    <= axi_cfg.w_data;
                             default: ; // lecture seule
                         endcase
                         cw_idx_q <= cw_idx_q + 1'b1;
@@ -327,6 +352,16 @@ module accel_wrap #(
         else                             len_from_size = reg_size_q[10:3] - 8'd1;
     end
 
+    //  Etendue effective du balayage : le registre s'il est ecrit, sinon la
+    //  valeur de synthese. Bornee a au moins une page, pour qu'un SCAN_SPAN
+    //  ecrit a zero degenere en mode 0 plutot qu'en modulo nul.
+    logic [31:0] scan_span_eff;
+    always_comb begin
+        scan_span_eff = (reg_scan_q[31:0] != 32'h0) ? reg_scan_q[31:0]
+                                                    : SCAN_PAGES[31:0];
+        if (scan_span_eff == 32'h0) scan_span_eff = 32'h1;
+    end
+
     always_comb begin
         // Valeurs par defaut = mode 0 (normal)
         n_req     = 8'd1;
@@ -339,42 +374,45 @@ module accel_wrap #(
         hold_r    = 1'b0;
         burst_len = len_from_size;
 
-        case (reg_mode_q[2:0])
-            3'd1: begin // usurpation d'identifiant
+        case (reg_mode_q[3:0])
+            4'd1: begin // usurpation d'identifiant
                 sid_eff   = SPOOF_STREAM_ID;
             end
-            3'd2: begin // adresse interdite
+            4'd2: begin // adresse interdite
                 addr_eff  = FORBIDDEN_ADDR;
             end
-            3'd3: begin // escalade de privileges : privilegie + securise + instruction
+            4'd3: begin // escalade de privileges : privilegie + securise + instruction
                 prot_eff  = 3'b111;
             end
-            3'd4: begin // tempete de requetes
+            4'd4: begin // tempete de requetes
                 n_req     = STORM_REQS[7:0];
                 vary_id   = 1'b1;
                 is_write  = 1'b1;
                 burst_len = 8'd0;
             end
-            3'd5: begin // saturation du compteur d'outstanding
+            4'd5: begin // saturation du compteur d'outstanding
                 n_req     = OUTS_REQS[7:0];
                 vary_id   = 1'b1;
                 is_write  = 1'b0;
                 hold_r    = 1'b1;
                 burst_len = 8'd0;
             end
-            3'd6: begin // tempete MSI : ecritures repetees vers l'adresse surveillee
+            4'd6: begin // tempete MSI : ecritures repetees vers l'adresse surveillee
                 addr_eff  = reg_msiaddr_q;
                 n_req     = MSI_REQS[7:0];
                 vary_id   = 1'b1;
                 is_write  = 1'b1;
                 burst_len = 8'd0;
             end
-            3'd7: begin // tempete PIPELINEE : les adresses d'abord, les donnees ensuite
+            4'd7: begin // tempete PIPELINEE : les adresses d'abord, les donnees ensuite
                 n_req     = (reg_pipe_q[7:0] != 8'h0) ? reg_pipe_q[7:0] : PIPE_REQS[7:0];
                 pipelined = 1'b1;
                 vary_id   = 1'b1;
                 is_write  = 1'b1;
                 burst_len = 8'd0;   // une donnee par adresse, w_last a chaque beat
+            end
+            4'd8: begin // balayage memoire : le rythme du mode 0, l'adresse qui avance
+                addr_eff  = reg_base_q + ({32'h0, scan_idx_q} << SCAN_SHIFT);
             end
             default: ; // 0 et valeurs hors plage : trafic normal
         endcase
@@ -489,6 +527,7 @@ module accel_wrap #(
             timeout_q    <= 32'h0;
             wdata_q      <= 64'h0;
             armor_sticky_q <= 5'h0;
+            scan_idx_q   <= 32'h0;
             busy_q       <= 1'b0;
             done_q       <= 1'b0;
             error_q      <= 1'b0;
@@ -624,6 +663,13 @@ module accel_wrap #(
                 end
 
                 G_FINISH: begin
+                    //  Mode 8 : la page n'avance qu'ICI, le transfert termine.
+                    //  Avancer au lancement deplacerait addr_eff -- qui est
+                    //  combinatoire -- pendant la transaction en cours.
+                    if (reg_mode_q[3:0] == 4'd8) begin
+                        scan_idx_q <= ((scan_idx_q + 32'h1) >= scan_span_eff)
+                                        ? 32'h0 : (scan_idx_q + 32'h1);
+                    end
                     // Mode continu (CONFIG bit1) : on relance tant que le bit
                     // reste arme. lha_bg_stop() l'efface pour arreter le fond.
                     if (reg_conf_q[1]) begin
