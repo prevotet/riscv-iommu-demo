@@ -65,6 +65,7 @@
 #define WRAP_MAGIC_OFF          (0x58ULL)
 #define WRAP_ADDR_SPAN_OFF      (0x100ULL)  /* v17 : [31:0] min, [63:32] max */
 #define WRAP_ADDR_WALK_OFF      (0x108ULL)  /* v17 : [31:0] chgts de page    */
+#define WRAP_CFG_PARAMS_OFF     (0x110ULL)  /* v18 : fenetre / en-vol / echecs */
 
 #define WRAP_CTRL_ENFORCE       (1ULL << 0)
 #define WRAP_CTRL_STICKY_CLR    (1ULL << 1)
@@ -217,6 +218,29 @@
 #define ARMOR_THRESH 0
 #endif
 
+/* Les trois derniers seuils de detection figes a la synthese, reglables depuis
+ * le v18 par le registre 0x110 du wrapper. ZERO = valeur de synthese, exactement
+ * comme ARMOR_THRESH : un firmware qui ne les touche pas ne change rien.
+ *
+ * Ce sont les configurations de la Table 4 de l'article, jusqu'ici annoncees
+ * sans resultat faute de pouvoir les atteindre autrement qu'en resynthetisant :
+ *
+ *   CFG-A (reference) : rien a definir
+ *   CFG-B             : -DXFER_SIZE=512, seuils inchanges (profil P-BURST)
+ *   CFG-C             : -DARMOR_THRESH=16 -DARMOR_WINDOW=200 -DARMOR_MAXOUTS=32
+ *   CFG-D             : -DARMOR_THRESH=4  -DARMOR_WINDOW=50  -DARMOR_MAXOUTS=8 \
+ *                       -DARMOR_MAXFAIL=2
+ */
+#ifndef ARMOR_WINDOW
+#define ARMOR_WINDOW 0
+#endif
+#ifndef ARMOR_MAXOUTS
+#define ARMOR_MAXOUTS 0
+#endif
+#ifndef ARMOR_MAXFAIL
+#define ARMOR_MAXFAIL 0
+#endif
+
 /* Profondeur d'adresses en vol de SC09 (registre 0x40 de l'accelerateur), a
  * n'utiliser qu'avec -DBENCH_SC09. 0 = valeur de synthese, soit 16.
  *
@@ -363,7 +387,12 @@
  * en RTL (block_req sur write MSI -> AW orphelin -> B IOMMU non drainé). Voir
  * mémoire armor-sc07-storm-fp. XFER_SIZE=8 le masquait par timing mais n'est
  * pas déployable (les vrais accélérateurs font de gros bursts). */
+/* Surchargeable a la compilation : -DXFER_SIZE=512 donne le profil P-BURST de
+ * la Table 4 (CFG-B) sans resynthese, la taille partant dans le registre 0x18
+ * de l'accelerateur a chaque lancement. 64 octets = 8 beats de 64 bits. */
+#ifndef XFER_SIZE
 #define XFER_SIZE               (64)
+#endif
 
 /* Trafic de fond : LHA en lecture/écriture PERMANENTE via le mode "continuous"
  * du RTL (CONFIG bit1). Sature le bus pendant que le MHA attaque.
@@ -604,6 +633,10 @@ static void armor_wrap_init(int enforce) {
                    "registre 0x40 de l'accelerateur n'existe pas, la profondeur "
                    "restera a 16 et la carte GELERA\r\n", BENCH_SC09_DEPTH, v);
 #endif
+        if ((ARMOR_WINDOW || ARMOR_MAXOUTS || ARMOR_MAXFAIL) && v < 18)
+            printf("# ATTENTION : ARMOR_WINDOW/MAXOUTS/MAXFAIL demandes mais "
+                   "bitstream v%u -- 0x110 n'existe pas, les trois seuils "
+                   "restent ceux de la synthese\r\n", v);
         if (ARMOR_THRESH && v < 15)
             printf("# ATTENTION : ARMOR_THRESH=%d mais bitstream v%u -- CTRL[23:16] "
                    "SANS EFFET, le seuil reste celui de la synthese\r\n",
@@ -630,6 +663,26 @@ static void armor_wrap_init(int enforce) {
     w1[WRAP_ID_CFG_OFF   / 8] = 1ULL;         /* LHA : STREAM_ID = 1 */
     w2[WRAP_ID_CFG_OFF   / 8] = 2ULL;         /* MHA : STREAM_ID = 2 */
     w2[WRAP_MSI_ADDR_OFF / 8] = MSI_TARGET_DST;   /* cible des ecritures SC04 */
+
+    /* Table 4 : les trois seuils reglables. Ecrits sur LES DEUX wrappers, sinon
+     * le LHA et le MHA ne seraient pas juges a la meme aune et la comparaison
+     * des faux positifs perdrait son sens. */
+    {
+        uint64_t cfgp = ((uint64_t)(ARMOR_WINDOW)  & 0xFFFFULL)
+                      | (((uint64_t)(ARMOR_MAXOUTS) & 0xFFULL) << 16)
+                      | (((uint64_t)(ARMOR_MAXFAIL) & 0xFFULL) << 24);
+        w1[WRAP_CFG_PARAMS_OFF / 8] = cfgp;
+        w2[WRAP_CFG_PARAMS_OFF / 8] = cfgp;
+        if (cfgp) {
+            uint64_t rb = w2[WRAP_CFG_PARAMS_OFF / 8];
+            printf("# Table 4 : fenetre=%lu en-vol=%lu echecs=%lu (0x110 relu 0x%08lx)\r\n",
+                   (unsigned long)(ARMOR_WINDOW), (unsigned long)(ARMOR_MAXOUTS),
+                   (unsigned long)(ARMOR_MAXFAIL), (unsigned long)rb);
+            if (rb != cfgp)
+                printf("# ATTENTION : 0x110 relit 0x%08lx au lieu de 0x%08lx\r\n",
+                       (unsigned long)rb, (unsigned long)cfgp);
+        }
+    }
     *mha_msi_addr             = MSI_TARGET_DST;   /* meme adresse cote accel */
 
     uint64_t ctrl = (enforce ? WRAP_CTRL_ENFORCE : 0ULL)
