@@ -143,15 +143,10 @@ module axi_wr_pacer #(
             pacer_q     <= P_AW;
             cred_q      <= '0;
         end else begin
-            // Remplissage (cote maitre)
-            if (aw_push) begin
-                aw_mem[aw_wr_ptr_q[PTR_W-1:0]] <= slv_req_i.aw;
-                aw_wr_ptr_q <= aw_wr_ptr_q + 1'b1;
-            end
-            if (w_push) begin
-                w_mem[w_wr_ptr_q[PTR_W-1:0]] <= slv_req_i.w;
-                w_wr_ptr_q <= w_wr_ptr_q + 1'b1;
-            end
+            // Remplissage (cote maitre) : seuls les POINTEURS sont ici. Les
+            // memoires sont ecrites plus bas, dans un bloc SANS reset.
+            if (aw_push) aw_wr_ptr_q <= aw_wr_ptr_q + 1'b1;
+            if (w_push)  w_wr_ptr_q  <= w_wr_ptr_q  + 1'b1;
 
             // Debit (cote aval)
             unique case (pacer_q)
@@ -174,6 +169,27 @@ module axi_wr_pacer #(
                 default: ; // 00 ou 11 : inchange
             endcase
         end
+    end
+
+    // -------------------------------------------------------------------------
+    //  Memoires des deux FIFO : bloc SANS reset, pour que Vivado infere de la
+    //  RAM distribuee.
+    //
+    //  POURQUOI SEPAREMENT. Ecrites dans le bloc ci-dessus, qui porte un reset
+    //  ASYNCHRONE, elles ne peuvent pas etre mappees en RAM : Vivado retombe
+    //  sur des bascules (mesure sur le bitstream du 2026-09-13 : +5241
+    //  bascules pour FIFO_DEPTH=32 sur aw_chan_mmu_t + w_chan_t) et le mux de
+    //  lecture 32:1 qui en decoule part en combinatoire vers l'IOMMU -- d'ou
+    //  le WNS negatif. Un bloc sans reset supprime les deux.
+    //
+    //  SUR : une entree n'est lue (aw_head / w_head) qu'apres avoir ete
+    //  ecrite, puisque le pointeur de lecture ne rattrape jamais celui
+    //  d'ecriture (aw_empty / w_empty). Le contenu au reset n'est donc
+    //  jamais observe, et les pointeurs, eux, restent resettes.
+    // -------------------------------------------------------------------------
+    always_ff @(posedge clk_i) begin
+        if (aw_push) aw_mem[aw_wr_ptr_q[PTR_W-1:0]] <= slv_req_i.aw;
+        if (w_push)  w_mem [w_wr_ptr_q[PTR_W-1:0]]  <= slv_req_i.w;
     end
 
     // -------------------------------------------------------------------------
