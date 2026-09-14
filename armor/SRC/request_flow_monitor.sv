@@ -69,6 +69,10 @@ module request_flow_monitor #(
     //  point de courbe.
     // =========================================================================
     input  logic [7:0]  max_req_i,
+    //  Largeur de fenetre a l'execution. ZERO = WINDOW_CYCLES, la valeur de
+    //  synthese. Meme convention que max_req_i, pour la meme raison : une
+    //  campagne par valeur plutot qu'une synthese par valeur.
+    input  logic [15:0] window_cy_i,
 
     // Outputs
     output logic        storm_flag,
@@ -136,7 +140,13 @@ module request_flow_monitor #(
     assign req_fire = aw_edge | ar_edge;
 
 
-    logic [$clog2(WINDOW_CYCLES):0] window_cnt;
+    //  16 bits fixes et non $clog2(WINDOW_CYCLES) : la largeur est desormais
+    //  reglable a l'execution, et le compteur doit porter la plus grande valeur
+    //  demandable, pas celle de la synthese. En profil BENCH celle-ci vaut 100,
+    //  soit 7 bits -- une fenetre de 200 n'y tiendrait pas.
+    logic [15:0] window_cnt;
+    logic [15:0] window_cy_eff;
+    assign window_cy_eff = (window_cy_i == 16'h0) ? 16'(WINDOW_CYCLES) : window_cy_i;
 
     // =========================================================================
     //  LARGEUR DU COMPTEUR DE FENETRE : 8 BITS SATURANTS (correctif v14).
@@ -168,7 +178,7 @@ module request_flow_monitor #(
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if(!rst_ni) begin
             window_cnt <= 0;
-        end else if(window_cnt == WINDOW_CYCLES-1) begin
+        end else if(window_cnt == window_cy_eff - 16'd1) begin
             window_cnt <= 0;
         end else begin
             window_cnt <= window_cnt + 1;
@@ -200,7 +210,7 @@ module request_flow_monitor #(
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if(!rst_ni) begin
             req_cnt <= 8'h0;
-        end else if(window_cnt == WINDOW_CYCLES-1) begin
+        end else if(window_cnt == window_cy_eff - 16'd1) begin
             req_cnt <= 8'h0; // new window
         end else if(req_inc != 2'd0) begin
             req_cnt <= req_cnt_next;
@@ -230,7 +240,7 @@ module request_flow_monitor #(
     //  La version precedente redemarrait le blocage sur `storm_flag && !blocking`
     //  et le relachait des que block_cnt atteignait BLOCK_CYCLES-1. Or storm_flag
     //  est un NIVEAU : req_cnt ne retombe qu'a la fin de la fenetre glissante
-    //  (window_cnt == WINDOW_CYCLES-1). Une fois le seuil franchi, le signal
+    //  (window_cnt == window_cy_eff-1). Une fois le seuil franchi, le signal
     //  restait donc haut pendant tout le reste de la fenetre et `blocking`
     //  oscillait : BLOCK_CYCLES cycles hauts, un cycle bas, en boucle.
     //

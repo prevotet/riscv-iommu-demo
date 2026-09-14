@@ -173,6 +173,13 @@ logic                   csr_bfate_q;      // CTRL[10] : sort de chaque ecriture 
 logic                   csr_irqen_q;      // CTRL[11] : interruption armee (v13)
 logic                   csr_rfmcnt_q;     // CTRL[12] : moniteur de flux compte les transferts (v14)
 logic [7:0]             csr_thresh_q;     // CTRL[23:16] : seuil de flux, 0 = valeur de synthese (v15)
+//  0x110 CFG_PARAMS (v18) : les trois seuils de detection que la Table 4 de
+//  l'article fait varier et qui restaient figes a la synthese. Meme convention
+//  que le seuil de flux -- ZERO = valeur de synthese -- de sorte qu'un
+//  bitstream non configure se comporte exactement comme avant.
+logic [15:0]            csr_window_q;     // [15:0]  largeur de la fenetre de flux
+logic [7:0]             csr_maxouts_q;    // [23:16] seuil d'en-vol
+logic [7:0]             csr_maxfail_q;    // [31:24] echecs consecutifs avant blocage
 logic [63:0]            csr_sticky_q;
 logic [31:0]            cnt_banned_q, cnt_storm_q, cnt_outs_q, cnt_msi_q;
 logic [DevIDWidth-1:0]  dev_id_last_q;
@@ -948,6 +955,7 @@ security_monitor #(
     .rst_ni(rst_ni),
     .legit_hit(legit_hit),               // connecté au comparator
     .comparison_valid(comparison_valid), // signal du comparator
+    .max_fail_i(csr_maxfail_q),          // 0x110[31:24], 0 = synthese
     .block_ip_o(block_ip_o),             // utilisé par response_manager
     .failure_count(failure_count),
     .threat_detected(threat_detected)
@@ -970,6 +978,7 @@ request_flow_monitor #(
     .dn_ar_hs_i(dn_ar_hs),
     .cnt_fix_i(csr_rfmcnt_q),
     .max_req_i(csr_thresh_q),
+    .window_cy_i(csr_window_q),
     .storm_flag(storm_flag),
     .block_req(block_req_flow),
     .req_fire(req_fire_signal),
@@ -987,6 +996,7 @@ outs_req_monitor #(
     .clk_i(clk_i),
     .rst_ni(rst_ni),
     .req_fire(req_fire_signal),              // Réutilisation
+    .max_outs_i(csr_maxouts_q),              // 0x110[23:16], 0 = synthese
     .resp_wrapper_iommu_i(resp_wrapper_iommu_i),
     .req_IP_wrapper_i(req_IP_wrapper_i),
     .overflow_flag(overflow_flag_outs),
@@ -1169,7 +1179,7 @@ response_delayer #(
 //                          contention. (v16)
 //   0x48  CNT_MSI      RO  nombre d'episodes de storm MSI
 //   0x50  DEV_ID_LAST  RO  dernier stream_id observe — sert a calibrer ID_CFG
-//   0x58  MAGIC        RO  0x41524D4F52000011 ("ARMOR" + version)
+//   0x58  MAGIC        RO  0x41524D4F52000012 ("ARMOR" + version)
 //                          v11 portait deja b10, mais avec une file de 16 : elle
 //                          deborde et GELE la campagne dans SC04. Le MAGIC monte
 //                          donc a v12, seul moyen pour le logiciel de distinguer
@@ -1256,6 +1266,13 @@ response_delayer #(
 //   0xF8  DBG_RETRACT  RO  [31:0] cycle du PREMIER retrait (base CYC_TOTAL)
 //   0x100 ADDR_SPAN   RO  [31:0] plus petite adresse vue, [63:32] plus grande
 //   0x108 ADDR_WALK   RO  [31:0] changements de page, [51:32] derniere page
+//   0x110 CFG_PARAMS  RW  [15:0] fenetre du moniteur de flux, [23:16] seuil
+//                         d'en-vol, [31:24] echecs consecutifs avant blocage.
+//                         ZERO par champ = valeur de synthese, comme pour le
+//                         seuil de flux de CTRL[23:16]. Ces trois-la etaient
+//                         les derniers parametres de detection figes, et la
+//                         Table 4 de l'article les fait varier : une campagne
+//                         par configuration plutot qu'une synthese.
 //
 //  ADDR_SPAN / ADDR_WALK : ce que les moniteurs de DEBIT ne peuvent pas voir.
 //  Un accelerateur compromis qui emet au rythme NOMINAL mais parcourt l'espace
@@ -1456,6 +1473,9 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         csr_irqen_q    <= 1'b0;   // reset : aucune interruption tant qu'on ne l'arme pas
         csr_rfmcnt_q   <= 1'b0;   // reset : comptage historique par fronts
         csr_thresh_q   <= 8'h0;   // reset : seuil de synthese (8)
+        csr_window_q   <= 16'h0;  // reset : fenetre, en-vol et echecs de synthese
+        csr_maxouts_q  <= 8'h0;
+        csr_maxfail_q  <= 8'h0;
         csr_sticky_clr <= 1'b0;
         csr_cnt_clr    <= 1'b0;
     end else begin
@@ -1491,6 +1511,15 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
                             csr_irqen_q    <= req_CPU_Wrapper__i.w.data[11];
                             csr_rfmcnt_q   <= req_CPU_Wrapper__i.w.data[12];
                             csr_thresh_q   <= req_CPU_Wrapper__i.w.data[23:16];
+                        end
+                        //  0x110 : les trois seuils reglables a l'execution.
+                        //  Comme CTRL[23:16], zero rend la valeur de synthese,
+                        //  si bien qu'un firmware qui ignore ce registre ne
+                        //  change rien au comportement du wrapper.
+                        6'd34: begin
+                            csr_window_q  <= req_CPU_Wrapper__i.w.data[15:0];
+                            csr_maxouts_q <= req_CPU_Wrapper__i.w.data[23:16];
+                            csr_maxfail_q <= req_CPU_Wrapper__i.w.data[31:24];
                         end
                         default: ; // registres en lecture seule
                     endcase
@@ -2257,7 +2286,7 @@ always_comb begin
         5'd8:    csr_rdata = `OBS({24'h0, cnt_outsmax_q, cnt_outs_q});
         5'd9:    csr_rdata = `OBS({32'h0, cnt_msi_q});
         5'd10:   csr_rdata = `OBS({{(64-DevIDWidth){1'b0}}, dev_id_last_q});
-        5'd11:   csr_rdata = 64'h41524D4F52000011;
+        5'd11:   csr_rdata = 64'h41524D4F52000012;
         // Observabilite (version 2 du MAGIC). Voir la carte des registres.
         5'd12:   csr_rdata = `OBS({52'h0, dbg_up});
         5'd13:   csr_rdata = `OBS({52'h0, dbg_dn});
@@ -2293,6 +2322,7 @@ always_comb begin
         //  etendue nulle.
         6'd32:   csr_rdata = {addr_max_q, addr_min_q};
         6'd33:   csr_rdata = {12'h0, last_pg_q, cnt_pgchg_q};
+        6'd34:   csr_rdata = {32'h0, csr_maxfail_q, csr_maxouts_q, csr_window_q};
         default: csr_rdata = 64'h0;
     endcase
 end
