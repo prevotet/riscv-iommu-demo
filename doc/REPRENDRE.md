@@ -5,6 +5,109 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-14 — LE BALAYAGE MÉMOIRE : LA PREMIÈRE ATTAQUE QU'ARMOR NE PEUT PAS VOIR
+>
+> **Bitstream v17 archivé** (`tools/bitstream.sh use bench`, MAGIC `0x…011`), WNS **+0,154 ns,
+> 0 endpoint en faute**, 109 387 LUT / 74 409 bascules.
+>
+> **1. SC-08 (« low-and-slow », SC-05 du papier) N'EST PAS UNE ATTAQUE.** Son firmware émet
+> `fire_one('M', 0 /* mode normal */, LEGIT_DST, 0 /* write */)` × 700 : c'est le trafic
+> légitime joué sept fois plus longtemps. SC07 et SC08 donnent **264 ticks au tick près** et
+> une requête par fenêtre chacun. Son « 0 % de détection » mesurait donc l'ABSENCE DE FAUX
+> POSITIF. **Il est reclassé comme profil bénin en ÉCRITURE** — le seul de l'évaluation, et
+> celui qui manquait pour étayer le « +1 cycle par écriture légitime » du § 6.3.3. Corollaire :
+> la réserve « la latence d'écriture légitime n'est pas mesurée » TOMBE (264 ticks, inchangés
+> de part et d'autre du correctif du gel).
+>
+> **2. NOUVEAU : mode 8 de `accel_wrap` (BALAYAGE) + registres d'étendue dans le wrapper.**
+> Le mode 8 émet **une requête par lancement — la cadence du mode 0** — mais avance d'une page
+> à chaque transfert, DANS la région guest autorisée. Deux registres neufs :
+> `0x100 ADDR_SPAN` (min/max d'adresse) et `0x108 ADDR_WALK` (changements de page). L'index CSR
+> passe à **6 bits** (les 32 emplacements étaient pleins ; fenêtre MMIO de 4 Kio, rien n'est
+> empiété). Scénario firmware `SC10-SCAN`, 700 requêtes sur 256 pages depuis `0x92000000`.
+>
+> **RÉSULTAT, 6 campagnes du 2026-09-14 (`results/bench_2026-09-14_13*.log`)** :
+>
+> | | req/fenêtre | pages | chgts page |
+> |---|---|---|---|
+> | fond LHA légitime continu | 3 | 1 | 0 |
+> | SC07 bénin lecture | 1 | 1 | 0 |
+> | SC08 bénin écriture | 1 | 1 | 0 |
+> | **SC10 balayage** | **1** | **256** | **699** |
+> | SC02 / SC04 / SC03 | 8 / 8 / 20 | 1 | 0 |
+>
+> **700 requêtes émises, 700 acheminées, 0 bloquée.** Aucun seuil franchi, l'IOMMU n'a rien à
+> dire (l'attaque reste dans ses droits). **256 pages et 699 changements DANS CHACUNE des six
+> campagnes, sans une unité d'écart** — c'est structurel, pas statistique : à publier comme une
+> ÉTENDUE, jamais comme un taux de détection. Témoin exact : SC08 et SC10, même volume, même
+> cadence (266 ticks), même région ; seule l'étendue diffère. **Non-régression v17 dans les
+> mêmes runs** : SC01/SC02/SC03/SC04 tous 50/50, zéro faux positif.
+>
+> **3. SURFACE : le chiffre publié ne mesurait pas le mécanisme.** Macro `` `OBS() `` dans
+> `wrapper.sv` + `ARMOR_NO_OBSERVE` : les 26 registres d'enquête renvoient zéro et la synthèse
+> les élague. `armor/ooc/run_ooc.sh noobs` donne **1 680 LUT / 1 110 FF = le MÉCANISME**
+> (0,82 % du device, WNS +14,1 ns) contre **3 359 / 2 467 pour le wrapper mesuré** :
+> **l'instrumentation pèse la moitié des LUT et 55 % des bascules.** C'est 1 680 qu'il faut
+> publier, en mentionnant que toutes les mesures viennent du wrapper instrumenté.
+>
+> **4. LATENCE DE DÉTECTION : mesurée, plus dérivée.** Les lignes `ARMORLAT` des campagnes la
+> donnent depuis toujours. Sur 19 campagnes de référence : usurpation bloquée **en 1 cycle au
+> plus** (931 verdicts), tempête ≤ 37, MSI ≤ 31 ; minimum 0 partout. L'équation (4) du papier
+> (≈116 cy) borne autre chose — l'accumulation de `N_failures` avant l'IRQ. **PIÈGE** : sans
+> verdict, le compteur enregistre la durée TOTALE de la transaction, donc la MOYENNE mélange
+> détectées et non détectées — ne publier que le MAX. Et SC03 sature au timeout du maître.
+>
+> **5. Correctif d'inférence du pacer** : `aw_mem`/`w_mem` sorties du bloc à reset asynchrone
+> → RAM distribuée (`RAM32M`/`RAM32X1D`) au lieu de bascules. Rend **4 663 bascules**, WNS
+> −0,007 → **+0,177 ns**, warning `Synth 8-7137` disparu, banc identique au cycle. Registrer un
+> étage du pacer s'est avéré INUTILE.
+>
+> **Artefact « article » à jour** : version 19, restructuré en **trois parties** — I ce qu'il
+> faut MODIFIER (21 éditions), II ce qu'il faut AJOUTER (6, avec point d'insertion exact),
+> III les mesures. L'autre artefact est périmé et pointe vers celui-ci.
+
+
+> ### 2026-09-14 — DÉCISION PLATEFORME POUR L'ARTICLE : **A, plateforme PRÉ-FIX**
+>
+> **Le problème posé.** Le correctif du gel mode 7 (mux 4→16 + `axi_wr_pacer`, ci-dessous)
+> ne fait pas que dégeler la carte : **il déplace les verdicts rate-based**. À bitstream et
+> `CTRL` identiques (v16, `0x1731`), fond LHA désactivé dans les deux bras :
+>
+> | sur 50 | avant le correctif (2 campagnes) | après (5 campagnes) |
+> |---|---|---|
+> | SC02 storm | 39, 45 | **50, 50, 50, 50, 50** |
+> | SC04 MSI | 44, 47 | **50, 50, 50, 50, 50** |
+> | SC03 outstanding | 50, 50 | 50 ×5 |
+> | faux positifs | 0 | 0 |
+> | latence légitime (médiane) | 266 | 266 |
+>
+> Logs : `results/bench_2026-09-13_1533{53,427}.log` (avant) et `204335`, `2229{04,36}`,
+> `2230{12,36}` (après). **SC09 (tempête pipelinée) devient détectable** : 0/50 à d=2 et d=4,
+> **49/50 à d=8, 50/50 à d=16** — avant, d≥8 gelait la carte.
+>
+> **DÉCISION (14/09) : l'article reste évalué sur la plateforme PRÉ-FIX.** Les chiffres
+> publiés (55 campagnes, fond actif, moniteurs NON exhaustifs 79,5 % / 93,9 %) restent
+> valides ; le gel et son correctif sont rapportés comme *finding*, avec **une phrase ajoutée
+> au § 6.5** disant ce que le correctif fait aux verdicts et pourquoi ce n'est pas comparable.
+> Aucune campagne à refaire pour cette soumission.
+>
+> **Trois réserves attachées à ce résultat, à lever si on veut un jour publier la plateforme
+> corrigée** : (i) le fond LHA était **désactivé dans les deux bras** → non comparable au
+> pooled de la Table 6 ; (ii) **le mécanisme n'est pas établi** — le pacer est en AVAL
+> d'ARMOR, pourquoi la détection MONTE n'est expliqué par aucune mesure (le registre
+> d'occupation de fenêtre `0x38` trancherait en une campagne) ; (iii) **la latence d'une
+> écriture légitime n'a jamais été mesurée** — les deux profils bénins sont des LECTURES,
+> donc l'effet de `MAX_WR_TXN=1` sur le trafic légitime en écriture est inconnu.
+>
+> **Artefact « article » à jour** : `ARMOR–ASOS Revision Dossier`, version 10 du 14/09
+> (https://claude.ai/code/artifact/392ced50-8c6a-4781-849c-921e9b2e6e68) — sections 1, 6, 11
+> et 12 revues. L'autre artefact, `ARMOR–ASOS Revision Notes` (12/09), est **périmé** : il a
+> été remplacé par le Dossier, ne pas y revenir. **Report des corrections dans le papier :
+> À LA MAIN** (les sources LaTeX ne sont pas sur ce PC ; le PDF seul ne s'édite pas).
+> Le manuscrit `~/Téléchargements/Papier_JSA.pdf` recompilé le 14/09 n'a encore **aucune**
+> révision appliquée : « 326K LUTs », « Vivado 2022.1 », Table 7 et Table 8 sont intacts.
+
+
 > ### 2026-09-13 (soir) — GEL MODE 7 (SC09) DIAGNOSTIQUÉ ET CORRIGÉ, VALIDÉ SUR CARTE
 >
 > **Le problème.** Le mode 7 de `accel_wrap` (tempête PIPELINÉE : N adresses d'écriture EN VOL
