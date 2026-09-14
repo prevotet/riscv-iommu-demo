@@ -1,5 +1,13 @@
 #  Synthese hors contexte du wrapper ARMOR seul. Voir ooc_wrapper.sv.
 set root [lindex $argv 0]
+#  Deuxieme argument, optionnel : une etiquette qui suffixe les rapports ET,
+#  si elle vaut « noobs », ajoute ARMOR_NO_OBSERVE aux defines. Sert a chiffrer
+#  ce que l'instrumentation d'evaluation coute, en comparant deux synthetiques
+#  du MEME RTL. Sans argument, comportement d'avant : wrapper complet.
+set tag  [expr {$argc > 1 ? [lindex $argv 1] : ""}]
+set defs BENCH_PROFILE
+if {$tag eq "noobs"} { lappend defs ARMOR_NO_OBSERVE }
+set sfx  [expr {$tag eq "" ? "" : "_$tag"}]
 set part xc7k325tffg900-2
 set cva6 $root/cva6
 
@@ -34,11 +42,11 @@ read_verilog -sv [list \
 
 #  50 MHz, la frequence de la plateforme evaluee.
 synth_design -top ooc_wrapper -part $part -mode out_of_context \
-             -verilog_define BENCH_PROFILE \
+             -verilog_define $defs \
              -include_dirs [list $cva6/core/include $root/armor/Include]
 create_clock -period 20.000 -name clk_i [get_ports clk_i]
 opt_design
 
-report_utilization      -file $root/armor/ooc/ooc_utilization.rpt
-report_timing_summary   -file $root/armor/ooc/ooc_timing.rpt
-puts "=== OOC : [llength [get_cells -hier -filter {PRIMITIVE_GROUP == LUT}]] LUT, [llength [get_cells -hier -filter {PRIMITIVE_GROUP == FLOP_LATCH}]] bascules"
+report_utilization      -file $root/armor/ooc/ooc_utilization$sfx.rpt
+report_timing_summary   -file $root/armor/ooc/ooc_timing$sfx.rpt
+puts "=== OOC$sfx : [llength [get_cells -hier -filter {PRIMITIVE_GROUP == LUT}]] LUT, [llength [get_cells -hier -filter {PRIMITIVE_GROUP == FLOP_LATCH}]] bascules"
