@@ -63,6 +63,8 @@
 #define WRAP_CNT_MSI_OFF        (0x48ULL)
 #define WRAP_DEVID_LAST_OFF     (0x50ULL)
 #define WRAP_MAGIC_OFF          (0x58ULL)
+#define WRAP_ADDR_SPAN_OFF      (0x100ULL)  /* v17 : [31:0] min, [63:32] max */
+#define WRAP_ADDR_WALK_OFF      (0x108ULL)  /* v17 : [31:0] chgts de page    */
 
 #define WRAP_CTRL_ENFORCE       (1ULL << 0)
 #define WRAP_CTRL_STICKY_CLR    (1ULL << 1)
@@ -404,6 +406,8 @@ static volatile uint64_t *mha_config  = (volatile uint64_t *)(MHA_BASE_ADDR + MH
 static volatile uint64_t *mha_mode    = (volatile uint64_t *)(MHA_BASE_ADDR + MHA_ATTACK_MODE_OFF);
 static volatile uint64_t *mha_msi_addr= (volatile uint64_t *)(MHA_BASE_ADDR + MHA_MSI_ADDR_OFF);
 static volatile uint64_t *mha_pipe_depth = (volatile uint64_t *)(MHA_BASE_ADDR + MHA_PIPE_DEPTH_OFF);
+#define MHA_SCAN_SPAN_OFF       (0x48ULL)   /* mode 8 : pages balayees */
+static volatile uint64_t *mha_scan_span  = (volatile uint64_t *)(MHA_BASE_ADDR + MHA_SCAN_SPAN_OFF);
 
 static volatile uint64_t *lha_ctrl    = (volatile uint64_t *)(LHA_BASE_ADDR + LHA_CTRL_OFF);
 static volatile uint64_t *lha_status  = (volatile uint64_t *)(LHA_BASE_ADDR + LHA_STATUS_OFF);
@@ -614,6 +618,13 @@ static void armor_wrap_init(int enforce) {
             printf("# ARMOR v%u : 0x38[63:32] lira zero -- ni occupation max ni "
                    "fenetres actives, un faux negatif de SC02 restera sans marge "
                    "mesuree\r\n", v);
+        /* Meme raison : zero n'est pas « rien touche », c'est « rien mesure ».
+         * Sans le v17, SC10 tourne mais ne prouve rien -- le mode 8 de l'accel
+         * n'existe pas avant ce bitstream et degenere en trafic normal. */
+        if (v < 17)
+            printf("# ARMOR v%u : 0x100/0x108 liront zero -- ni etendue "
+                   "d'adresses ni changements de page, et le mode 8 de l'accel "
+                   "n'existe pas : SC10 mesurera du trafic ordinaire\r\n", v);
     }
 
     w1[WRAP_ID_CFG_OFF   / 8] = 1ULL;         /* LHA : STREAM_ID = 1 */
@@ -699,8 +710,19 @@ static void armor_wrap_report_one(const char *tag, const char *who, uint64_t bas
      * controle de version l'a deja dit en tete de campagne. */
     uint64_t stm = w[WRAP_CNT_STORM_OFF / 8];
     uint64_t out = w[WRAP_CNT_OUTS_OFF  / 8];
+    /* v17 : l'etendue d'adresses, que les moniteurs de debit ne portent pas.
+     * amin=0xFFFFFFFF signale « aucune requete vue », pas une etendue nulle --
+     * ne pas soustraire dans ce cas. Sur un bitstream anterieur au v17 les deux
+     * registres lisent zero, et le controle de version l'a deja dit. */
+    uint64_t spn = w[WRAP_ADDR_SPAN_OFF / 8];
+    uint64_t wlk = w[WRAP_ADDR_WALK_OFF / 8];
+    unsigned long amin = (unsigned long)(spn & 0xFFFFFFFFULL);
+    unsigned long amax = (unsigned long)(spn >> 32);
+    unsigned long apg  = (amin == 0xFFFFFFFFUL) ? 0UL
+                                                : (unsigned long)(((amax - amin) >> 12) + 1);
     printf("# ARMORCNT,%s,%s,sticky=0x%08x,fail=%lu,ban=%lu,storm=%lu,outs=%lu,msi=%lu,"
-           "reqmax=%lu,winact=%lu,outsmax=%lu\r\n",
+           "reqmax=%lu,winact=%lu,outsmax=%lu,amin=0x%08lx,amax=0x%08lx,"
+           "apages=%lu,pgchg=%lu\r\n",
            tag, who,
            (unsigned)w[WRAP_STICKY_OFF      / 8],
            (unsigned long)w[WRAP_FAILCNT_OFF    / 8],
@@ -713,7 +735,9 @@ static void armor_wrap_report_one(const char *tag, const char *who, uint64_t bas
            /* OUTS_MAX : plus forte profondeur d'en-vol atteinte, seuil 16.
             * C'est ce chiffre qui dira si une campagne non detectee est passee
             * SOUS le seuil -- la question laissee ouverte le 2026-09-13. */
-           (unsigned long)((out >> 32) & 0xFFULL));
+           (unsigned long)((out >> 32) & 0xFFULL),
+           amin, amax, apg,
+           (unsigned long)(wlk & 0xFFFFFFFFULL));
 }
 
 static void armor_wrap_report(const char *tag) {
@@ -1453,6 +1477,37 @@ static void run_scenario(const char *tag, char accel, uint64_t mode,
 #define LAS_REPEAT  100    /* nb de salves */
 #define LAS_GAP_CY  200    /* > WINDOW_CYCLES BENCH */
 
+/* ------------------------------------------------------------------------
+ * SC10 — BALAYAGE MEMOIRE (mode 8, MAGIC v17)
+ *
+ * POURQUOI CE SCENARIO EXISTE. SC08, dit « low-and-slow », emet mode 0 vers
+ * LEGIT_DST : c'est le trafic legitime joue sept fois plus longtemps, et son
+ * « 0 % de detection » mesure l'ABSENCE DE FAUX POSITIF, pas un faux negatif.
+ * Constate le 2026-09-14 : SC07 et SC08 donnent 264 ticks par transaction au
+ * tick pres et une requete par fenetre chacun. Il n'y avait donc, jusqu'ici,
+ * aucun scenario ou un moniteur de debit soit structurellement aveugle.
+ *
+ * CE QUE FAIT SC10. Le MHA emet au rythme NOMINAL -- une requete par
+ * lancement, exactement comme le mode 0 -- mais deplace son adresse d'une page
+ * a chaque transfert. Aucun seuil n'est franchi : ni le flux (une requete par
+ * fenetre), ni l'outstanding (une transaction en vol), ni l'IOMMU, puisque
+ * SCAN_BASE et les SCAN_PAGES qui suivent sont DANS la region guest
+ * (0x9000_0000 + 512 Mio, mappee en identite). L'attaque reste dans ses droits.
+ *
+ * CE QU'ON ATTEND. Zero verdict : expected_block = 0 pour chaque iteration, et
+ * un blocage serait un FAUX POSITIF. La preuve ne se lit pas dans les verdicts
+ * mais dans ADDR_SPAN et ADDR_WALK du wrapper 2, a comparer aux memes registres
+ * sur SC07 : meme cadence, meme volume, etendue incomparable.
+ *
+ * BORNES. SCAN_BASE est a 32 Mio du debut de la region guest, donc au-dessus
+ * de l'image du guest, et le balayage s'arrete bien avant MSI_TARGET_DST
+ * (0x9100_8000) : une ecriture a cette adresse serait classee MSI et
+ * polluerait la mesure.
+ * ------------------------------------------------------------------------ */
+#define SCAN_BASE   (0x92000000ULL) /* region guest, hors image et hors MSI */
+#define SCAN_PAGES  256             /* 1 Mio balaye, 4 Kio par pas */
+#define SCAN_N      700             /* meme volume que SC08 : comparaison a volume egal */
+
 static void run_sc08(stats_t *st) {
     stat_init(st, "SC08-LAS");
     TRACE_ARM();
@@ -1489,6 +1544,35 @@ static void run_sc08(stats_t *st) {
     printf("# SC08 : passed=%d blocked=%d (FN=%d, débit_évasion attendu)\r\n",
            passed, blocked, passed);
     armor_wrap_report("SC08-LAS");
+}
+
+/* SC10 — balayage memoire. Voir le bloc de commentaires de SCAN_BASE. */
+static void run_sc10(stats_t *st) {
+    stat_init(st, "SC10-SCAN");
+    TRACE_ARM();
+    armor_wrap_clear();
+    *mha_scan_span = (uint64_t)SCAN_PAGES;
+    uint64_t span_rb = *mha_scan_span;
+    printf("# === SC10 balayage : %d requetes, %d pages depuis 0x%08x "
+           "(SCAN_SPAN relu %lu)\r\n",
+           SCAN_N, SCAN_PAGES, (unsigned)SCAN_BASE, (unsigned long)span_rb);
+    if (span_rb != (uint64_t)SCAN_PAGES)
+        printf("# ATTENTION : SCAN_SPAN relit %lu -- bitstream anterieur au v17, "
+               "le mode 8 tournera a sa valeur de synthese\r\n",
+               (unsigned long)span_rb);
+    int passed = 0, blocked = 0;
+    for (int i = 0; i < SCAN_N; i++) {
+        uint64_t lat_det = 0, lat_tx = 0;
+        uint64_t status = fire_one('M', 8 /* balayage */, SCAN_BASE,
+                                   0 /* write */, &lat_det, &lat_tx);
+        if (armor_blocked(status)) { blocked++; } else { passed++; }
+        /* expected_block = 0 : on ATTEND le silence des moniteurs. Un blocage
+         * ici est un faux positif, pas une detection. */
+        stat_add(st, /*expected*/0, armor_blocked(status), lat_det, lat_tx);
+    }
+    printf("# SC10 : passed=%d blocked=%d (FP=%d attendu 0 -- la preuve est "
+           "dans ADDR_SPAN/ADDR_WALK)\r\n", passed, blocked, blocked);
+    armor_wrap_report("SC10-SCAN");
 }
 
 /* ============================================================
@@ -2244,12 +2328,13 @@ void main(void) {
      * baremetal-guest est limitée à STACK_SIZE = 0x4000 (16 KiB), cf.
      * src/arch/riscv/start.S. Sans 'static' → stack overflow → "no emulation
      * handler for abort" sous Bao. */
-    /* 9 scenarios, 10 avec SC09 (-DBENCH_SC09). Le tableau est dimensionne au
-     * maximum : un depassement ici ecrirait dans la pile de 16 KiB. */
+    /* 10 scenarios depuis SC10 (balayage memoire), 11 avec SC09 (-DBENCH_SC09).
+     * Le tableau est dimensionne au maximum : un depassement ici ecrirait dans
+     * la pile de 16 KiB. Toute addition de scenario doit passer par ici. */
 #ifdef BENCH_SC09
-    static stats_t s[10];
+    static stats_t s[11];
 #else
-    static stats_t s[9];
+    static stats_t s[10];
 #endif
     int n = 0;
 
@@ -2342,6 +2427,10 @@ void main(void) {
     /* SC-08 : low-and-slow — AVANT tout spoof, sinon il est mesuré sur un
      * device banni et tout y paraît bloqué. Fond LHA actif pour la contention. */
     run_sc08(&s[n++]);
+
+    /* SC-10 : balayage memoire, au meme endroit que SC08 et pour la meme
+     * raison -- avant tout spoof, sinon il est mesure sur un device banni. */
+    run_sc10(&s[n++]);
 
 #ifdef BENCH_SC03_FIRST
     /* ==================================================================
