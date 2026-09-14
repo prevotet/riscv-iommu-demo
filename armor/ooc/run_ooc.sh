@@ -5,4 +5,5 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export XILINXD_LICENSE_FILE="${XILINXD_LICENSE_FILE:-/home/jc/Xilinx.lic}"
 source "${VIVADO_SETTINGS:-/tools/Xilinx/Vivado/2022.2/settings64.sh}"
 cd "$ROOT/armor/ooc"
-vivado -mode batch -nojournal -nolog -source run_ooc.tcl -tclargs "$ROOT"
+#  Argument optionnel : « noobs » pour synthetiser sans l'instrumentation.
+vivado -mode batch -nojournal -nolog -source run_ooc.tcl -tclargs "$ROOT" "${1:-}"
