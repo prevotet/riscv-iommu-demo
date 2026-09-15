@@ -5,6 +5,58 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-15 (nuit) — **QUATRE POINTS D'AMÉLIORATION TRAITÉS ; artefact v28**
+>
+> **REPRENDRE ICI.** Il ne reste **que le report des 25 étapes dans le LaTeX**. Aucune mesure
+> n'est en attente. 201 campagnes au total sur le v18, toutes vérifiées.
+>
+> **1. Surface resynthétisée sur le RTL PUBLIÉ.** L'ancienne mesure datait d'avant le v18 :
+> elle décrivait un wrapper sans seuils configurables. Mécanisme seul **1 637 LUT / 1 151 FF**
+> (0,80 % / 0,28 % du device), instrumenté **3 443 / 2 514**, marge **+14,542 ns** sans
+> instrumentation et +14,279 avec, zéro endpoint en faute. **PIÈGE** : la synthèse hors contexte
+> optimise un module isolé, elle ne retrouve donc PAS les +131 LUT mesurés dans le design
+> complet. Les deux chiffres valent dans leur contexte et **ne se soustraient pas**.
+>
+> **2. Référence portée à 55 campagnes** (2 750 injections/classe) → borne de la règle de trois
+> **0,11 %**, celle que l'article annonçait, mais sur la plateforme qu'il publie. 34 campagnes
+> ajoutées, toutes 50/50. **ATTENTION à l'ambiguïté** : le pré-correctif comptait AUSSI 55
+> campagnes. Toujours nommer la plateforme, jamais le nombre de campagnes seul.
+>
+> **3. Latences regroupées sur les 55** : usurpation **≤ 1 cycle** (2 695 verdicts), tempête
+> **≤ 30**, MSI **≤ 49**. L'artefact annonçait 31 pour le MSI — c'était du pré-correctif.
+>
+> **4. SC-09 : un A/B à UN BIT PRÈS, et c'est le meilleur résultat de la journée.**
+>
+> | profondeur | fronts (`RFMCNT=0`, config de référence) | transferts (`RFMCNT=1`) |
+> |---|---|---|
+> | 2 | 0,0 | 0,0 |
+> | 4 | 0,0 | 0,0 |
+> | **8** | **0,0** | **43,5 ± 1,9** |
+> | **16** | **0,0** | **50,0 ± 0,0** |
+>
+> Six campagnes par case, 48 au total, même bitstream, même attaquant, fond actif, aucun gel.
+> **Un attaquant qui pipeline ses adresses est invisible à un moniteur qui compte des FRONTS** :
+> la rafale arrive comme une seule assertion continue, pas comme des événements séparés. C'est
+> un argument de CONCEPTION de moniteur, et il démontre enfin le bit `RFMCNT` que le RTL porte
+> depuis le 11/09 sans justification.
+>
+> **DEUX RÉSERVES à porter avec :** (i) SC-09 n'est détectable qu'**en dehors** de la config de
+> référence (`CTRL=0x331` ⇒ `RFMCNT=0`) — il ne peut PAS rejoindre la Table 6 comme cinquième
+> classe contenue, il se présente comme un résultat **conditionnel** ; (ii) la campagne unique
+> citée jusqu'ici donnait 49/50 à profondeur 8, six campagnes donnent **43,5**. Comme pour
+> CFG-C, **le run isolé flattait** — c'est la deuxième fois aujourd'hui.
+>
+> **Pour lancer SC-09** : `-DBENCH_SC09 -DBENCH_SC09_DEPTH=n`, et **impérativement**
+> `-DARMOR_RFMCNT=1 -DARMOR_BFATE=1` pour le bras détectant (le firmware avertit lui-même :
+> sans BFATE, seize AW en vol font décrocher le canal B).
+>
+> **CE QUI RESTE, ET QU'AUCUNE MESURE NE RÉSOUT** (porté dans la checklist de l'artefact) :
+> tout repose sur **un seul couple d'accélérateurs et un seul profil de trafic** — la
+> recommandation « borne 8 » vaut pour CETTE charge ; il n'y a **aucune comparaison quantitative
+> avec l'état de l'art**, alors que le § 4.5 revendique les cinq mécanismes AXI4 comme
+> contribution citable ; et la **Table 8 (ASOS) a été mesurée sur un bitstream antérieur**
+> (chemin d'interruption, a priori insensible au correctif, mais non revérifié).
+
 > ### 2026-09-15 (soir) — **L'ARTICLE PASSE SUR LA PLATEFORME RÉPARÉE (option B)**
 >
 > **REPRENDRE ICI.** 119 campagnes sur le v18, toutes vérifiées (MAGIC, fin de campagne,
