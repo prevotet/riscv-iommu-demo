@@ -5,10 +5,74 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
-> ### 2026-09-15 — **v18 VALIDÉ SUR CARTE : les quatre configurations de la Table 4 sont mesurées**
+> ### 2026-09-15 (soir) — **L'ARTICLE PASSE SUR LA PLATEFORME RÉPARÉE (option B)**
 >
-> **REPRENDRE ICI.** Le v18 est validé sur carte ; il reste à **archiver le bitstream** et à
-> **reporter la Table 4 dans le manuscrit** (les deux chiffres qui la changent sont au § 1).
+> **REPRENDRE ICI.** 119 campagnes sur le v18, toutes vérifiées (MAGIC, fin de campagne,
+> relecture du registre). Journaux dans `results/`, colonne de contrôle dans
+> `results/mesures_2026-09-15_v18.csv`. Artefact **version 27**, réécrit pour l'option B.
+> **Il reste à reporter les 25 étapes dans le LaTeX** — c'est le seul travail en attente.
+>
+> **1. DÉCISION : Section 6 est évaluée sur la plateforme RÉPARÉE.** Les trois motifs du 14/09
+> en faveur du pré-correctif sont tombés : (i) il existe maintenant **21 campagnes post-correctif
+> FOND ACTIF**, donc comparables ; (ii) le mécanisme est établi (§ 3 ci-dessous) ; (iii) l'argument
+> « non exhaustif » est mieux servi par le balayage de seuil, délibéré et reproductible, que par
+> un défaut de datapath. Motif décisif : **les chiffres pré-correctif ne sont plus reproductibles
+> depuis le dépôt** (correctif commité, v18 archivé).
+>
+> **2. BALAYAGE DU SEUIL DE FLUX — pas de falaise, une décroissance régulière** (6 campagnes/point) :
+>
+> | seuil | 3 | 4 | 5 | 6 | 8 | 9 | 10 | 12 | 16 |
+> |---|---|---|---|---|---|---|---|---|---|
+> | SC-02 | 50,0 | 50,0 | 50,0 | 50,0 | **50,0** | 49,8 | 44,8 | 25,0 | 16,8 |
+> | écart-type | 0,00 | 0,00 | 0,00 | 0,00 | 0,00 | 0,41 | **2,79** | 1,90 | 2,14 |
+>
+> SC-04 vaut 50,0 ± 0,0 **partout** (borne propre, c'est le témoin). **La dispersion est la
+> signature de la frontière** : nulle loin du seuil, 2–3 points dessus. Les 8,6 points du
+> pré-correctif étaient le symptôme d'un moniteur qui travaillait sur sa frontière.
+>
+> **3. LE MÉCANISME DU CORRECTIF, ÉTABLI — et ce n'est PAS le pacer.** ARMOR est en AMONT du
+> pacer, qui ne peut rien changer à ce qu'il voit. **C'est le mux 4 → 16** : l'accélérateur
+> présente ses 16 adresses coup sur coup au lieu d'être étranglé à 4, et le pic d'occupation
+> passe de 10 à **16 — la rafale entière dans une fenêtre**. La réserve (ii) de l'appendice III.7
+> est levée.
+>
+> **4. DEUX PIÈGES DE COMPTEUR, tous deux coûteux, tous deux à retenir :**
+> - **`reqmax` est ÉCRÊTÉ par le seuil.** Le verdict remet le compteur à zéro, donc il lit 3 au
+>   seuil 3, 8 au seuil 8, 16 au seuil 16. **On lit le seuil, pas le trafic.** Le vrai pic exige
+>   `-DARMOR_ENFORCE=0` : six campagnes donnent 16 sans un écart.
+> - **La colonne FP du résumé ne voit pas le fond LHA** (il n'est pas un scénario noté). Au
+>   seuil 3 elle affiche 0 alors que le wrapper w1 se déclenche **58 919 à 59 090 fois**. Lire le
+>   compteur `storm` de w1. Plancher sans faux positif : **seuil 4**.
+> - Accessoirement : la bannière « LHA background CONTINU armé » est imprimée
+>   **inconditionnellement**. Elle ne prouve rien ; seule l'absence de « fond LHA DESACTIVE » le fait.
+>
+> **5. SC-03 N'EST PAS CONTENU PAR ARMOR à la borne de synthèse.** Les 50 injections échouent,
+> mais le moniteur ne tranche que **0,8 fois sur 50 (1,6 %)** : le reste expire sur le **timeout
+> du maître à 65 685 cycles**. Balayage de la borne d'en-vol, 6 campagnes/point :
+>
+> | borne | 4 | 8 | 12 | 16 (synth) | 24 |
+> |---|---|---|---|---|---|
+> | verdicts | 50,0 | **43,3** | 1,3 | **0,8** | 1,0 |
+> | latence Lp50 | 159 | **226** | 65 685 | 65 685 | 65 685 |
+>
+> **Ne JAMAIS publier 65 685 comme une latence de détection** : c'est le timeout du maître. La
+> latence du moniteur vaut 226 cycles. Et la Table 6 doit afficher **1,6 %**, pas 100 %.
+> Contention rejouée : fond coupé borne 16 → 20,2 verdicts ; fond actif borne 8 → **43,3**. Le
+> moniteur n'est pas aveugle, **sa borne est calibrée sur l'attaquant isolé**.
+>
+> **6. TABLE 4 : les quatre configurations à six campagnes.** CFG-A 50,0 ± 0,0 ; CFG-B 50,0 ± 0,0 ;
+> **CFG-C 36,2 ± 0,9** ; CFG-D 50,0 ± 0,0 avec SC-03 à 158 cycles. Décomposition de CFG-C : le
+> seuil 16 SEUL donne 16,8, et la fenêtre 200 en récupère les deux tiers (36,2). **Les deux
+> paramètres ne sont pas interchangeables** — citer le couple, jamais l'un seul.
+>
+> **7. Groupé de référence : 21 campagnes**, 1 050 injections par classe, borne de la règle de
+> trois **0,29 %**. Usurpation, tempête et MSI exhaustives, écart-type nul. Zéro faux positif
+> dans les 119 campagnes, seuil 3 excepté.
+
+> ### 2026-09-15 (matin) — **v18 VALIDÉ SUR CARTE : les quatre configurations de la Table 4 sont mesurées**
+>
+> *(Bloc du matin, conservé : c'est la validation du v18 elle-même. Le bitstream est archivé
+> depuis, et les chiffres de la Table 4 sont repris à six campagnes dans le bloc du soir.)*
 >
 > **Le v18 est validé.** Non-régression CFG-A d'abord, puis les quatre lignes de la Table 4,
 > toutes sur le même bitstream, sans resynthèse entre elles — ce que le v18 devait précisément
