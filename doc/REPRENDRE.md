@@ -18,16 +18,20 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 > |---|---|---|---|---|---|---|---|
 > | **CFG-A** (référence) | non écrit | `0x331` | 50/50 | 50/50 | 50/50 | 50/50 | **0** |
 > | **CFG-B** (`XFER_SIZE=512`) | non écrit | `0x331` | 50/50 | 50/50 | 50/50 | 50/50 | **0** |
-> | **CFG-C** (seuils relâchés) | `0x002000c8` | `0x100331` | 50/50 | **38/50** | 50/50 | 50/50 | **0** |
+> | **CFG-C** (seuils relâchés) | `0x002000c8` | `0x100331` | 50/50 | **36,2 ± 0,9** | 50/50 | 50/50 | **0** |
 > | **CFG-D** (seuils resserrés) | `0x02080032` | `0x40331` | 50/50 | 50/50 | 50/50 | 50/50 | **0** |
 >
 > Journaux : `results/bench_2026-09-15_103551.log` (A), `103829` (B), `103909` (C), `103948` (D).
+> Bras répétés : `1048{55}`/`1049{04,13,21,31,40}` (CFG-C ×6) et `1050{05,13,21,30,38,46}` (CFG-A ×6).
 >
 > **1. `0x110` N'EST PAS INERTE — c'est prouvé deux fois, et par le comportement, pas par une
 > relecture.** La relecture concorde (`0x002000c8`, `0x02080032`, aucune ligne `ATTENTION`),
 > mais c'est l'effet mesuré qui compte :
-> - **CFG-C fait TOMBER SC02 de 50/50 à 38/50.** Seuil de flux 8 → 16 sur une fenêtre de 200 :
->   la tempête passe sous le seuil douze fois sur cinquante.
+> - **CFG-C fait TOMBER SC02 de 50,0 ± 0,0 à 36,2 ± 0,9**, sur **six campagnes par bras** jouées
+>   d'affilée sur le même bitstream : référence 50/50 six fois, CFG-C **35, 36, 37, 36, 38, 35**.
+>   **Les fourchettes ne se chevauchent pas** et l'écart de 13,8 points s'appuie sur une
+>   dispersion inférieure au point. Seuil de flux 8 → 16 sur une fenêtre de 200.
+>   **PIÈGE** : la campagne unique du matin donnait **38, le HAUT de la fourchette** — publier 36,2.
 > - **CFG-D fait s'effondrer la latence de détection de SC03 : `Lp50` 65685 → 158 cycles**,
 >   soit **416×**. À `MAX_OUTS` 8 au lieu de la valeur de synthèse, le moniteur d'en-vol tranche
 >   presque immédiatement au lieu de laisser la transaction saturer le timeout du maître. C'est
@@ -35,9 +39,10 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 >   TOUJOURS, et le § 4 du 14/09 le notait comme une limite (« SC03 sature au timeout »). Cette
 >   limite est un ARTEFACT DU SEUIL, pas une propriété du moniteur.
 >
-> **2. Zéro faux positif dans les quatre configurations**, y compris CFG-D qui resserre les
-> trois seuils à la fois (fenêtre 50, en-vol 8, échecs 2). SC06/SC07 (bénins lecture),
-> SC08 (bénin écriture) et SC10 (balayage) restent tous à FP=0.
+> **2. Zéro faux positif dans les seize campagnes**, y compris CFG-D qui resserre les trois
+> seuils à la fois (fenêtre 50, en-vol 8, échecs 2). SC06/SC07 (bénins lecture), SC08 (bénin
+> écriture) et SC10 (balayage) restent tous à FP=0. SC01/SC03/SC04 sont à 50/50 dans les douze
+> campagnes des deux bras répétés, et la latence SC03 y vaut 65 685 au cycle près.
 >
 > **3. Non-régression CFG-A contre le v17** (campagne `bench_2026-09-14_134259.log`) :
 > les huit scénarios donnent des verdicts **identiques** (TP/FP/FN/TN au chiffre près), et
