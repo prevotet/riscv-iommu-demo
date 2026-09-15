@@ -5,10 +5,88 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-15 — **v18 VALIDÉ SUR CARTE : les quatre configurations de la Table 4 sont mesurées**
+>
+> **REPRENDRE ICI.** Le v18 est validé sur carte ; il reste à **archiver le bitstream** et à
+> **reporter la Table 4 dans le manuscrit** (les deux chiffres qui la changent sont au § 1).
+>
+> **Le v18 est validé.** Non-régression CFG-A d'abord, puis les quatre lignes de la Table 4,
+> toutes sur le même bitstream, sans resynthèse entre elles — ce que le v18 devait précisément
+> rendre possible. MAGIC `…012` vérifié au début de CHACUNE des quatre campagnes.
+>
+> | | `0x110` relu | CTRL | SC01 | SC02 | SC03 | SC04 | faux positifs |
+> |---|---|---|---|---|---|---|---|
+> | **CFG-A** (référence) | non écrit | `0x331` | 50/50 | 50/50 | 50/50 | 50/50 | **0** |
+> | **CFG-B** (`XFER_SIZE=512`) | non écrit | `0x331` | 50/50 | 50/50 | 50/50 | 50/50 | **0** |
+> | **CFG-C** (seuils relâchés) | `0x002000c8` | `0x100331` | 50/50 | **38/50** | 50/50 | 50/50 | **0** |
+> | **CFG-D** (seuils resserrés) | `0x02080032` | `0x40331` | 50/50 | 50/50 | 50/50 | 50/50 | **0** |
+>
+> Journaux : `results/bench_2026-09-15_103551.log` (A), `103829` (B), `103909` (C), `103948` (D).
+>
+> **1. `0x110` N'EST PAS INERTE — c'est prouvé deux fois, et par le comportement, pas par une
+> relecture.** La relecture concorde (`0x002000c8`, `0x02080032`, aucune ligne `ATTENTION`),
+> mais c'est l'effet mesuré qui compte :
+> - **CFG-C fait TOMBER SC02 de 50/50 à 38/50.** Seuil de flux 8 → 16 sur une fenêtre de 200 :
+>   la tempête passe sous le seuil douze fois sur cinquante.
+> - **CFG-D fait s'effondrer la latence de détection de SC03 : `Lp50` 65685 → 158 cycles**,
+>   soit **416×**. À `MAX_OUTS` 8 au lieu de la valeur de synthèse, le moniteur d'en-vol tranche
+>   presque immédiatement au lieu de laisser la transaction saturer le timeout du maître. C'est
+>   le résultat le plus fort de la journée et il n'était pas prévu : jusqu'ici SC03 saturait
+>   TOUJOURS, et le § 4 du 14/09 le notait comme une limite (« SC03 sature au timeout »). Cette
+>   limite est un ARTEFACT DU SEUIL, pas une propriété du moniteur.
+>
+> **2. Zéro faux positif dans les quatre configurations**, y compris CFG-D qui resserre les
+> trois seuils à la fois (fenêtre 50, en-vol 8, échecs 2). SC06/SC07 (bénins lecture),
+> SC08 (bénin écriture) et SC10 (balayage) restent tous à FP=0.
+>
+> **3. Non-régression CFG-A contre le v17** (campagne `bench_2026-09-14_134259.log`) :
+> les huit scénarios donnent des verdicts **identiques** (TP/FP/FN/TN au chiffre près), et
+> l'étendue du balayage SC10 est reproduite au bit près — `amin=0x92000000`, `amax=0x920ff000`,
+> `apages=256`, `pgchg=699`. Seul `winact` bouge de quelques unités (13483 vs 13497) : jitter du
+> trafic de fond. L'élargissement des deux compteurs et le déplacement de la comparaison
+> d'échecs n'ont rien cassé.
+>
+> **4. CFG-B coûte ~70 cycles partout** (SC06 `Lp50` 225 → 297, SC07 225 → 291) sans changer un
+> seul verdict : c'est le profil P-BURST, transfert 8× plus gros, et il ne déplace pas les
+> frontières de détection.
+>
+> **LE BITSTREAM PEUT MAINTENANT ÊTRE ARCHIVÉ** (`tools/bitstream.sh save bench`) : la réserve
+> du 14/09 est levée, le v18 a quatre campagnes valides. `bitstreams/` contient encore le v17.
+>
+> ---
+>
+> **PIÈGE DE LA CHAÎNE JTAG, ET IL A COÛTÉ UNE MATINÉE ENTIÈRE.**
+>
+> **`2_build_HB.sh program` / `tools/program_fpga.sh` échouent À LA PREMIÈRE PASSE et
+> réussissent À LA SECONDE. Il faut les lancer DEUX FOIS.** Le mécanisme est visible dans les
+> logs Vivado : la passe qui échoue ouvre la cible
+> `…/Digilent/`**`200300BB8B2C`**, celle qui réussit ouvre `…/Digilent/`**`200300BB8B2CB`** —
+> le numéro de série est **tronqué d'un caractère** tant que `hw_server` vient d'être lancé.
+> La seconde passe, sur un `hw_server` déjà chaud, retrouve le nom complet et programme
+> (`End of startup status: HIGH`).
+>
+> **Corollaire, et c'est là qu'on se perd : NE PAS TUER `hw_server` ENTRE LES DEUX PASSES.**
+> Un `pkill` entre chaque essai condamne à ne jamais jouer que la première, donc à échouer
+> indéfiniment. Le 15/09 la matinée est passée là-dessus, avec un diagnostic qui s'enfonçait :
+> alimentation, câble, rails du FPGA, jusqu'à conclure à tort à une panne matérielle. **Aucune
+> de ces pistes n'était la bonne, la carte n'a jamais eu le moindre défaut.**
+>
+> Ce qui a été mesuré pendant cette errance reste vrai et vaut d'être gardé :
+> - `all ones` sur la chaîne signifie « personne ne pilote TDO » — PAS « carte éteinte ». Un
+>   FPGA alimenté mais vierge répond quand même à l'IDCODE.
+> - **Le FT2232H est alimenté PAR LA CARTE** (`bMaxPower = 0mA`, il ne tire rien du bus) : il
+>   disparaît de `lsusb` sur OFF, revient sur ON. `lsusb | grep 0403:6010` est donc un témoin
+>   FIABLE de l'alimentation. Le FT232R de la console (`0403:6001` → `ttyUSB0`) est sur son
+>   propre câble et reste visible en permanence : lui ne prouve rien.
+> - OpenOCD lancé sur la chaîne AVANT programmation lit forcément `all ones` : le TAP déclaré
+>   dans `openocd_genesys2.cfg` est celui du CVA6, qui n'existe qu'une fois le bitstream chargé.
+>   **Ce n'est pas un test d'alimentation** — c'était l'erreur de lecture de départ.
+
 > ### 2026-09-14 (soir) — v18 SYNTHÉTISÉ MAIS **NON VALIDÉ SUR CARTE**
 >
-> **REPRENDRE ICI.** Le v18 rend configurables les **trois derniers seuils de détection**,
-> ceux que la Table 4 de l'article fait varier et qui étaient figés à la synthèse :
+> **Le détail de ce qui reste à faire est ici.** Le v18 rend configurables les **trois
+> derniers seuils de détection**, ceux que la Table 4 de l'article fait varier et qui
+> étaient figés à la synthèse :
 > registre **`0x110 CFG_PARAMS`** — `[15:0]` largeur de fenêtre, `[23:16]` seuil d'en-vol,
 > `[31:24]` échecs consécutifs. Convention du seuil de flux : **zéro = valeur de synthèse**,
 > donc un firmware qui ignore le registre ne change rien. MAGIC **v18** (`0x…012`).
@@ -44,9 +122,17 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 >   « No devices detected on target …/Digilent/… » alors que le câble EST vu.
 > - « No matching hw_devices were found » (sans nom de câble) = Vivado ne voit pas le câble :
 >   débrancher/rebrancher le PROG a suffi.
-> - **`JTAG scan chain interrogation failed: all ones`** = **le FPGA n'est pas alimenté**. Le
->   câble reste visible (l'USB le nourrit) et Vivado le nomme par son numéro de série : ça ne
->   prouve rien sur l'alimentation de la carte. C'est là-dessus que la session s'est arrêtée.
+> - **`JTAG scan chain interrogation failed: all ones`** = **rien ne pilote TDO**. La cause la
+>   plus courante est un FPGA non alimenté, mais **ce n'est pas la seule** — voir la mesure du
+>   15/09 ci-dessous, où la carte était sous tension et la chaîne restait vide. C'est là-dessus
+>   que la session du 14 s'est arrêtée.
+> - **CORRECTION DU 2026-09-15 : le FT2232H est alimenté PAR LA CARTE, pas par l'USB.** La note
+>   d'origine disait l'inverse et a coûté plusieurs rallumages à l'aveugle. Vérifié en basculant
+>   l'interrupteur : sur OFF le `0403:6010` **disparaît** de `lsusb` (et `ttyUSB1`/`ttyUSB2`
+>   avec lui), sur ON il revient. **`lsusb | grep 0403:6010` est donc un témoin FIABLE de
+>   l'alimentation de la carte** — c'est le test à faire en premier, il ne coûte rien. Le
+>   FT232R de la console (`0403:6001` → `ttyUSB0`), lui, est sur son propre câble USB et reste
+>   visible en permanence : c'est celui-là qui ne prouve rien.
 > - OpenOCD (`capture_uart.sh -j`) et Vivado ne se partagent pas le câble : un seul à la fois.
 >
 > **Artefact « article » : version 24**, restructuré en **parcours linéaire de 25 étapes**
