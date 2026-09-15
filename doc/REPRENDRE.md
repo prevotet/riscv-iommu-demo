@@ -644,6 +644,28 @@ construit). Choisir la machine en conséquence.
 docs, pointeurs de sous-modules. **Ce qui ne transite pas** : `payloads/` (reconstruit),
 `build/` (reconstruit), la mémoire de l'assistant (résumée ici au § 0), les sorties Vivado.
 
+**Vérifié le 2026-09-15 — les sous-modules sont sales et c'est NORMAL.** `git status` montre
+`bao-hypervisor` et `cva6` modifiés ; ne rien y committer, tout est régénéré :
+- **cva6** (13 fichiers) : déversé depuis `armor/SRC/` et `cva6-overlay/` par le build.
+- **bao-hypervisor** (4 entrées) : trois fichiers depuis `bao-overlay/`, et le répertoire
+  **non suivi** `src/platform/cva6/` que `2_build_HB.sh` recopie depuis **`plat-configs/cva6/`**,
+  lequel EST versionné (5 fichiers, vérifiés identiques). Rien n'est perdu au clone.
+
+**Enchaîner des campagnes : `tools/campagne.sh <étiquette> <N> [flags]`** (versionné depuis le
+15/09). Il construit le firmware, joue N campagnes, et sort **une ligne CSV par campagne avec
+les garde-fous en clair** — MAGIC, marqueur de fin, `CTRL` et `0x110` relus. Une ligne dont le
+MAGIC ou `end=` n'est pas le bon est une campagne **à jeter, pas à interpréter**. Surcharger
+`RISCV_BARE` et `BASE_FLAGS` par l'environnement. Le bitstream n'est PAS rechargé entre les
+campagnes : le flasher une fois avant (deux passes !), le JTAG ne change que le firmware.
+
+**Ordre de démarrage sur la carte, dans cet ordre :**
+1. `lsusb | grep 0403:6010` → **témoin fiable** de l'alimentation (le FT2232H est alimenté par
+   la carte). Le FT232R `0403:6001` → `ttyUSB0` est la console, sur son propre câble.
+2. `tools/program_fpga.sh build/hw/ariane_xilinx.bit` — **DEUX FOIS**, et **sans tuer
+   `hw_server` entre les deux** (la 1ʳᵉ passe ouvre la cible sous un numéro de série tronqué).
+3. `pkill -x hw_server` **après** la programmation, avant tout OpenOCD.
+4. `tools/campagne.sh` ou `tools/capture_uart.sh -j <elf>`.
+
 ## 1. Mise en route
 
 ```sh
