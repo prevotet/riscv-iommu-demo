@@ -1,13 +1,79 @@
 # Reprendre le travail ARMOR sur une autre machine
 
-État au **2026-09-13**, branche `testbench`. Ce document existe parce que le README amont
+État au **2026-09-16**, branche `testbench`. Ce document existe parce que le README amont
 ne dit rien de la chaîne de bench, et que tout le reste vivait dans les messages de commit.
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-16 — **LES 25 ÉTAPES SONT PORTÉES ; artefact v29, six ajouts et onze réparations**
+>
+> **REPRENDRE ICI.** L'article a été repris sur l'autre PC (`/media/sf_Partage/Papier_JSA_JC.pdf`,
+> recompilé le 16/09, 28 p.) : **les vingt-cinq passages « change » sont appliqués**. Ce qui reste
+> n'est plus du report, c'est de la **rédaction d'ajouts** — le texte n'existait pas — plus les
+> incohérences qu'une révision partielle laisse derrière elle. **Aucune mesure n'est en attente**,
+> sauf une facultative (campagne ASOS sur le v18, ci-dessous).
+>
+> **Artefact v29** — https://claude.ai/artifact/84VmBeb5agszoVD2KTif7m — réécrit pour cet état :
+> LaTeX prêt à coller, points d'insertion cités par la phrase qui précède et celle qui suit,
+> texte ajouté en rouge (`\newcommand{\add}[1]{\textcolor{red}{#1}}`), chiffres sortis du corps
+> du texte et mis en tables avec `\label`/`\ref`, commentaires en italique hors des blocs à coller.
+>
+> **1. SIX SOUS-SECTIONS À AJOUTER** (A1–A6 dans l'artefact) :
+>
+> | | Où | Apporte |
+> |---|---|---|
+> | A1 | nouvelle §4.5, avant `\subsection{Discussion}` | conformité AXI4 + table des 5 mécanismes |
+> | A2 | nouvelle §6.2.4, avant §6.3 | méthodologie des campagnes, standard statistique |
+> | A3 | nouvelle §6.3.5 | sensibilité aux seuils + 2 tables de balayage |
+> | A4 | nouvelle §6.3.6 | Table 4 enfin mesurée + table de résultats |
+> | A5 | nouvelle §6.3.7 | angle mort du balayage mémoire + table d'étendue |
+> | A6 | nouvelle §6.3.8 | tempête pipelinée (SC-09) — **facultatif** |
+>
+> A3–A6 s'insèrent **d'un seul tenant** entre §6.3.4 et §6.4. **L'ORDRE COMPTE** : §6.5 renvoie
+> déjà en dur à « §6.3.7 » pour le balayage mémoire, numéro qu'A5 prend seulement si les trois
+> autres sont placées comme indiqué.
+>
+> **2. UNE RÉPARATION BLOQUANTE : la table ASOS (p. 24) n'a pas été remplacée.** §6.4.6 affirme
+> maintenant que les chiffres sont mesurés sur CVA6 à 50 MHz, et la table juste au-dessus est
+> restée l'ancienne — six lignes **par événement**, en **cycles émulés sous QEMU**, légende
+> « in the virtualized RISC-V platform » comprise. Les deux jeux diffèrent d'un **facteur mille**.
+> Le texte renvoie deux fois à une « Table 8 » **qui n'existe pas** : renvoi en dur, donc LaTeX ne
+> signale rien. C'est la seule incohérence qu'un relecteur voit sans chercher.
+>
+> **3. DIX AUTRES RÉPARATIONS**, par ordre de gravité :
+> - **L'équation (4) a été supprimée et reste citée trois fois** (deux fois §6.3.3, une fois
+>   §6.4.6). L'équation ASOS a pris le numéro (4) alors que le texte l'appelle « Equation 5 »,
+>   d'où le `(5)  (4)` visible p. 24. L'artefact donne le bloc qui la rétablit.
+> - **La Table 5 porte encore trois lignes d'avant correctif** — SC-02 « 4,9 par fenêtre, pic 10 »
+>   et « verdict sur 79,5 % », SC-03 « block once 16 are in flight », SC-04 « 93,9 % ». Elles
+>   annoncent en page 21 le contraire de ce que la page 22 mesure.
+> - **« 21 campagnes » subsiste** dans la légende de la Table 6 et dans §6.3.3, alors que la borne
+>   de 0,11 % annoncée dans l'abstract suppose les **55**. À 21, la règle de trois donne 0,29 %.
+> - **§6.5, collision de collage** : le paragraphe de la conclusion a été collé à l'intérieur du
+>   mot « exhaustively ».
+> - **§6.6 et §7 annoncent toujours une sensibilité aux faux positifs** du moniteur de débit, que
+>   §6.3.2 vient de chiffrer à **zéro** sur 55 campagnes.
+> - **Trois `??` dans le PDF** (§6.2.3, ligne SC-08 de la Table 5, légende Table 6) et six
+>   `\label` à poser sur l'existant : `tbl:rtl`, `tbl:configs`, `tbl:scenarios`, `tbl:detection`,
+>   `sec:accuracy`, `sec:cost`.
+> - Abstract : une phrase à ajouter sur l'angle mort, si A5 est retenue.
+> - §3.3 : un item de classe d'attaque à ajouter, sinon SC-08 figure en Table 5 sans être déclarée.
+>
+> **4. CORRECTION DE CHIFFRE — le pic du générateur de fond est 4, pas 3.** Vérifié sur les 704
+> relevés `ARMORCNT,*,w1` des campagnes du 15/09 : 376 fenêtres à 3, **164 à 4**, jamais plus.
+> C'est cohérent avec le balayage (seuil 4 → 0 déclenchement, seuil 3 → ~59 000), le moniteur
+> déclenchant sur **dépassement** strict. L'annexe III.3 de l'artefact disait 3 ; corrigé.
+>
+> **CE QUI RESTE FACULTATIF** : (i) **A6 n'est pas recommandée sans réserve** — résultat
+> conditionnel, absent de la configuration évaluée, et rien d'autre n'en dépend si elle est coupée ;
+> (ii) **rejouer la campagne ASOS sur le v18** — une heure de carte — ce qui supprimerait la
+> troisième limite que §6.6 doit sinon concéder : les chiffres de la table ASOS ont été pris sur un
+> bitstream antérieur, sur un chemin (délivrance d'interruption par l'hyperviseur) que le correctif
+> d'écriture ne touche pas, mais sans re-mesure.
+
 > ### 2026-09-15 (nuit) — **QUATRE POINTS D'AMÉLIORATION TRAITÉS ; artefact v28**
 >
-> **REPRENDRE ICI.** Il ne reste **que le report des 25 étapes dans le LaTeX**. Aucune mesure
+> **(point de reprise précédent.)** Il ne reste **que le report des 25 étapes dans le LaTeX**. Aucune mesure
 > n'est en attente. 201 campagnes au total sur le v18, toutes vérifiées.
 >
 > **1. Surface resynthétisée sur le RTL PUBLIÉ.** L'ancienne mesure datait d'avant le v18 :
@@ -59,7 +125,7 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 > ### 2026-09-15 (soir) — **L'ARTICLE PASSE SUR LA PLATEFORME RÉPARÉE (option B)**
 >
-> **REPRENDRE ICI.** 119 campagnes sur le v18, toutes vérifiées (MAGIC, fin de campagne,
+> **(point de reprise précédent.)** 119 campagnes sur le v18, toutes vérifiées (MAGIC, fin de campagne,
 > relecture du registre). Journaux dans `results/`, colonne de contrôle dans
 > `results/mesures_2026-09-15_v18.csv`. Artefact **version 27**, réécrit pour l'option B.
 > **Il reste à reporter les 25 étapes dans le LaTeX** — c'est le seul travail en attente.
