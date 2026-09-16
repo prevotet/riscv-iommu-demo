@@ -5,9 +5,68 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-16 (après-midi) — **CAMPAGNE ASOS REJOUÉE SUR LE v18 ; plus aucun chiffre venu d'ailleurs**
+>
+> **REPRENDRE ICI.** La dernière dette de mesure est soldée. Il ne reste **que le report dans
+> le LaTeX** : six ajouts et dix réparations, tous dans l'artefact v30
+> (https://claude.ai/artifact/84VmBeb5agszoVD2KTif7m).
+>
+> **1. LA TABLE ASOS EST MESURÉE SUR LE BITSTREAM ÉVALUÉ.** Seize réactions, **aucune sans
+> remontée**, journal `results/bench_2026-09-16_120430.log`. Garde-fous : MAGIC `0x12`,
+> `CTRL` relu `0x331`, marqueur de fin présent.
+>
+> | phase | symbole | cycles | part |
+> |---|---|---|---|
+> | délivrance d'interruption | `L_notify` | 45 816 | 74,1 % |
+> | évaluation + classification TLC | `L_processing` | 196 / 221 | 0,3 % |
+> | actuation | `L_mmio` | 56 / 67 | 0,1 % |
+> | retour de gestionnaire | `L_exit` | 15 776 | 25,5 % |
+> | **réaction bout en bout** | `L_total` | **61 872** | 100 % |
+>
+> Écart avec les chiffres publiés (pris sur un bitstream antérieur) : **moins de 0,3 % sur
+> chaque phase**. C'était le pronostic ; c'est maintenant une mesure. **Conséquence article** :
+> la réserve de R5 tombe, et §6.6 ne concède plus que **deux** limites au lieu de trois.
+>
+> **Les deux colonnes du milieu portent un slash et pas une fourchette, et c'est le résultat** :
+> à zéro bit d'alerte et une écriture de politique, 196 et 56 cycles, **identiques au cycle dans
+> neuf réactions sur dix** ; à deux bits et deux écritures, 221 et 67, quatre fois sur cinq. La
+> première réaction est un rodage (388 cycles), même signature que le trafic légitime en III.4.
+>
+> **2. PIÈGE CONFIRMÉ — `OPT_LEVEL = 0` par défaut** (`bao-baremetal-guest/Makefile:19`), alors
+> que les chiffres logiciels publiés sont des **−O2**. `tools/campagne.sh` ne passe PAS
+> `OPT_LEVEL` : pour toute mesure logicielle il faut construire à la main avec `OPT_LEVEL=2`,
+> sinon `L_processing` est ~5× trop grand et on conclut à une régression qui n'existe pas.
+> Contrôle : la ligne `# CALIB` du journal doit annoncer **une lecture de `cycle` à 2 cycles**
+> (26 à −O0). Commande exacte utilisée :
+>
+> ```sh
+> cd bao-baremetal-guest && make clean
+> make PLATFORM=cva6 CROSS_COMPILE="$RISCV_BARE" BENCH=1 OPT_LEVEL=2 -j$(nproc) \
+>      ARCH_CPPFLAGS="-DBENCH_QUICK -DARMOR_WSKID=1 -DARMOR_FRESH=1 -DARMOR_RHOLD=1 \
+>                     -DARMOR_WFATE=1 -DBENCH_ASOS -DBENCH_ASOS_IRQ"
+> cd .. && cp bao-baremetal-guest/build/cva6/baremetal.bin build/guests/baremetal.bin
+> ./2_build_HB.sh bao && ./2_build_HB.sh opensbi
+> tools/capture_uart.sh -j opensbi/build/platform/fpga/ariane/firmware/fw_payload.elf
+> ```
+>
+> **3. NON-RÉGRESSION, dans la même passe** : SC-01 à SC-04 **50/50**, **FP = 0**, le balayage
+> d'adresses reproduit **256 pages / 699 changements** à l'unité, le fond LHA ne déclenche pas
+> (`storm=0` sur w1), et SC-03 donne **0 verdict** à la borne de synthèse — cohérent avec les
+> 0,8 ± 0,6 publiés. **202ᵉ campagne sur le v18.**
+>
+> **ATTENTION, les latences LOGICIELLES de cette campagne ne se comparent pas aux 201 autres** :
+> elles sont à −O2, les précédentes à −O0. `L3p50` lit 65 582 ici contre 65 685 ailleurs — c'est
+> le même timeout maître vu par une boucle de scrutation différente. **Les comptages matériels,
+> eux, sont comparables** : ce sont des verdicts, pas des cycles logiciels.
+>
+> **4. DÉCOMPOSITION relue le 16/09** (annexe III.5 de l'artefact) : lecture CSR wrapper **17**,
+> écriture + relecture **43**, évaluation O(NEV) **155**, O(k) **132** (publié 122), TLC seule
+> **106**, lecture vPLIC émulé **815** (publié 813), boucle à vide **5**. Plancher
+> évaluation + actuation seules : **215–262** cycles (publié 213–264).
+
 > ### 2026-09-16 — **LES 25 ÉTAPES SONT PORTÉES ; artefact v29, six ajouts et onze réparations**
 >
-> **REPRENDRE ICI.** L'article a été repris sur l'autre PC (`/media/sf_Partage/Papier_JSA_JC.pdf`,
+> **(point de reprise précédent.)** L'article a été repris sur l'autre PC (`/media/sf_Partage/Papier_JSA_JC.pdf`,
 > recompilé le 16/09, 28 p.) : **les vingt-cinq passages « change » sont appliqués**. Ce qui reste
 > n'est plus du report, c'est de la **rédaction d'ajouts** — le texte n'existait pas — plus les
 > incohérences qu'une révision partielle laisse derrière elle. **Aucune mesure n'est en attente**,
