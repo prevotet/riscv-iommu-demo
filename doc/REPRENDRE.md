@@ -5,9 +5,50 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-16 (soir) — **LE MANUSCRIT EST À JOUR ; le dossier de révision est clos**
+>
+> **REPRENDRE ICI.** Plus rien en attente : ni mesure, ni ajout, ni correction. Le PDF du
+> 16/09 à 14 h 07 (32 p.) passe les huit contrôles ci-dessous. L'artefact v35
+> (https://claude.ai/artifact/84VmBeb5agszoVD2KTif7m) ne contient plus de liste de tâches,
+> seulement l'annexe : la provenance de chaque chiffre.
+>
+> **CE QUI A ÉTÉ PORTÉ DANS L'ARTICLE** (six ajouts, treize tables) : §4.5 conformité AXI4,
+> §6.2.4 méthodologie des campagnes, §6.3.5 sensibilité aux seuils, §6.3.6 les quatre
+> configurations mesurées, §6.3.7 angle mort du balayage mémoire, §6.3.8 tempête pipelinée.
+> Légendes toutes ramenées à une ou deux lignes, texte ajouté en rouge par `\add{}`.
+>
+> **LES HUIT CONTRÔLES, à rejouer si le manuscrit rebouge** :
+> 1. aucun `??` ; 2. les treize légendes sur la bonne table ; 3. les 41 renvois de table
+> pointent la table annoncée ; 4. aucun passage dupliqué mot pour mot ; 5. aucune légende de
+> plus de deux lignes ; 6. aucun « no false negatives » ni « 100 % » là où une borne est voulue ;
+> 7. les chiffres de l'abstract se recalculent depuis les tables ; 8. aucun chiffre de la
+> section 6 venant d'un autre bitstream.
+>
+> **LE CONTRÔLE 3 EST CELUI QUI SERT.** Il a trouvé deux phrases qui désignaient une table
+> **existante mais pas la bonne** — invisibles à la compilation, parce que l'insertion d'une
+> table en section 4 avait décalé toute la série d'un rang. Tous les renvois passent désormais
+> par une étiquette ; garder cette discipline : `grep -n 'Table [0-9]' *.tex` doit ne rien
+> rendre hors légendes.
+>
+> **DEUX PIÈGES DE RELECTURE rencontrés, qui se reproduiront** : (i) une légende recopiée vers
+> le bas au lieu d'être substituée a contaminé quatre tables, et celle qui a **résisté** à la
+> correction était celle dont la légende erronée était **en double** — un remplacement qui
+> s'arrête à la première occurrence ; (ii) corriger un renvoi en dur vers `\ref` **crée** un
+> `??` si l'étiquette n'a jamais été posée. Recompiler deux fois après chaque tour.
+>
+> **UNE ERREUR DE MA PART, corrigée des deux côtés** : §6.3.2 annonçait un écart-type nul au
+> seuil 9 ; la Table 8 donne 0,41. La table a raison — au seuil 9, cinq campagnes sur six
+> contiennent 50 rafales, une en contient 49 (vérifié dans `results/mesures_2026-09-15_v18.csv`).
+> La phrase venait du dossier et s'était propagée dans son annexe III.2.
+>
+> **LE SEUL CHIFFRE DÉRIVÉ DE L'ARTICLE** : la borne de **0,11 %** (abstract et §6.3.1) est la
+> règle de trois sur 2 750 injections, soit **55 campagnes de 50**. Si le pool change, elle
+> change — à 21 campagnes elle vaudrait 0,29 %. C'est le seul chiffre qu'une re-mesure
+> partielle peut rendre faux en silence.
+
 > ### 2026-09-16 (après-midi) — **CAMPAGNE ASOS REJOUÉE SUR LE v18 ; plus aucun chiffre venu d'ailleurs**
 >
-> **REPRENDRE ICI.** La dernière dette de mesure est soldée. Il ne reste **que le report dans
+> **(point de reprise précédent.)** La dernière dette de mesure est soldée. Il ne reste **que le report dans
 > le LaTeX** : six ajouts et dix réparations, tous dans l'artefact v30
 > (https://claude.ai/artifact/84VmBeb5agszoVD2KTif7m).
 >
