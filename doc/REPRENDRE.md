@@ -5,9 +5,29 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-18 (fin de soirée) — **`L_notify` ET `L_exit` NE VIENNENT PAS DU CACHE FROID**
+>
+> **REPRENDRE ICI.** JC trouve `L_notify` (45 700 cycles, 0,91 ms) et `L_exit` (15 750, 0,31 ms)
+> énormes, et il a raison : **la table ne les explique pas**. Un accès au PLIC émulé coûte 849
+> cycles, soit moins de 2 % de `L_notify`. **La dernière phrase de §6.4.3 (« what dominates the
+> response is the virtualised interrupt controller ») n'est pas démontrée**, à revoir.
+>
+> **Hypothèse du cache froid RÉFUTÉE** (`-DASOS_IRQ_BUFFER=1` : aucun `printf` entre réactions ;
+> `-DASOS_IRQ_WARM=1` : une réaction d'échauffement avant chaque réaction chronométrée ; 2 campagnes
+> par bras, `results/bench_2026-09-18_1939*` et `_194007`) : `L_notify` vaut 45 769 / 45 792
+> (témoin), 45 723 / 45 720 (tampon), 45 716 / 45 692 (tampon + échauffement). `L_exit` : 15 750
+> environ partout. Le délai est **structurel et constant à ±30 cycles**, donc pas non plus un tic
+> d'horloge périodique (la latence varierait).
+>
+> **Prochaine étape proposée** : instrumenter Bao (`bao-overlay`), relever le compteur de cycles à
+> l'entrée du trap et avant l'injection, et le transmettre à la VM, pour découper `L_notify` en
+> matériel → Bao, traitement dans Bao, puis Bao → VM.
+> **La carte s'est coupée deux fois ce soir** (19 h 00 et 19 h 36 ; JTAG « all ones », console
+> ré-énumérée, qui devient `/dev/ttyUSB2`) : à surveiller.
+
 > ### 2026-09-18 (soir) — **§6.4 RÉDIGÉE ; coût ASOS REMESURÉ avec la politique publiée**
 >
-> **REPRENDRE ICI.** Dans `article_jsa/article.tex` (renommé depuis `cas-sc-template.tex` par JC,
+> **(point de reprise précédent.)** Dans `article_jsa/article.tex` (renommé depuis `cas-sc-template.tex` par JC,
 > **non commité**) : §6.4.2 « Behaviour Under Attack » (Figure 7 et `tbl:asos_behaviour`, texte sans
 > chiffre hors figure et tableau, à la demande de JC), colonne « ARMOR bounds » dans `tab:tlc`,
 > §6.4.4 supprimée (coût sous alertes concurrentes), §6.4.3 remplie, **plus aucun `\tbd{}`**.

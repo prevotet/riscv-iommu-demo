@@ -2461,6 +2461,19 @@ static void run_asos_traj(void) {
 #define ASOS_IRQ_W1       13
 #define ASOS_IRQ_W2       14
 #define ASOS_IRQ_TRIALS   16
+/* DIAGNOSTIC du 18/09 : L_notify (45 700 cycles) et L_exit (15 700) ne
+ * s'expliquent pas par l'acces emule au PLIC (849 cycles). Hypothese : le
+ * chemin d'interruption s'execute cache froid, parce qu'un printf UART et une
+ * transaction d'accelerateur separent deux reactions.
+ *   -DASOS_IRQ_BUFFER=1 : resultats gardes en memoire, imprimes a la fin
+ *   -DASOS_IRQ_WARM=1   : chaque reaction chronometree est precedee d'une
+ *                         reaction identique, non chronometree */
+#ifndef ASOS_IRQ_BUFFER
+#define ASOS_IRQ_BUFFER 0
+#endif
+#ifndef ASOS_IRQ_WARM
+#define ASOS_IRQ_WARM 0
+#endif
 
 static volatile uint64_t asos_t_entry, asos_t_assessed, asos_t_actuated;
 static volatile unsigned asos_irq_seen, asos_irq_k, asos_irq_tlc, asos_irq_nw;
@@ -2560,7 +2573,12 @@ static void run_asos_irq(void) {
     printf("# ASOS-IRQ,essai,k,tlc,ecritures,L_notify,L_proc,L_mmio,L_exit,L_total\r\n");
 
     unsigned done = 0, timeouts = 0;
+    static uint64_t buf[ASOS_IRQ_TRIALS][9];
+    unsigned nbuf = 0;
+    printf("# ASOS-IRQ-MODE,tampon=%d,echauffement=%d\r\n", ASOS_IRQ_BUFFER, ASOS_IRQ_WARM);
     for (unsigned i = 0; i < ASOS_IRQ_TRIALS; i++) {
+      for (unsigned rep = 0; rep < (ASOS_IRQ_WARM ? 2u : 1u); rep++) {
+        int timed = (rep == (ASOS_IRQ_WARM ? 1u : 0u));
         /* Part d'un collant vide : sinon irq_o est deja haut et le
          * declenchement ne mesurerait pas une notification. */
         uint64_t ctrl_off = asos_ctrl_saved & ~WRAP_CTRL_IRQEN;
@@ -2619,18 +2637,34 @@ static void run_asos_irq(void) {
                        (unsigned long)vplic_pending[0],
                        (unsigned long)det);
             }
-            timeouts++; continue;
+            if (timed) timeouts++;
+            continue;
         }
+        if (!timed) continue;             /* reaction d'echauffement */
 
-        printf("# ASOS-IRQ,%u,%u,TLC-%u,%u,%lu,%lu,%lu,%lu,%lu\r\n",
-               i, asos_irq_k, asos_irq_tlc, asos_irq_nw,
-               (unsigned long)(asos_t_entry    - t_trigger),
-               (unsigned long)(asos_t_assessed - asos_t_entry),
-               (unsigned long)(asos_t_actuated - asos_t_assessed),
-               (unsigned long)(t_return        - asos_t_actuated),
-               (unsigned long)(t_return        - t_trigger));
+        uint64_t r[9] = { i, asos_irq_k, asos_irq_tlc, asos_irq_nw,
+                          asos_t_entry    - t_trigger,
+                          asos_t_assessed - asos_t_entry,
+                          asos_t_actuated - asos_t_assessed,
+                          t_return        - asos_t_actuated,
+                          t_return        - t_trigger };
+        if (ASOS_IRQ_BUFFER) {
+            for (unsigned c = 0; c < 9; c++) buf[nbuf][c] = r[c];
+            nbuf++;
+        } else {
+            printf("# ASOS-IRQ,%lu,%lu,TLC-%lu,%lu,%lu,%lu,%lu,%lu,%lu\r\n",
+                   (unsigned long)r[0], (unsigned long)r[1], (unsigned long)r[2],
+                   (unsigned long)r[3], (unsigned long)r[4], (unsigned long)r[5],
+                   (unsigned long)r[6], (unsigned long)r[7], (unsigned long)r[8]);
+        }
         done++;
+      }
     }
+    for (unsigned b = 0; b < nbuf; b++)
+        printf("# ASOS-IRQ,%lu,%lu,TLC-%lu,%lu,%lu,%lu,%lu,%lu,%lu\r\n",
+               (unsigned long)buf[b][0], (unsigned long)buf[b][1], (unsigned long)buf[b][2],
+               (unsigned long)buf[b][3], (unsigned long)buf[b][4], (unsigned long)buf[b][5],
+               (unsigned long)buf[b][6], (unsigned long)buf[b][7], (unsigned long)buf[b][8]);
 
     printf("# ASOS-IRQ : %u reactions mesurees, %u sans remontee\r\n",
            done, timeouts);
