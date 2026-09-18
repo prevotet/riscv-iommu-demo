@@ -1697,19 +1697,32 @@ static const char *asos_state(unsigned tlc) {
 
 /* Actuation : ce que la politique ecrit REELLEMENT dans ARMOR. La relecture
  * finale fait partie de la mesure, voir l'en-tete. */
+/* La politique PUBLIEE (Table 4 de l'article), la meme que traj_apply.
+ * Jusqu'au 18/09, TLC-4/5 reecrivait deux fois le meme CTRL sans resserrer
+ * aucune borne : le L_mmio de la table ASOS mesurait une actuation qui n'etait
+ * pas celle de l'article. Desormais : bornes 0x110, Device ID, puis CTRL (seuil,
+ * RFMCNT a TLC-4 et en dessous) avec l'acquittement du collant -- trois
+ * ecritures. ACTIVE/LEARNING : l'acquittement seul. L'hysteresis ne joue pas
+ * ici : chaque reaction chronometree part d'un score nul. */
+#define ASOS_CFGP_TIGHT  0x02080032ULL   /* CFG-D : echecs 2, en-vol 8, fenetre 50 */
+#define ASOS_ID_REVOKED  0xFFFFFFFFULL
+static uint64_t asos_cfgp_ref;           /* 0x110 de reference, relu au depart */
+
 static unsigned asos_actuate(volatile uint64_t *w, unsigned tlc, uint64_t ctrl) {
     unsigned nw;
-    if (tlc >= 6) {                 /* ACTIVE / LEARNING : observation seule */
+    if (tlc >= 6) {                 /* ACTIVE / LEARNING : acquittement seul */
         w[WRAP_CTRL_OFF / 8] = ctrl;
         nw = 1;
-    } else if (tlc >= 4) {          /* SUSPICIOUS : restriction */
-        w[WRAP_CTRL_OFF / 8] = ctrl | WRAP_CTRL_STICKY_CLR;
-        w[WRAP_CTRL_OFF / 8] = ctrl;
-        nw = 2;
-    } else {                        /* QUARANTINE / BANNED : revocation du Device ID */
-        w[WRAP_ID_CFG_OFF / 8] = 0xFFFFFFFFULL;
-        w[WRAP_CTRL_OFF   / 8] = ctrl | WRAP_CTRL_STICKY_CLR;
-        w[WRAP_CTRL_OFF   / 8] = ctrl;
+    } else {
+        uint64_t id   = (w == (volatile uint64_t *)WRAP1_BASE_ADDR) ? 1ULL : 2ULL;
+        uint64_t cfgp = asos_cfgp_ref;
+        uint64_t c    = (ctrl & ~WRAP_CTRL_THRESH(0xFF))
+                      | WRAP_CTRL_THRESH(tlc == 5 ? 6 : 4);
+        if (tlc <= 4) { c |= WRAP_CTRL_RFMCNT; cfgp = ASOS_CFGP_TIGHT; }
+        if (tlc <= 3) id = ASOS_ID_REVOKED;
+        w[WRAP_CFG_PARAMS_OFF / 8] = cfgp;
+        w[WRAP_ID_CFG_OFF     / 8] = id;
+        w[WRAP_CTRL_OFF       / 8] = c | WRAP_CTRL_STICKY_CLR;
         nw = 3;
     }
     (void)w[WRAP_CTRL_OFF / 8];     /* force la fin des ecritures postees */
@@ -1766,6 +1779,7 @@ static void run_asos(void) {
     /* CTRL tel que le MATERIEL le porte, pas tel qu'on croit l'avoir ecrit :
      * une politique doit preserver la configuration en place, et les deux
      * impulsions s'auto-effacent donc relisent zero. */
+    asos_cfgp_ref = w2[WRAP_CFG_PARAMS_OFF / 8];
     uint64_t ctrl = w2[WRAP_CTRL_OFF / 8]
                   & ~(WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR);
 
@@ -1945,7 +1959,10 @@ static void run_asos(void) {
                (unsigned long)(t1 - t0), (unsigned long)((t1 - t0) / 100));
     }
 
-    /* Remise en etat : l'actuation a pu revoquer les Device ID. Hors mesure. */
+    /* Remise en etat : l'actuation a pu revoquer les Device ID et resserrer
+     * les bornes. Hors mesure. */
+    w1[WRAP_CFG_PARAMS_OFF / 8] = asos_cfgp_ref;
+    w2[WRAP_CFG_PARAMS_OFF / 8] = asos_cfgp_ref;
     w1[WRAP_ID_CFG_OFF / 8] = 1ULL;
     w2[WRAP_ID_CFG_OFF / 8] = 2ULL;
     w1[WRAP_CTRL_OFF / 8]   = ctrl;
@@ -2486,6 +2503,7 @@ static void run_asos_irq(void) {
     volatile uint64_t *w1 = (volatile uint64_t *)WRAP1_BASE_ADDR;
     volatile uint64_t *w2 = (volatile uint64_t *)WRAP2_BASE_ADDR;
 
+    asos_cfgp_ref   = w2[WRAP_CFG_PARAMS_OFF / 8];
     asos_ctrl_saved = w2[WRAP_CTRL_OFF / 8]
                     & ~(WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR);
 
@@ -2546,6 +2564,10 @@ static void run_asos_irq(void) {
         /* Part d'un collant vide : sinon irq_o est deja haut et le
          * declenchement ne mesurerait pas une notification. */
         uint64_t ctrl_off = asos_ctrl_saved & ~WRAP_CTRL_IRQEN;
+        /* Reference complete avant chaque reaction : une reaction TLC-4 a
+         * laisse bornes resserrees et RFMCNT, la suivante en heriterait. */
+        w2[WRAP_CFG_PARAMS_OFF / 8] = asos_cfgp_ref;
+        w2[WRAP_ID_CFG_OFF     / 8] = 2ULL;
         w2[WRAP_CTRL_OFF / 8] = ctrl_off | WRAP_CTRL_STICKY_CLR;
         w2[WRAP_CTRL_OFF / 8] = ctrl_off;
         fence();

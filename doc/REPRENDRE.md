@@ -5,9 +5,37 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-18 (soir) — **§6.4 RÉDIGÉE ; coût ASOS REMESURÉ avec la politique publiée**
+>
+> **REPRENDRE ICI.** Dans `article_jsa/article.tex` (renommé depuis `cas-sc-template.tex` par JC,
+> **non commité**) : §6.4.2 « Behaviour Under Attack » (Figure 7 et `tbl:asos_behaviour`, texte sans
+> chiffre hors figure et tableau, à la demande de JC), colonne « ARMOR bounds » dans `tab:tlc`,
+> §6.4.4 supprimée (coût sous alertes concurrentes), §6.4.3 remplie, **plus aucun `\tbd{}`**.
+> **Reste bloquant pour la mise en page** : la Figure 6 est le PDF d'exemple Elsevier
+> (`cas-sc-sample.pdf`), trop grande de 134 pt ; elle repousse la Figure 7 en fin de document.
+>
+> **LE COÛT DU 16/09 NE MESURAIT PAS LA POLITIQUE PUBLIÉE.** `asos_actuate` réécrivait deux fois
+> le même CTRL pour TLC-4/5, sans borne ni `RFMCNT`. Corrigé : il écrit `0x110`, le Device ID, puis
+> le CTRL (3 écritures), et le wrapper est remis à la référence avant chaque réaction. Remesuré
+> (3 campagnes, `-O2`, `CALIB` 2 cycles, `BFATE`, `results/bench_2026-09-18_190143`, `_190155`,
+> `_190206`), médiane des réactions hors la première de chaque type :
+>
+> | | sans alerte, 1 écriture | 2 alertes, TLC-4, 3 écritures |
+> |---|---|---|
+> | `L_notify` | 45 718 ± 17 | 45 717 ± 14 |
+> | `L_processing` | 183 | 209 |
+> | `L_mmio` | 56 | **87** (contre 67 avec l'ancienne actuation) |
+> | `L_exit` | 15 710 | 15 724 |
+> | `L_total` | 61 667 ± 17 | 61 740 ± 18 |
+> | part de la décision | 0,4 % | 0,5 % |
+>
+> Lecture CSR wrapper 17 ; vPLIC émulé **849 ± 13** (815 le 16/09), facteur 50 ; `L_total`
+> varie d'au plus 0,23 % dans une campagne. Le 1ᵉʳ essai de 19 h 00 a échoué (carte éteinte puis
+> rallumée par JC, JTAG « all ones », console absente) : ses journaux vides ont été supprimés.
+
 > ### 2026-09-18 (nuit, décisions) — **CONCEPTION ASOS ARRÊTÉE : γ = 0,898, hystérésis, TLC-5 gardé**
 >
-> **REPRENDRE ICI.** L'évaluation d'ASOS est close. **Il ne reste que le `.tex`.** Tous les chiffres
+> **(point de reprise précédent.)** L'évaluation d'ASOS est close. **Il ne reste que le `.tex`.** Tous les chiffres
 > et leur provenance sont dans les blocs E1 → E4 ci-dessous.
 >
 > **CONCEPTION PUBLIÉE** = `-DASOS_HYST=1`, γ = 230/256, Table 2 inchangée, et le palier TLC-5
