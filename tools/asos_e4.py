@@ -22,6 +22,11 @@ Metriques, pour chaque configuration :
             Sorties : part des pas resserres, part de DMA sains bloques,
             probabilite d'etre banni.
 
+  fusion    variante REJETEE (TLC-5 fusionne dans TLC-4) : probabilite qu'un
+            locataire sain soit banni apres UNE SEULE fausse alerte, selon la
+            part de DMA pipeline dans son trafic. C'est la justification du
+            palier TLC-5 ; la variante n'existe que dans le modele.
+
   tools/asos_e4.py [repertoire de sortie]     (defaut : results/e4)
 """
 import csv
@@ -37,7 +42,8 @@ LEAK = 20 / 331          # evasions passees sous TLC-4, sur carte
 
 
 def mk(cfg):
-    return Slot(hyst=cfg["hyst"], gamma=(cfg["gnum"], 8), th=cfg["th"])
+    return Slot(hyst=cfg["hyst"], gamma=(cfg["gnum"], 8), th=cfg["th"],
+                fusion5=cfg.get("fusion5", False))
 
 
 def run_ev(s, ev, rng=None):
@@ -129,6 +135,25 @@ def cost(cfg, p, ntr=500, steps=1000, seed=2):
     return tight / (ntr * steps), (dma_b / dma_t if dma_t else 0), banned / ntr
 
 
+def one_false_alarm(cfg, dma_share, ntr=4000, steps=200, at=10, seed=3):
+    rng = random.Random(seed)
+    banned = 0
+    for _ in range(ntr):
+        s = mk(cfg)
+        for k in range(steps):
+            ev = "dma" if rng.random() < dma_share else "legit"
+            if held(s, ev):
+                s.step(0)
+                continue
+            pol = s.pol
+            w = s.alert(ev)
+            if ev == "dma" and pol == 4 and w and rng.random() < LEAK:
+                w = 0
+            s.step(w + (45 if k == at else 0))
+        banned += s.banned
+    return banned / ntr
+
+
 def evaluate(cfg, ps=(0.001, 0.005, 0.02)):
     c = cliff(cfg)
     n = n_ban(cfg)
@@ -183,6 +208,14 @@ def main():
                              gnum=cfg["gnum"], falaise_pas=c,
                              falaise_ms=None if c is None else c * T))
     write(os.path.join(out, "e4_periode.csv"), rows)
+
+    rows = []
+    for share in (0.0, 0.05, 0.1, 0.3):
+        a = one_false_alarm(dict(gnum=230, hyst=True, th=TH), share)
+        b = one_false_alarm(dict(gnum=230, hyst=True, th=TH, fusion5=True), share)
+        rows.append(dict(part_dma=share, banni_hysteresis=round(a, 3),
+                         banni_fusion5_rejetee=round(b, 3)))
+    write(os.path.join(out, "e4_fusion5.csv"), rows)
 
 
 if __name__ == "__main__":

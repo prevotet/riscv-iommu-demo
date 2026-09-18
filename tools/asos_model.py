@@ -60,8 +60,9 @@ class Slot:
     3 + ID revoque, 2 + BAN (verrouille)."""
 
     def __init__(self, hyst=True, gamma=(GAMMA_NUM, GAMMA_SH), th=TH,
-                 adaptive=True):
+                 adaptive=True, fusion5=False):
         self.hyst, self.gamma, self.th, self.adaptive = hyst, gamma, th, adaptive
+        self.fusion5 = fusion5
         self.score, self.tlc, self.pol, self.banned = 0, 10, 6, False
         self.fails = 0
         self.rev_jobs = 0
@@ -101,6 +102,8 @@ class Slot:
             self.banned = True
         self.tlc = t
         pol = 2 if self.banned else (6 if t >= 6 else t)
+        if self.fusion5 and pol == 5:     # variante REJETEE le 18/09, analyse seule
+            pol = 4
         if self.hyst and pol > self.pol and t < 8:
             pol = self.pol
         acted = self.adaptive and pol != self.pol
@@ -124,9 +127,11 @@ def replay(path):
     txt = open(path, "rb").read().replace(b"\0", b"").decode("ascii", "replace")
     m = re.search(r"hysteresis=(\d)", txt)
     hyst = bool(int(m.group(1))) if m else False
+    f5 = re.search(r"fusion5=(\d)", txt)
+    fusion5 = bool(int(f5.group(1))) if f5 else False
     arm = re.search(r"bras ([\w-]+)", txt)
     adaptive = not arm or arm.group(1) == "ASOS"
-    s = Slot(hyst=hyst, adaptive=adaptive)
+    s = Slot(hyst=hyst, adaptive=adaptive, fusion5=fusion5)
     if arm and arm.group(1) == "stricte-fixe":
         s.pol = 4
     steps = STEP_RE.findall(txt)

@@ -5,9 +5,32 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-18 (nuit, décisions) — **CONCEPTION ASOS ARRÊTÉE : γ = 0,898, hystérésis, TLC-5 gardé**
+>
+> **REPRENDRE ICI.** L'évaluation d'ASOS est close. **Il ne reste que le `.tex`.** Tous les chiffres
+> et leur provenance sont dans les blocs E1 → E4 ci-dessous.
+>
+> **CONCEPTION PUBLIÉE** = `-DASOS_HYST=1`, γ = 230/256, Table 2 inchangée, et le palier TLC-5
+> conservé (seuil 6, **sans** `RFMCNT`). Décisions de JC le 18/09 :
+> - **γ = 0,898 gardé** : il est au coude du compromis mémoire / coût de E4.
+> - **Fusion TLC-5 → TLC-4 ABANDONNÉE**, après que le modèle a montré son coût. Probabilité qu'un
+>   locataire **sain** soit banni après **une seule** fausse alerte (`results/e4/e4_fusion5.csv`) :
+>
+> | part de DMA pipeliné dans son trafic | 0 % | 5 % | 10 % | 30 % |
+> |---|---|---|---|---|
+> | hystérésis (conception publiée) | 0 % | 0 % | 0 % | 0 % |
+> | hystérésis + fusion (rejetée) | 0 % | 5,2 % | 23,5 % | **90,7 %** |
+>
+> Le mécanisme : une alerte isolée (45) mène en TLC-5, où le DMA légitime passe. Avec la fusion,
+> elle impose CFG-D + `RFMCNT`, tenu par l'hystérésis, et chaque DMA sain bloqué ajoute 45 :
+> l'emballement mène au ban. Le gain aurait été de 87 % → 92 % d'évasions bloquées dans E3.
+> **Pour l'article** : le palier TLC-5 absorbe les alertes isolées. Les 5 évasions passées sous
+> TLC-5 dans E3 sont une **limite assumée**, et ce tableau en est la justification. La variante
+> n'existe que dans le modèle hôte (`Slot(fusion5=True)`), pas dans le firmware.
+
 > ### 2026-09-18 (nuit, E4) — **E4 FAIT SUR L'HÔTE, AVEC UN MODÈLE VALIDÉ SUR 122 JOURNAUX DE CARTE**
 >
-> **REPRENDRE ICI.** Le programme d'évaluation d'ASOS (E1–E4) est complet. Reste le `.tex`, et
+> **(point de reprise précédent.)** Le programme d'évaluation d'ASOS (E1–E4) est complet. Reste le `.tex`, et
 > **deux décisions de conception ouvertes** : la fusion TLC-5 → TLC-4 (bloc E3), et le choix de γ
 > au vu du compromis ci-dessous.
 >
