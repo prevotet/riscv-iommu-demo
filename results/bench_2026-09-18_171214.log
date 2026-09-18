@@ -1,0 +1,296 @@
+
+OpenSBI v1.0
+   ____                    _____ ____ _____
+  / __ \                  / ____|  _ \_   _|
+ | |  | |_ __   ___ _ __ | (___ | |_) || |
+ | |  | | '_ \ / _ \ '_ \ \___ \|  _ < | |
+ | |__| | |_) |  __/ | | |____) | |_) || |_
+  \____/| .__/ \___|_| |_|_____/|____/_____|
+        | |
+        |_|
+
+Platform Name             : ARIANE RISC-V
+Platform Features         : medeleg
+Platform HART Count       : 1
+Platform IPI Device       : aclint-mswi
+Platform Timer Device     : aclint-mtimer @ 1000000Hz
+Platform Console Device   : uart8250
+Platform HSM Device       : ---
+Platform Reboot Device    : ---
+Platform Shutdown Device  : ---
+Firmware Base             : 0x80000000
+Firmware Size             : 220 KB
+Runtime SBI Version       : 0.3
+
+Domain0 Name              : root
+Domain0 Boot HART         : 0
+Domain0 HARTs             : 0*
+Domain0 Region00          : 0x0000000002008000-0x000000000200bfff (I)
+Domain0 Region01          : 0x0000000002000000-0x0000000002007fff (I)
+Domain0 Region02          : 0x0000000080000000-0x000000008003ffff ()
+Domain0 Region03          : 0x0000000000000000-0xffffffffffffffff (R,W,X)
+Domain0 Next Address      : 0x0000000080200000
+Domain0 Next Arg1         : 0x0000000082200000
+Domain0 Next Mode         : S-mode
+Domain0 SysReset          : yes
+
+Boot HART ID              : 0
+Boot HART Domain          : root
+Boot HART ISA             : rv64imafdcsuh
+Boot HART Features        : scounteren,mcounteren
+Boot HART PMP Count       : 16
+Boot HART PMP Granularity : 8
+Boot HART PMP Address Bits: 54
+Boot HART MHPM Count      : 0
+Boot HART MIDELEG         : 0x0000000000000666
+Boot HART MEDELEG         : 0x0000000000f0b509
+Bao Hypervisor
+BAO WARNING: trying to flush caches but the operation is not defined for this platform
+BAO INFO: ASSIGN irq 1 to vm
+BAO INFO: ASSIGN irq 4 to vm
+BAO INFO: ASSIGN irq 5 to vm
+BAO INFO: ASSIGN irq 6 to vm
+BAO INFO: ASSIGN irq 7 to vm
+BAO INFO: ASSIGN irq 2 to vm
+BAO INFO: ASSIGN irq 3 to vm
+BAO INFO: ASSIGN irq 13 to vm
+BAO INFO: ASSIGN irq 14 to vm
+
+
+###### ARMOR BENCH RUNNER ######
+# CSV header : scenario,iter,expected_block,verdict,det_lat_cy,tx_lat_cy
+# det_lat = DETECTION (lancement -> 1er verdict ARMOR/DONE)
+# tx_lat  = TRANSACTION (lancement -> BUSY=0, round-trip complet)
+# verdict : M=MSI O=OUTS S=STORM B=BANNED b=BLOCKED D=DONE E=ERROR
+# SUMMARY-DET / SUMMARY-TX,name,N,n,n_lat,TP,FP,FN,TN,Lmin,Lavg,Lp50,Lp99,Lmax
+# CALIB : une lecture de `cycle` coute 26 (min) / 26 (moy sur 64)
+# CALIB : `det` et `tx` sont separes par exactement une de ces lectures
+# UNITE : compteur = cycle, cycles coeur 50 MHz
+# IOMMU DDT init OK (DDT @ 0xaffff000, LHA=allow ID=1, MHA=allow ID=2)
+# ARMOR CSR magic : wrap1=0x41524d4f52000012 wrap2=0x41524d4f52000012
+# ATTENTION : SC09 (mode 7) A GELE LA CARTE le 2026-09-13, sur son PREMIER lancement, dans LES DEUX bras (0x1731 et 0x731). Reprise : pkill -x hw_server puis 2_build_HB.sh program -- le chargement JTAG seul ne suffit pas. Voir doc/REPRENDRE.md
+# Table 4 : fenetre=50 en-vol=8 echecs=2 (0x110 relu 0x02080032)
+# ARMOR arme : ENFORCE=1, W_SKID=1, FRESH=1, WCAP=0, RHOLD=1, WFATE=1, BFATE=1, RFMCNT=1, SEUIL=regle, ID_CFG w1=1 w2=2, MSI_ADDR=0x91008000
+# ARMOR seuil de flux : 4 requetes par fenetre (CTRL[23:16]) -- cette campagne n'est comparable qu'aux campagnes du MEME seuil
+# ARMOR CTRL relu : w1=0x41731 w2=0x41731 (attendu 0x41731)
+# ARMOR devid_last : w1=0 w2=0
+# === SC06-LHAOK : N=100 accel=L mode=0 cfg=0x0 expect_block=0
+# ARMORSNAP,SC06-LHAOK,accel_status=0x0
+# ARMORSNAP,SC06-LHAOK,w1,status=0xb32000 sticky=0x0 | ENF
+# ARMORSNAP,SC06-LHAOK,w2,status=0xb32000 sticky=0x0 | ENF
+# ARMORHS,SC06-LHAOK,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC06-LHAOK,w1,dn,0x400, AW --  W --  B --  AR --  R -R
+# ARMORHS,SC06-LHAOK,w2,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC06-LHAOK,w2,dn,0x500, AW --  W --  B --  AR -R  R -R
+# ARMORDBG,SC06-LHAOK,w1,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC06-LHAOK,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC06-LHAOK,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC06-LHAOK,w2,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC06-LHAOK,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC06-LHAOK,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# SC06-LHAOK STATUS_final=0x2 | DONE=100 BLOCK=0 BAN=0 STORM=0 OUTS=0 MSI=0 ERR=0 UNK=0
+# ARMORCNT,SC06-LHAOK,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=1,winact=0,outsmax=1,amin=0x91000000,amax=0x91000000,apages=1,pgchg=0
+# ARMORCNT,SC06-LHAOK,w2,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=0,winact=0,outsmax=0,amin=0xffffffff,amax=0x00000000,apages=0,pgchg=0
+# ARMORLAT,SC06-LHAOK,w1,n=100,n_verdict=0,det_avg=37,tx_avg=37,det_last=37,tx_last=37,det_min=37,det_max=71,tx_min=37,tx_max=71,det_sum=3734,tx_sum=3734
+# ARMORHW,SC06-LHAOK,w1,cyc_block=0,cyc_hold=200,req_up=100,req_dn=100,req_cut=0,cyc_total=7185956
+# ARMORW,SC06-LHAOK,w1,bad_id=0 fronts 0 cy | aw_dn=100 wlast_dn=100 ecart=0 | fantome=0 orphelin=0 | w_owed_max=1
+# ARMORRETR,SC06-LHAOK,w1,aucun retrait de VALID
+# ARMORSTALL,SC06-LHAOK,w1,up aw=2 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# ARMORLAT,SC06-LHAOK,w2,n=0 (aucune transaction echantillonnee)
+# ARMORHW,SC06-LHAOK,w2,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=9452608
+# ARMORW,SC06-LHAOK,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORRETR,SC06-LHAOK,w2,aucun retrait de VALID
+# ARMORSTALL,SC06-LHAOK,w2,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# === SC07-MHAOK : N=100 accel=M mode=0 cfg=0x0 expect_block=0
+# ARMORSNAP,SC07-MHAOK,accel_status=0x0
+# ARMORSNAP,SC07-MHAOK,w1,status=0xb33000 sticky=0x0 | legit ENF
+# ARMORSNAP,SC07-MHAOK,w2,status=0xb32000 sticky=0x0 | ENF
+# ARMORHS,SC07-MHAOK,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC07-MHAOK,w1,dn,0x410, AW --  W -- last  B --  AR --  R -R
+# ARMORHS,SC07-MHAOK,w2,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC07-MHAOK,w2,dn,0x500, AW --  W --  B --  AR -R  R -R
+# ARMORDBG,SC07-MHAOK,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC07-MHAOK,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC07-MHAOK,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC07-MHAOK,w2,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC07-MHAOK,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC07-MHAOK,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# SC07-MHAOK STATUS_final=0x2 | DONE=100 BLOCK=0 BAN=0 STORM=0 OUTS=0 MSI=0 ERR=0 UNK=0
+# ARMORCNT,SC07-MHAOK,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=0,winact=0,outsmax=0,amin=0xffffffff,amax=0x00000000,apages=0,pgchg=0
+# ARMORCNT,SC07-MHAOK,w2,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=1,winact=0,outsmax=1,amin=0x91000000,amax=0x91000000,apages=1,pgchg=0
+# ARMORLAT,SC07-MHAOK,w1,n=0 (aucune transaction echantillonnee)
+# ARMORHW,SC07-MHAOK,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=7234656
+# ARMORW,SC07-MHAOK,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORRETR,SC07-MHAOK,w1,aucun retrait de VALID
+# ARMORSTALL,SC07-MHAOK,w1,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# ARMORLAT,SC07-MHAOK,w2,n=100,n_verdict=0,det_avg=37,tx_avg=37,det_last=37,tx_last=37,det_min=37,det_max=75,tx_min=37,tx_max=75,det_sum=3738,tx_sum=3738
+# ARMORHW,SC07-MHAOK,w2,cyc_block=0,cyc_hold=200,req_up=100,req_dn=100,req_cut=0,cyc_total=9057981
+# ARMORW,SC07-MHAOK,w2,bad_id=0 fronts 0 cy | aw_dn=100 wlast_dn=100 ecart=0 | fantome=0 orphelin=0 | w_owed_max=1
+# ARMORRETR,SC07-MHAOK,w2,aucun retrait de VALID
+# ARMORSTALL,SC07-MHAOK,w2,up aw=2 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# LHA background CONTINU arme (READ) base=0x91000000
+# === SC08 low-and-slow : 100 salves x 7 AW gap=200 cy
+# SC08 : passed=700 blocked=0 (FN=700, débit_évasion attendu)
+# ARMORCNT,SC08-LAS,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=2,winact=0,outsmax=1,amin=0x91000000,amax=0x91000000,apages=1,pgchg=0
+# ARMORCNT,SC08-LAS,w2,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=1,winact=0,outsmax=1,amin=0x91000000,amax=0x91000000,apages=1,pgchg=0
+# === SC10 balayage : 700 requetes, 256 pages depuis 0x92000000 (SCAN_SPAN relu 256)
+# SC10 : passed=700 blocked=0 (FP=0 attendu 0 -- la preuve est dans ADDR_SPAN/ADDR_WALK)
+# ARMORCNT,SC10-SCAN,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=2,winact=0,outsmax=1,amin=0x91000000,amax=0x91000000,apages=1,pgchg=0
+# ARMORCNT,SC10-SCAN,w2,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=1,winact=0,outsmax=1,amin=0x92000000,amax=0x920ff000,apages=256,pgchg=699
+# === SC02-STORM : N=50 accel=M mode=4 cfg=0x0 expect_block=1
+# ARMORSNAP,SC02-STORM,accel_status=0x2
+# ARMORSNAP,SC02-STORM,w1,status=0xb33000 sticky=0x0 | legit ENF
+# ARMORSNAP,SC02-STORM,w2,status=0xb33000 sticky=0x0 | legit ENF
+# ARMORHS,SC02-STORM,w1,up,0x640, AW --  W --  B -R  AR --  R VR
+# ARMORHS,SC02-STORM,w1,dn,0x590, AW --  W -- last  B --  AR VR  R -R
+# ARMORHS,SC02-STORM,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,SC02-STORM,w2,dn,0x510, AW --  W -- last  B --  AR -R  R -R
+# ARMORDBG,SC02-STORM,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=1 req_cnt=1 fsm_w=0 fsm_r=1 | en_vol=1 cyc=29 verdict_vu=0
+# ARMORCUT,SC02-STORM,w1,req_up=72076 req_dn=72076 cut=0 | cyc_block=0 cyc_hold=144154
+# ARMORW,SC02-STORM,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC02-STORM,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC02-STORM,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC02-STORM,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# SC02-STORM STATUS_final=0x2e | DONE=0 BLOCK=0 BAN=0 STORM=50 OUTS=0 MSI=0 ERR=0 UNK=0
+# ARMORCNT,SC02-STORM,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=2,winact=0,outsmax=1,amin=0x91000000,amax=0x91000000,apages=1,pgchg=0
+# ARMORCNT,SC02-STORM,w2,sticky=0x00000228,fail=0,ban=0,storm=68,outs=0,msi=0,reqmax=4,winact=0,outsmax=7,amin=0x91000000,amax=0x91000000,apages=1,pgchg=0
+# ARMORLAT,SC02-STORM,w1,n=173675,n_verdict=0,det_avg=37,tx_avg=37,det_last=34,tx_last=34,det_min=34,det_max=62,tx_min=34,tx_max=62,det_sum=6567105,tx_sum=6567143
+# ARMORHW,SC02-STORM,w1,cyc_block=0,cyc_hold=347358,req_up=173679,req_dn=173679,req_cut=0,cyc_total=7261935
+# ARMORW,SC02-STORM,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORRETR,SC02-STORM,w1,aucun retrait de VALID
+# ARMORSTALL,SC02-STORM,w1,up aw=0 w=0 b=0 ar=2 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# ARMORLAT,SC02-STORM,w2,n=534,n_verdict=449,det_avg=2,tx_avg=2,det_last=0,tx_last=0,det_min=0,det_max=30,tx_min=0,tx_max=30,det_sum=1434,tx_sum=1588
+# ARMORHW,SC02-STORM,w2,cyc_block=1820,cyc_hold=711,req_up=800,req_dn=351,req_cut=449,cyc_total=9591497
+# ARMORW,SC02-STORM,w2,bad_id=0 fronts 0 cy | aw_dn=351 wlast_dn=351 ecart=0 | fantome=0 orphelin=0 | w_owed_max=1
+# ARMORRETR,SC02-STORM,w2,aucun retrait de VALID
+# ARMORSTALL,SC02-STORM,w2,up aw=2 w=1 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# SC09 : profondeur d'adresses en vol = 16 (relu 16)
+# === SC09-PIPE : N=50 accel=M mode=7 cfg=0x0 expect_block=1
+# ARMORSNAP,SC09-PIPE,accel_status=0x2e
+# ARMORSNAP,SC09-PIPE,w1,status=0xb33000 sticky=0x0 | legit ENF
+# ARMORSNAP,SC09-PIPE,w2,status=0xb33000 sticky=0x0 | legit ENF
+# ARMORHS,SC09-PIPE,w1,up,0x640, AW --  W --  B -R  AR --  R VR
+# ARMORHS,SC09-PIPE,w1,dn,0x410, AW --  W -- last  B --  AR --  R -R
+# ARMORHS,SC09-PIPE,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,SC09-PIPE,w2,dn,0x510, AW --  W -- last  B --  AR -R  R -R
+# ARMORDBG,SC09-PIPE,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=1 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=1 cyc=28 verdict_vu=0
+# ARMORCUT,SC09-PIPE,w1,req_up=71198 req_dn=71198 cut=0 | cyc_block=0 cyc_hold=142398
+# ARMORW,SC09-PIPE,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC09-PIPE,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC09-PIPE,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC09-PIPE,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# SC09-PIPE STATUS_final=0x2e | DONE=0 BLOCK=0 BAN=0 STORM=50 OUTS=0 MSI=0 ERR=0 UNK=0
+# ARMORCNT,SC09-PIPE,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=2,winact=0,outsmax=1,amin=0x91000000,amax=0x91000000,apages=1,pgchg=0
+# ARMORCNT,SC09-PIPE,w2,sticky=0x00000228,fail=0,ban=0,storm=53,outs=0,msi=0,reqmax=5,winact=0,outsmax=2,amin=0x91000000,amax=0x91000000,apages=1,pgchg=0
+# ARMORLAT,SC09-PIPE,w1,n=171940,n_verdict=0,det_avg=37,tx_avg=37,det_last=34,tx_last=34,det_min=34,det_max=64,tx_min=34,tx_max=64,det_sum=6503307,tx_sum=6503344
+# ARMORHW,SC09-PIPE,w1,cyc_block=0,cyc_hold=343888,req_up=171944,req_dn=171944,req_cut=0,cyc_total=7191196
+# ARMORW,SC09-PIPE,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORRETR,SC09-PIPE,w1,aucun retrait de VALID
+# ARMORSTALL,SC09-PIPE,w1,up aw=0 w=0 b=0 ar=2 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# ARMORLAT,SC09-PIPE,w2,n=286,n_verdict=232,det_avg=1,tx_avg=1,det_last=0,tx_last=0,det_min=0,det_max=19,tx_min=0,tx_max=21,det_sum=362,tx_sum=430
+# ARMORHW,SC09-PIPE,w2,cyc_block=1475,cyc_hold=100,req_up=800,req_dn=293,req_cut=507,cyc_total=9498339
+# ARMORW,SC09-PIPE,w2,bad_id=0 fronts 0 cy | aw_dn=293 wlast_dn=293 ecart=0 | fantome=0 orphelin=0 | w_owed_max=10
+# ARMORRETR,SC09-PIPE,w2,aucun retrait de VALID
+# ARMORSTALL,SC09-PIPE,w2,up aw=2 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# === SC04-MSI : N=50 accel=M mode=6 cfg=0x0 expect_block=1
+# ARMORSNAP,SC04-MSI,accel_status=0x2e
+# ARMORSNAP,SC04-MSI,w1,status=0xb33000 sticky=0x0 | legit ENF
+# ARMORSNAP,SC04-MSI,w2,status=0xb33000 sticky=0x0 | legit ENF
+# ARMORHS,SC04-MSI,w1,up,0x640, AW --  W --  B -R  AR --  R VR
+# ARMORHS,SC04-MSI,w1,dn,0x410, AW --  W -- last  B --  AR --  R -R
+# ARMORHS,SC04-MSI,w2,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC04-MSI,w2,dn,0x510, AW --  W -- last  B --  AR -R  R -R
+# ARMORDBG,SC04-MSI,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=1 req_cnt=1 fsm_w=0 fsm_r=1 | en_vol=1 cyc=11 verdict_vu=0
+# ARMORCUT,SC04-MSI,w1,req_up=70261 req_dn=70261 cut=0 | cyc_block=0 cyc_hold=140524
+# ARMORW,SC04-MSI,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC04-MSI,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC04-MSI,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC04-MSI,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# SC04-MSI STATUS_final=0xae | DONE=0 BLOCK=0 BAN=0 STORM=0 OUTS=0 MSI=50 ERR=0 UNK=0
+# ARMORCNT,SC04-MSI,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=2,winact=0,outsmax=1,amin=0x91000000,amax=0x91000000,apages=1,pgchg=0
+# ARMORCNT,SC04-MSI,w2,sticky=0x00000ee8,fail=0,ban=0,storm=105,outs=26,msi=50,reqmax=4,winact=0,outsmax=8,amin=0x91008000,amax=0x91008000,apages=1,pgchg=0
+# ARMORLAT,SC04-MSI,w1,n=170672,n_verdict=0,det_avg=37,tx_avg=37,det_last=34,tx_last=34,det_min=34,det_max=59,tx_min=34,tx_max=59,det_sum=6453229,tx_sum=6453266
+# ARMORHW,SC04-MSI,w1,cyc_block=0,cyc_hold=341352,req_up=170676,req_dn=170676,req_cut=0,cyc_total=7136049
+# ARMORW,SC04-MSI,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORRETR,SC04-MSI,w1,aucun retrait de VALID
+# ARMORSTALL,SC04-MSI,w1,up aw=0 w=0 b=0 ar=2 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# ARMORLAT,SC04-MSI,w2,n=2045,n_verdict=1865,det_avg=1,tx_avg=1,det_last=0,tx_last=0,det_min=0,det_max=30,tx_min=0,tx_max=30,det_sum=2193,tx_sum=2258
+# ARMORHW,SC04-MSI,w2,cyc_block=27955,cyc_hold=1074,req_up=2400,req_dn=535,req_cut=1865,cyc_total=9420899
+# ARMORW,SC04-MSI,w2,bad_id=0 fronts 0 cy | aw_dn=535 wlast_dn=535 ecart=0 | fantome=0 orphelin=0 | w_owed_max=1
+# ARMORRETR,SC04-MSI,w2,aucun retrait de VALID
+# ARMORSTALL,SC04-MSI,w2,up aw=2 w=1 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# === SC03-OUTS : N=50 accel=M mode=5 cfg=0x0 expect_block=1
+# ARMORSNAP,SC03-OUTS,accel_status=0xae
+# ARMORSNAP,SC03-OUTS,w1,status=0xb33000 sticky=0x0 | legit ENF
+# ARMORSNAP,SC03-OUTS,w2,status=0xb33000 sticky=0x0 | legit ENF
+# ARMORHS,SC03-OUTS,w1,up,0x640, AW --  W --  B -R  AR --  R VR
+# ARMORHS,SC03-OUTS,w1,dn,0x590, AW --  W -- last  B --  AR VR  R -R
+# ARMORHS,SC03-OUTS,w2,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC03-OUTS,w2,dn,0x510, AW --  W -- last  B --  AR -R  R -R
+# ARMORDBG,SC03-OUTS,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=1 req_cnt=1 fsm_w=0 fsm_r=1 | en_vol=1 cyc=29 verdict_vu=0
+# ARMORCUT,SC03-OUTS,w1,req_up=71225 req_dn=71225 cut=0 | cyc_block=0 cyc_hold=142452
+# ARMORW,SC03-OUTS,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC03-OUTS,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC03-OUTS,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC03-OUTS,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# SC03-OUTS STATUS_final=0x6e | DONE=0 BLOCK=0 BAN=0 STORM=0 OUTS=50 MSI=0 ERR=0 UNK=0
+# ARMORCNT,SC03-OUTS,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=2,winact=0,outsmax=1,amin=0x91000000,amax=0x91000000,apages=1,pgchg=0
+# ARMORCNT,SC03-OUTS,w2,sticky=0x00000668,fail=0,ban=0,storm=49,outs=50,msi=0,reqmax=4,winact=0,outsmax=24,amin=0x91000000,amax=0x91000000,apages=1,pgchg=0
+# ARMORLAT,SC03-OUTS,w1,n=171979,n_verdict=0,det_avg=37,tx_avg=37,det_last=34,tx_last=34,det_min=34,det_max=173,tx_min=34,tx_max=173,det_sum=6506164,tx_sum=6506202
+# ARMORHW,SC03-OUTS,w1,cyc_block=0,cyc_hold=343966,req_up=171983,req_dn=171983,req_cut=0,cyc_total=7194210
+# ARMORW,SC03-OUTS,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORRETR,SC03-OUTS,w1,aucun retrait de VALID
+# ARMORSTALL,SC03-OUTS,w1,up aw=0 w=0 b=0 ar=19 r=0 | dn aw=0 w=0 b=0 ar=17 r=0
+# ARMORLAT,SC03-OUTS,w2,n=100,n_verdict=99,det_avg=9,tx_avg=27,det_last=0,tx_last=25,det_min=0,det_max=30,tx_min=23,tx_max=43,det_sum=941,tx_sum=2734
+# ARMORHW,SC03-OUTS,w2,cyc_block=16673,cyc_hold=472,req_up=1200,req_dn=238,req_cut=962,cyc_total=9519300
+# ARMORW,SC03-OUTS,w2,bad_id=0 fronts 0 cy | aw_dn=50 wlast_dn=50 ecart=0 | fantome=0 orphelin=0 | w_owed_max=1
+# ARMORRETR,SC03-OUTS,w2,aucun retrait de VALID
+# ARMORSTALL,SC03-OUTS,w2,up aw=2 w=0 b=0 ar=12 r=42 | dn aw=0 w=0 b=0 ar=10 r=4
+# === SC01-SPOOF : N=50 accel=M mode=1 cfg=0x0 expect_block=1
+# ARMORSNAP,SC01-SPOOF,accel_status=0x6e
+# ARMORSNAP,SC01-SPOOF,w1,status=0xb33000 sticky=0x0 | legit ENF
+# ARMORSNAP,SC01-SPOOF,w2,status=0xb33000 sticky=0x0 | legit ENF
+# ARMORHS,SC01-SPOOF,w1,up,0x640, AW --  W --  B -R  AR --  R VR
+# ARMORHS,SC01-SPOOF,w1,dn,0x590, AW --  W -- last  B --  AR VR  R -R
+# ARMORHS,SC01-SPOOF,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,SC01-SPOOF,w2,dn,0x510, AW --  W -- last  B --  AR -R  R -R
+# ARMORDBG,SC01-SPOOF,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=1 req_cnt=1 fsm_w=0 fsm_r=1 | en_vol=1 cyc=24 verdict_vu=0
+# ARMORCUT,SC01-SPOOF,w1,req_up=72191 req_dn=72191 cut=0 | cyc_block=0 cyc_hold=144384
+# ARMORW,SC01-SPOOF,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC01-SPOOF,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC01-SPOOF,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC01-SPOOF,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# SC01-SPOOF STATUS_final=0x1e | DONE=0 BLOCK=0 BAN=49 STORM=0 OUTS=0 MSI=0 ERR=1 UNK=0
+# ARMORCNT,SC01-SPOOF,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0,reqmax=2,winact=0,outsmax=1,amin=0x91000000,amax=0x91000000,apages=1,pgchg=0
+# ARMORCNT,SC01-SPOOF,w2,sticky=0x00004118,fail=2,ban=1,storm=0,outs=0,msi=0,reqmax=0,winact=0,outsmax=0,amin=0x91000000,amax=0x91000000,apages=1,pgchg=0
+# ARMORLAT,SC01-SPOOF,w1,n=173547,n_verdict=0,det_avg=37,tx_avg=37,det_last=34,tx_last=34,det_min=34,det_max=65,tx_min=34,tx_max=65,det_sum=6562722,tx_sum=6562759
+# ARMORHW,SC01-SPOOF,w1,cyc_block=0,cyc_hold=347102,req_up=173551,req_dn=173551,req_cut=0,cyc_total=7257039
+# ARMORW,SC01-SPOOF,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORRETR,SC01-SPOOF,w1,aucun retrait de VALID
+# ARMORSTALL,SC01-SPOOF,w1,up aw=0 w=0 b=0 ar=2 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# ARMORLAT,SC01-SPOOF,w2,n=50,n_verdict=49,det_avg=0,tx_avg=0,det_last=0,tx_last=0,det_min=0,det_max=1,tx_min=0,tx_max=1,det_sum=1,tx_sum=1
+# ARMORHW,SC01-SPOOF,w2,cyc_block=100001,cyc_hold=2,req_up=50,req_dn=0,req_cut=50,cyc_total=9586558
+# ARMORW,SC01-SPOOF,w2,bad_id=1 fronts 5222998 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORRETR,SC01-SPOOF,w2,aucun retrait de VALID
+# ARMORSTALL,SC01-SPOOF,w2,up aw=2 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+
+###### RESUME ######
+SUMMARY-DET,SC06-LHAOK,100,100,100,0,0,0,100,223,224,223,223,372
+SUMMARY-TX,SC06-LHAOK,100,100,100,0,0,0,100,268,269,268,268,417
+SUMMARY-DET,SC07-MHAOK,100,100,100,0,0,0,100,223,223,223,223,223
+SUMMARY-TX,SC07-MHAOK,100,100,100,0,0,0,100,268,268,268,268,268
+SUMMARY-DET,SC08-LAS,700,700,512,0,0,700,0,223,223,223,225,233
+SUMMARY-TX,SC08-LAS,700,700,512,0,0,700,0,268,268,268,270,278
+SUMMARY-DET,SC10-SCAN,700,700,512,0,0,0,700,223,223,223,223,228
+SUMMARY-TX,SC10-SCAN,700,700,512,0,0,0,700,268,268,268,268,273
+SUMMARY-DET,SC02-STORM,50,50,50,50,0,0,0,228,232,233,233,236
+SUMMARY-TX,SC02-STORM,50,50,50,50,0,0,0,391,421,445,445,445
+SUMMARY-DET,SC09-PIPE,50,50,50,50,0,0,0,163,163,163,167,167
+SUMMARY-TX,SC09-PIPE,50,50,50,50,0,0,0,375,441,424,532,536
+SUMMARY-DET,SC04-MSI,50,50,50,50,0,0,0,228,232,233,233,235
+SUMMARY-TX,SC04-MSI,50,50,50,50,0,0,0,553,585,607,607,607
+SUMMARY-DET,SC03-OUTS,50,50,50,50,0,0,0,223,223,223,226,228
+SUMMARY-TX,SC03-OUTS,50,50,50,50,0,0,0,268,269,268,273,327
+SUMMARY-DET,SC01-SPOOF,50,50,50,50,0,0,0,153,153,153,158,163
+SUMMARY-TX,SC01-SPOOF,50,50,50,50,0,0,0,191,191,191,196,208
+###### END ######
