@@ -1,6 +1,6 @@
 profil          : bench
-commit          : 9cf0ebea692158f96a05e9aecb7356e45fc35b90
-commit court    : 9cf0ebe
+commit          : 2ab97c0842f0a287e3c3481f56f73cd45c4406f9
+commit court    : 2ab97c0
 branche         : testbench
 sous-module cva6: 88a07a837dba4b1b901adb69b56e9a94990f7ba3
 date            : 2026-09-15T10:43:14+02:00

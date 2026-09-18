@@ -338,7 +338,7 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 >   dans le préambule §6 : obsolète, à supprimer.
 > - §6.4.1 : « that path is exercised functionally » — vestige de la plateforme virtualisée.
 > - Table 14 : toujours des `\tbd{}`. Son journal (`bench_2026-09-16_120430.log`) **est dans `results/` depuis la fusion du 18/09** :
-  il était resté dans un commit non poussé (`b73504f`, bloc du 16/09 après-midi ci-dessous). C'est une
+  il était resté dans un commit non poussé (`93fa25b`, bloc du 16/09 après-midi ci-dessous). C'est une
   campagne `-DBENCH_ASOS -DBENCH_ASOS_IRQ` à −O2 **sur le v18** (MAGIC `0x12`) : elle rend la seconde
   commande du point 4 probablement inutile, et le paragraphe « bitstream v12 » de §6.6 supprimable.
 >
@@ -350,7 +350,7 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 > (le LHA n'a pas de registre de mode : il faudrait toucher au RTL, marge WNS +0,061 ns), ni le DPR,
 > ni la VM de service.
 >
-> **4. LE FIRMWARE EST PRÊT : `-DBENCH_ASOS_TRAJ`** (commit `a8365cb`, `bench_runner.c`). Campagne
+> **4. LE FIRMWARE EST PRÊT : `-DBENCH_ASOS_TRAJ`** (commit `49aab4a`, `bench_runner.c`). Campagne
 > autonome, wrappers vierges, fond LHA actif. Un pas = une évaluation de l'équation 3, 20 ms.
 > Actuation réelle et relue : TLC-5 seuil 6, TLC-4 bornes CFG-D via `0x110`, QUARANTINE révoque
 > l'ID (rendu en sortie), BANNED **verrouillé**. Sonde finale : l'accélérateur banni doit être refusé.
@@ -939,7 +939,7 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 > 2. **`axi_wr_pacer` inséré APRÈS le mux** (`dma_muxed`→IOMMU, bloc `gen_accel2`),
 >    `MAX_WR_TXN=1` : le mux à 16 laisse l'accel vider ses 16 AW dans le FIFO du pacer, qui
 >    débite ≤1 AW-sans-W vers l'aval partagé (IOMMU/XBAR/DRAM). Module :
->    `cva6-overlay/corev_apu/fpga/src/axi_wr_pacer.sv` (commit `ebc77b5`), validé isolément
+>    `cva6-overlay/corev_apu/fpga/src/axi_wr_pacer.sv` (commit `7630e74`), validé isolément
 >    par `armor/tb/tb_pacer.sv` (`run_pacer.sh` : sans pacer N≥8 gèle à MAXOPEN=4, avec pacer
 >    N=16 passe).
 >
@@ -958,7 +958,7 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 > genesys2). Reconstructible : le RTL est commité, `BENCH_PROFILE=1 RISCV=/usr make -C cva6 fpga`.
 >
 > **Drapeaux de diagnostic firmware ajoutés** (`bao-baremetal-guest/src/bench_runner.c`,
-> commits `42cf5a6`, `2412293`, inertes par défaut) : `BENCH_SC09_QUIESCE_CY`,
+> commits `ffce459`, `d642064`, inertes par défaut) : `BENCH_SC09_QUIESCE_CY`,
 > `BENCH_SC04_FIRST`, `BENCH_SC09_N`.
 >
 > **Prochaines étapes** : (1) nettoyer le timing + resynthèse ; (2) commiter le bitstream
@@ -971,10 +971,10 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 > fenêtre saturant, `CTRL[12]`, occupation de fenêtre en `0x38`, file de sort à 64,
 > `w_owed` à 8 bits, et le mode 7 de `accel_wrap` (tempête pipelinée). `check bench` dit
 > À JOUR. **Aucune campagne carte n'a encore été jouée dessus** : tout ce qui suit sur le
-> v14 vient du banc. Pour rejouer une campagne v13, revenir au RTL de `a80e162`.
+> v14 vient du banc. Pour rejouer une campagne v13, revenir au RTL de `c8e8bf1`.
 
 **Configuration de référence, VALIDÉE SUR CARTE : `W_SKID + FRESH + RESP_HOLD + W_FATE`**
-(`CTRL` relu `0x331`). **Bitstream archivé : v13** (`d4836ae`) — `tools/bitstream.sh use
+(`CTRL` relu `0x331`). **Bitstream archivé : v13** (`cb7d80e`) — `tools/bitstream.sh use
 bench`, puis `check bench` doit dire À JOUR. `B_FATE` (`CTRL[10]`, `0x731`) y est **sûr mais
 sans gain mesurable** : à activer ou non, la détection est la même (voir plus bas). Le v13
 ajoute `CTRL[11] IRQ_EN` et la sortie `irq_o` (§ 5 ter) ; à son reset le bit vaut 0, `irq_o`
