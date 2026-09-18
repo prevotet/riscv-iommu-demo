@@ -5,9 +5,45 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-18 (soir) — **TRAJECTOIRE ASOS JOUÉE SUR CARTE : six campagnes, QUARANTINE atteinte**
+>
+> **REPRENDRE ICI.** Le chantier (1) du bloc ci-dessous est fait. Reste le (2) : la
+> sous-section §6.4 « trajectoire » et ses raccords.
+>
+> **Série 1, scénario d'origine** (`results/bench_2026-09-18_164943`, `_164955`, `_165008`) : les
+> trois campagnes ont la même trajectoire au pas près. Le journal 2 a perdu les pas 40–54 sur
+> l'UART ; ses 132 lignes lisibles sont identiques. **Mais la MSI du pas 81 mène directement à
+> BANNED (score 100)** : la rafale MSI pèse **60 et non 40**, parce qu'elle lève AUSSI le moniteur
+> de flux (collant `0xaa8` ; même chose sur SC-04 seul, `storm=75`). La table simulée du bloc
+> ci-dessous se trompe sur ce point. QUARANTINE n'était jamais atteinte.
+>
+> **Série 2, scénario corrigé — celle à publier** (`results/bench_2026-09-18_170318`, `_170331`,
+> `_170343`, aucun octet parasite, **trois trajectoires identiques octet pour octet**, 153 pas) :
+> tempête au pas 80, six pas légitimes, puis MSI. Le firmware seul a changé, pas l'équation.
+>
+> | pas | événement | score | classe | politique |
+> |---|---|---|---|---|
+> | 10 / 20 / 30 | tempête | 45 / 57 / 61 | TLC-5 / 4 / 4 | seuil 6 / CFG-D / CFG-D |
+> | 41 → 53 | légitime | 15 → 0 | ACTIVE | référence |
+> | 80 | tempête | 45 | TLC-5 | seuil 6 |
+> | 87 | MSI | 21 → **78** | **TLC-3 QUARANTINE** | CFG-D + ID révoqué (`0xffffffff`) |
+> | 88 | légitime (tenu, `I`) | 70 | TLC-4 | **ID rendu** (`0x2`), CFG-D |
+> | 91 / 94 / 101 | légitime | 49 / 35 / 14 | TLC-5 / 6 / 8 | seuil 6 / référence |
+> | 128 / 129 | usurpation | 0 / 0 | ACTIVE | aucune alerte (ban au 3ᵉ échec, attendu) |
+> | 130 / 131 | usurpation | 65 / **123** | TLC-4 / **BANNED** | CFG-D / verrouillé |
+> | 133 → 152 | légitime (tenu, `I`) | 222 → 24 | BANNED | reste BANNED |
+>
+> `TRAJ-FIN` : `banni2=1`, `score2_max=222`, `politiques2=16`, `sonde2=E` (**refusée** : réponse
+> d'erreur ; la série 1 donnait `B`, les deux lettres alternent pendant l'usurpation),
+> `score1_max=0`, `politiques1=0` (**le fond LHA ne bouge jamais**), `depassements=0`.
+> Mesure à −O0 (`CALIB` 26), sans conséquence : la trajectoire ne chronomètre rien.
+>
+> **Pour l'article** : QUARANTINE ne tient **qu'un pas** (78 → 70). Cela s'ajoute au point (i)
+> du bloc ci-dessous : la durée d'une restriction est fixée par la période d'évaluation.
+
 > ### 2026-09-18 — **RELECTURE FINIE JUSQU'À §6.6 ; ASOS RETROUVE UNE ÉVALUATION (option B), À JOUER SUR CARTE**
 >
-> **REPRENDRE ICI.** Deux chantiers ouverts, dans cet ordre : (1) la session carte de
+> **(point de reprise précédent.)** Deux chantiers ouverts, dans cet ordre : (1) la session carte de
 > l'option B, (2) la sous-section d'article qui en sort.
 >
 > **OÙ SONT LES PIÈCES DE L'ARTICLE (changé le 18/09)**
