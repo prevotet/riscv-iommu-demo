@@ -1662,7 +1662,7 @@ static void run_sc10(stats_t *st) {
  * ============================================================ */
 /* Les poids, les classes et l'actuation servent aussi a la trajectoire
  * (BENCH_ASOS_TRAJ, plus bas), qui ne chronometre rien. */
-#if defined(BENCH_ASOS) || defined(BENCH_ASOS_TRAJ)
+#if defined(BENCH_ASOS) || defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1)
 
 #define ASOS_GAMMA_NUM   230u   /* 230/256 = 0,898 : gamma = 0,9 en MAC entier, */
 #define ASOS_GAMMA_SH    8u     /* sans division -- le papier dit « multiply-accumulate » */
@@ -1959,7 +1959,7 @@ static void run_asos(void) {
 }
 #endif /* BENCH_ASOS, chronometrage */
 
-#ifdef BENCH_ASOS_TRAJ
+#if defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1)
 /* ============================================================
  * ASOS, NIVEAU 2 : LA TRAJECTOIRE -- le comportement a etats, sur carte
  *
@@ -2023,13 +2023,16 @@ static void run_asos(void) {
 #define TRAJ_ID_REVOKED  0xFFFFFFFFULL
 #define TRAJ_PULSES      (WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR)
 
-enum { EV_LEGIT, EV_STORM, EV_MSI, EV_SPOOF };
-static const uint64_t    traj_mode[] = { 0, 4, 6, 1 };   /* modes de l'accelerateur */
-static const char *const traj_evn[]  = { "legit", "storm", "msi", "spoof" };
+enum { EV_LEGIT, EV_STORM, EV_MSI, EV_SPOOF, EV_DMA };
+static const uint64_t    traj_mode[] = { 0, 4, 6, 1, 7 };   /* modes de l'accelerateur */
+static const char *const traj_evn[]  = { "legit", "storm", "msi", "spoof", "dma" };
 
 /* Le script, en segments. `every` = n : l'evenement tombe sur un pas sur n,
  * les autres pas du segment sont du trafic legitime. */
-static const struct { unsigned ev, steps, every; const char *phase; } traj_script[] = {
+typedef struct { unsigned ev, steps, every; const char *phase; } traj_seg_t;
+
+#ifdef BENCH_ASOS_TRAJ
+static const traj_seg_t traj_script[] = {
     { EV_LEGIT, 10,  1, "A-legit"    },  /* reference : score nul           */
     { EV_STORM, 30, 10, "B-storms"   },  /* trois tempetes espacees         */
     { EV_LEGIT, 40,  1, "C-recovery" },  /* decroissance, retour a ACTIVE   */
@@ -2045,6 +2048,56 @@ static const struct { unsigned ev, steps, every; const char *phase; } traj_scrip
     { EV_SPOOF,  5,  1, "E-spoof"    },  /* ban au 3e echec, puis BANNED    */
     { EV_LEGIT, 20,  1, "E-after"    },  /* BANNED doit tenir               */
 };
+#define TRAJ_NAME "TRAJ"
+#define TRAJ_ARM  2
+#endif
+
+#ifdef BENCH_ASOS_E1
+/* ============================================================
+ * E1 : ASOS CONTRE LES DEUX POLITIQUES STATIQUES, a trafic identique
+ *
+ * Le 18/09, la politique stricte (CFG-D + RFMCNT) mesuree seule : SC-09 a la
+ * profondeur 4 bloque 44,7/50, le fond LHA ne declenche jamais. La reference
+ * (seuil 8, fronts) laisse passer SC-09 a toutes les profondeurs. Or seize
+ * ecritures pipelinees a profondeur 4, c'est le motif d'un DMA de streaming
+ * LEGITIME : aucune borne statique ne separe ce DMA de la tempete pipelinee,
+ * la reference laisse passer les deux, la stricte bloque les deux. HYPOTHESE
+ * DE CADRAGE, a dire dans l'article : ce DMA est une charge legitime.
+ *
+ * Un seul slot (le MHA), trois phases :
+ *   P1  DMA pipeline sain           -- doit passer
+ *   P2  compromission : deux tempetes classiques, visibles a la reference ;
+ *       la seconde porte le score a 57 (TLC-4), la politique CFG-D + RFMCNT
+ *       tombe sur le DERNIER pas de P2, avant que la decroissance ne la leve
+ *   P3  evasion : le MEME DMA pipeline, desormais malveillant -- doit etre
+ *       bloque
+ * Metriques : jobs P1 menes au bout (D), jobs P3 bloques (tout sauf D).
+ *
+ * Trois bras, un par build (-DE1_ARM=n), meme script, meme trafic :
+ *   0  reference fixe   : aucune actuation
+ *   1  stricte fixe     : CFG-D + RFMCNT des le depart, sur les DEUX slots
+ *   2  ASOS             : actuation de la trajectoire
+ * Dans les bras fixes le score est calcule et imprime, mais n'actionne rien.
+ *
+ * Exige ARMOR_BFATE=1 dans les trois bras : RFMCNT coupe des ecritures
+ * pipelinees, voir SC09. Le mettre partout garde les bras comparables.
+ * ============================================================ */
+#ifndef E1_ARM
+#define E1_ARM 2
+#endif
+#ifndef E1_DEPTH
+#define E1_DEPTH 4
+#endif
+static const traj_seg_t traj_script[] = {
+    { EV_DMA,   20,  1, "P1-sain"      },
+    { EV_STORM, 11, 10, "P2-compromis" },  /* tempetes aux pas 0 et 10 du segment */
+    { EV_DMA,   30,  1, "P3-evasion"   },
+};
+#define TRAJ_NAME "E1"
+#define TRAJ_ARM  E1_ARM
+#endif
+#define TRAJ_NSEG (sizeof(traj_script) / sizeof(traj_script[0]))
+static const char *const traj_armn[] = { "reference-fixe", "stricte-fixe", "ASOS" };
 
 typedef struct {
     volatile uint64_t *w;
@@ -2073,6 +2126,10 @@ static void traj_apply(traj_slot_t *s, unsigned pol,
     uint64_t id   = s->id_own;
     if (pol <= 5) ctrl = (ctrl_ref & ~WRAP_CTRL_THRESH(0xFF))
                        | WRAP_CTRL_THRESH(pol == 5 ? 6 : 4);
+    /* TLC-4 et en dessous comptent les TRANSFERTS : c'est ce qui rend visible
+     * la tempete pipelinee (SC09), invisible a la reference. Ajoute le 18/09
+     * pour E1 ; la trajectoire du 18/09 (series 1 et 2) a tourne SANS. */
+    if (pol <= 4) ctrl |= WRAP_CTRL_RFMCNT;
     if (pol <= 4) cfgp = TRAJ_CFGP_TIGHT;
     if (pol <= 3) id   = TRAJ_ID_REVOKED;
     s->w[WRAP_CFG_PARAMS_OFF / 8] = cfgp;
@@ -2104,7 +2161,7 @@ static uint64_t traj_eval(traj_slot_t *s, uint64_t ctrl_ref, uint64_t cfgp_ref,
     s->tlc = tlc;
 
     unsigned pol = s->banned ? 2 : (tlc >= 6 ? 6 : tlc);
-    *acted = (pol != s->pol);
+    *acted = (TRAJ_ARM == 2) && (pol != s->pol);   /* bras fixes : rien */
     if (*acted) traj_apply(s, pol, ctrl_ref, cfgp_ref);
     return st;
 }
@@ -2113,7 +2170,8 @@ static void run_asos_traj(void) {
     volatile uint64_t *w1 = (volatile uint64_t *)WRAP1_BASE_ADDR;
     volatile uint64_t *w2 = (volatile uint64_t *)WRAP2_BASE_ADDR;
 
-    printf("\r\n###### ASOS NIVEAU 2 (trajectoire, evaluation periodique) ######\r\n");
+    printf("\r\n###### ASOS NIVEAU 2 (%s, bras %s, evaluation periodique) ######\r\n",
+           TRAJ_NAME, traj_armn[TRAJ_ARM]);
     if (WRAP_MAGIC_VERSION(w2[WRAP_MAGIC_OFF / 8]) < 18) {
         printf("# TRAJ : ATTENTION -- bitstream anterieur au v18, pas de registre "
                "0x110 : la restriction CFG-D serait inerte. Bloc ignore.\r\n");
@@ -2127,10 +2185,30 @@ static void run_asos_traj(void) {
     traj_slot_t s1 = { w1, 1ULL, 0, 0, 10, 6, 0, 0 };
     traj_slot_t s2 = { w2, 2ULL, 0, 0, 10, 6, 0, 0 };
 
+#ifdef BENCH_ASOS_E1
+    *mha_pipe_depth = (uint64_t)E1_DEPTH;
+    fence();
+    printf("# E1 : profondeur DMA=%lu (relue), ctrl_ref=0x%lx\r\n",
+           (unsigned long)*mha_pipe_depth, (unsigned long)ctrl_ref);
+    if (!(ctrl_ref & WRAP_CTRL_BFATE))
+        printf("# E1 : ATTENTION -- BFATE absent de la reference, construire "
+               "avec -DARMOR_BFATE=1\r\n");
+#endif
+    /* Par segment : jobs de l'evenement du segment tires, menes au bout (D),
+     * tenus a l'arret (I). Bloques = tires - D. */
+    unsigned n_fire[TRAJ_NSEG] = {0}, n_done[TRAJ_NSEG] = {0};
+
     /* Partir d'un collant vide : l'initialisation a pu y laisser des traces. */
     w1[WRAP_CTRL_OFF / 8] = (w1[WRAP_CTRL_OFF / 8] & ~TRAJ_PULSES) | WRAP_CTRL_STICKY_CLR;
     w2[WRAP_CTRL_OFF / 8] = ctrl_ref | WRAP_CTRL_STICKY_CLR;
     fence();
+    /* Stricte fixe : les deux slots, d'emblee. APRES la purge ci-dessus, qui
+     * reecrit le CTRL de w2 a la reference -- place avant, le bras ne portait
+     * que 0x110 (constate le 18/09, ctrl2 relu 0x731). */
+    if (TRAJ_ARM == 1) {
+        traj_apply(&s1, 4, ctrl_ref, cfgp_ref);
+        traj_apply(&s2, 4, ctrl_ref, cfgp_ref);
+    }
 
     printf("# TRAJ : gamma=%u/256, pas=%lu cycles, ctrl_ref=0x%lx, cfgp_ref=0x%lx\r\n",
            ASOS_GAMMA_NUM, (unsigned long)TRAJ_STEP_CY,
@@ -2141,7 +2219,7 @@ static void run_asos_traj(void) {
     unsigned step = 0, overruns = 0;
     uint64_t t_next = read_counter();
 
-    for (unsigned g = 0; g < sizeof(traj_script) / sizeof(traj_script[0]); g++) {
+    for (unsigned g = 0; g < TRAJ_NSEG; g++) {
         for (unsigned j = 0; j < traj_script[g].steps; j++, step++) {
             t_next += TRAJ_STEP_CY;
 
@@ -2151,6 +2229,10 @@ static void run_asos_traj(void) {
             if (!(ev == EV_LEGIT && s2.pol <= 3)) {   /* revoque : tenu a l'arret */
                 uint64_t det = 0, tx = 0;
                 v = classify(fire_one('M', traj_mode[ev], LEGIT_DST, 0, &det, &tx));
+            }
+            if (ev == traj_script[g].ev && ev != EV_LEGIT) {
+                n_fire[g]++;
+                if (v == 'D') n_done[g]++;
             }
 
             int a1 = 0, a2 = 0;
@@ -2181,6 +2263,12 @@ static void run_asos_traj(void) {
     uint64_t det = 0, tx = 0;
     char probe = classify(fire_one('M', 0, LEGIT_DST, 0, &det, &tx));
 
+    for (unsigned g = 0; g < TRAJ_NSEG; g++)
+        if (n_fire[g])
+            printf("# PHASE,%s,%s,%s,tires=%u,menes=%u,bloques=%u\r\n",
+                   traj_armn[TRAJ_ARM], traj_script[g].phase,
+                   traj_evn[traj_script[g].ev], n_fire[g], n_done[g],
+                   n_fire[g] - n_done[g]);
     printf("# TRAJ-FIN,pas=%u,etat2=%s,banni2=%d,score2_max=%lu,politiques2=%u,"
            "sonde2=%c,score1_max=%lu,politiques1=%u,depassements=%u\r\n",
            step, asos_state(s2.tlc), s2.banned, (unsigned long)s2.score_max,
@@ -2195,8 +2283,8 @@ static void run_asos_traj(void) {
     w2[WRAP_CTRL_OFF / 8] = ctrl_ref;
     fence();
 }
-#endif /* BENCH_ASOS_TRAJ */
-#endif /* BENCH_ASOS || BENCH_ASOS_TRAJ */
+#endif /* BENCH_ASOS_TRAJ || BENCH_ASOS_E1 */
+#endif /* BENCH_ASOS || BENCH_ASOS_TRAJ || BENCH_ASOS_E1 */
 
 /* ============================================================
  * ASOS, NIVEAU 1 : la boucle complete, INTERRUPTION COMPRISE
@@ -2615,7 +2703,7 @@ void main(void) {
     wedge_probe();
 #endif
 
-#ifdef BENCH_ASOS_TRAJ
+#if defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1)
     /* CAMPAGNE AUTONOME : la trajectoire ASOS, et rien d'autre. Elle doit
      * partir de wrappers vierges -- apres les scenarios, SC03 laisse le
      * compteur d'en-vol sature et SC01 le failure_count a 3, et tout le

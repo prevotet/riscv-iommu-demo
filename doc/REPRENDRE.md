@@ -5,9 +5,58 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-18 (nuit) — **E1 MESURÉ : ASOS FACE AUX DEUX POLITIQUES STATIQUES**
+>
+> **REPRENDRE ICI.** **Option (b) retenue par JC** : les contributions ASOS se réduisent à « une
+> réponse graduée à états », évaluée par E1–E4 ; corrélation entre slots, DPR et VM de service
+> passent en conception non évaluée, dans les limites. E1 est fait ; restent E2 (attaquant
+> intermittent / patient), E3 (traces aléatoires), E4 (sensibilité, sur l'hôte), puis le `.tex`.
+>
+> **POURQUOI E1 A CETTE FORME.** Mesure préalable E0 (12 campagnes, `results/bench_2026-09-18_1710*`
+> à `_1712*`) : politique stricte (CFG-D + `RFMCNT`) sur SC-09, profondeur 2 / 4 / 8 / 16 →
+> **0 / 44,7 / 50 / 50** sur 50, fond LHA `storm=0` partout. **Sur le trafic légitime du banc, la
+> stricte ne coûte rien** : seul un DMA pipeliné légitime la met en défaut. **HYPOTHÈSE DE
+> CADRAGE validée par JC, à écrire dans l'article** : seize écritures pipelinées à profondeur 4
+> sont un DMA de streaming légitime. Physiquement, c'est le même trafic que la tempête pipelinée.
+>
+> **E1** (`-DBENCH_ASOS_E1 -DE1_ARM=0|1|2`, `-DARMOR_BFATE=1` dans les trois bras, slot MHA,
+> 61 pas) : **P1** 20 jobs de DMA sain → **P2** deux tempêtes classiques (score 57, TLC-4) → **P3**
+> 30 jobs du même DMA, désormais malveillant. **Six campagnes par bras**, toutes propres :
+>
+> | bras | P1 : DMA sain mené au bout | P3 : évasion bloquée |
+> |---|---|---|
+> | référence fixe | **120/120** (100 %) | **0/180** (0 %) |
+> | stricte fixe | **4/120** (3,3 %) | **167/180** (92,8 %) |
+> | ASOS | **120/120** (100 %) | **179/180** (99,4 %) |
+>
+> Journaux : référence `172606`, `172617`, `172627`, `173019`, `173029`, `173040` ; stricte
+> `172825`, `172836`, `172846`, `173055`, `173105`, `173116` ; ASOS `172716`, `172727`, `172737`,
+> `173130`, `173141`, `173152` (tous `results/bench_2026-09-18_*`). Lire les lignes `# PHASE`.
+>
+> **À DIRE EXACTEMENT, sans enjoliver** :
+> - **Dans le bras ASOS, les bornes ne tranchent que le premier job d'évasion** (5 fois sur 6 ; la
+>   6ᵉ fois, le 1ᵉʳ passe et le 2ᵉ est pris, `173141`). Le verdict pousse le score à 96 (BANNED),
+>   et **tous les jobs suivants sont refusés par la révocation de l'ID**, pas par les bornes.
+> - **La fenêtre TLC-4 ne dure que deux pas** (57 → 51 → 45, TLC-5 sans `RFMCNT`). **Un attaquant
+>   qui attend 40 ms après sa tempête s'évade.** C'est l'objet de E2, et une vraie limite.
+> - **Un attaquant qui passe directement au mode pipeliné** sans se trahir avant n'éveille jamais
+>   ASOS : ASOS ne protège que contre un attaquant **qui s'est déjà révélé**.
+> - Bras strict : le fond LHA déclenche **une fois, au pas 0**, dans 2 campagnes sur 6
+>   (`score1_max=45`). C'est un **artefact de bascule** (E0, qui démarre strict, donne 0).
+>   Ne pas le compter comme un coût de la stricte.
+>
+> **LA POLITIQUE TLC-4 COMPREND MAINTENANT `RFMCNT`** (`traj_apply`). La trajectoire a été
+> **rejouée** avec cette politique et `BFATE` (`172924`, `172937`, `172950`) : **score, classe,
+> état et action identiques à la série 2 au pas près**, seul le CTRL relu porte le bit 12.
+> Publier ces trois journaux-là.
+>
+> **Bug corrigé en route** : la première passe du bras strict (3 journaux supprimés) ne portait
+> que `0x110` ; la purge du collant réécrivait CTRL après la bascule. Vérifier `ctrl2 = 0x41731`
+> à chaque fois.
+
 > ### 2026-09-18 (soir) — **TRAJECTOIRE ASOS JOUÉE SUR CARTE : six campagnes, QUARANTINE atteinte**
 >
-> **REPRENDRE ICI.** Le chantier (1) du bloc ci-dessous est fait. Reste le (2) : la
+> **(point de reprise précédent.)** Le chantier (1) du bloc ci-dessous est fait. Reste le (2) : la
 > sous-section §6.4 « trajectoire » et ses raccords.
 >
 > **Série 1, scénario d'origine** (`results/bench_2026-09-18_164943`, `_164955`, `_165008`) : les
