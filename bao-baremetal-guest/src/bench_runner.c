@@ -1985,8 +1985,10 @@ static void run_asos(void) {
  *
  * PIEGE DE LECTURE : le bit 3 (BLOCKED, poids 25) est le blocage EFFECTIF,
  * leve par tout verdict applique. Une tempete contenue pese donc 20 + 25 = 45,
- * une rafale MSI 15 + 25 = 40, une usurpation bannie 40 + 25 = 65. C'est la
- * Table 3 telle que le materiel la presente, pas une erreur de somme.
+ * une usurpation bannie 40 + 25 = 65. Une rafale MSI pese 60 et non 40 : elle
+ * leve AUSSI le moniteur de flux (collant 0xaa8, storm=75 sur SC04 seul, et le
+ * 18/09 sur la carte). C'est la Table 3 telle que le materiel la presente, pas
+ * une erreur de somme.
  *
  * Actuation, sur CHANGEMENT de politique seulement, et relue a chaque pas :
  *   TLC >= 6  ACTIVE/LEARNING  bornes de reference
@@ -2031,7 +2033,13 @@ static const struct { unsigned ev, steps, every; const char *phase; } traj_scrip
     { EV_LEGIT, 10,  1, "A-legit"    },  /* reference : score nul           */
     { EV_STORM, 30, 10, "B-storms"   },  /* trois tempetes espacees         */
     { EV_LEGIT, 40,  1, "C-recovery" },  /* decroissance, retour a ACTIVE   */
-    { EV_STORM,  1,  1, "D-attack"   },  /* tempete puis MSI coup sur coup  */
+    /* Tempete, puis MSI sept pas plus tard. Coup sur coup (18/09), la MSI
+     * tombait sur 40 et menait a 100 : BANNED direct, QUARANTINE jamais vue.
+     * Six pas de decroissance ramenent le score a 21 ; la MSI (60) le porte a
+     * 18 + 60 = 78, milieu de la bande QUARANTINE [71, 85]. Marge : de 4 a 9
+     * pas intercalaires tombent tous dans la bande. */
+    { EV_STORM,  1,  1, "D-attack"   },
+    { EV_LEGIT,  6,  1, "D-attack"   },
     { EV_MSI,    1,  1, "D-attack"   },
     { EV_LEGIT, 40,  1, "D-recovery" },  /* sortie de QUARANTINE            */
     { EV_SPOOF,  5,  1, "E-spoof"    },  /* ban au 3e echec, puis BANNED    */
