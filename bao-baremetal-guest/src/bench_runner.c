@@ -1660,7 +1660,9 @@ static void run_sc10(stats_t *st) {
  * comme le papier les decrit : la revocation du Device ID autorise s'ecrit dans
  * ID_CFG. C'est pour ca que L_mmio depend du TLC atteint, et c'est le resultat.
  * ============================================================ */
-#ifdef BENCH_ASOS
+/* Les poids, les classes et l'actuation servent aussi a la trajectoire
+ * (BENCH_ASOS_TRAJ, plus bas), qui ne chronometre rien. */
+#if defined(BENCH_ASOS) || defined(BENCH_ASOS_TRAJ)
 
 #define ASOS_GAMMA_NUM   230u   /* 230/256 = 0,898 : gamma = 0,9 en MAC entier, */
 #define ASOS_GAMMA_SH    8u     /* sans division -- le papier dit « multiply-accumulate » */
@@ -1720,6 +1722,7 @@ static unsigned asos_actuate(volatile uint64_t *w, unsigned tlc, uint64_t ctrl) 
  * MMIO seule. Un banc qui chronometre du code mort ne mesure rien. */
 static volatile uint64_t asos_sink;
 
+#ifdef BENCH_ASOS   /* chronometrage, niveau 0 */
 typedef struct { uint64_t min, max, sum; unsigned n; } asos_acc_t;
 
 static void asos_acc(asos_acc_t *a, uint64_t v) {
@@ -1954,7 +1957,238 @@ static void run_asos(void) {
     printf("# ASOS : rappel -- retrancher le cout d'une lecture de compteur "
            "(voir `# CALIB`) pour comparer a un chiffre publie.\r\n");
 }
-#endif /* BENCH_ASOS */
+#endif /* BENCH_ASOS, chronometrage */
+
+#ifdef BENCH_ASOS_TRAJ
+/* ============================================================
+ * ASOS, NIVEAU 2 : LA TRAJECTOIRE -- le comportement a etats, sur carte
+ *
+ * Les niveaux 0 et 1 chronometrent UNE reaction, score remis a zero avant
+ * chacune. Ce bloc fait l'inverse : il ne chronometre rien et enchaine les
+ * evenements dans le temps, pour montrer ce que l'article decrit sans jamais
+ * l'avoir mesure -- accumulation (equation 3), transitions de TLC (Table 4),
+ * mitigation graduee REELLEMENT appliquee au materiel, decroissance, et
+ * bannissement terminal.
+ *
+ * UN PAS = UNE EVALUATION de l'equation 3 (t -> t+1), a periode fixe
+ * TRAJ_STEP_CY. La periode physique n'entre pas dans la trajectoire, seul
+ * compte le nombre de pas ; elle doit seulement couvrir l'injection et la
+ * ligne UART du pas (~10 ms a 115200 bauds). Un depassement est compte.
+ * C'EST UNE EVALUATION PERIODIQUE, et non le gestionnaire d'interruption des
+ * niveaux 0/1 : le §6.4.1 decrit un ASOS sans boucle de sondage, l'article
+ * doit donc le dire s'il publie ce bloc. Le chemin d'interruption est
+ * chronometre a part, par BENCH_ASOS_IRQ.
+ *
+ * Evenements : les bits d'alerte du COLLANT de chaque wrapper, lus puis vides
+ * a chaque pas. Rien n'est simule : l'accelerateur malveillant joue reellement
+ * l'attaque du script, sous le fond LHA continu.
+ *
+ * PIEGE DE LECTURE : le bit 3 (BLOCKED, poids 25) est le blocage EFFECTIF,
+ * leve par tout verdict applique. Une tempete contenue pese donc 20 + 25 = 45,
+ * une rafale MSI 15 + 25 = 40, une usurpation bannie 40 + 25 = 65. C'est la
+ * Table 3 telle que le materiel la presente, pas une erreur de somme.
+ *
+ * Actuation, sur CHANGEMENT de politique seulement, et relue a chaque pas :
+ *   TLC >= 6  ACTIVE/LEARNING  bornes de reference
+ *   TLC 5     SUSPICIOUS       seuil de flux 6 au lieu de 8   (« throttling »)
+ *   TLC 4     SUSPICIOUS       bornes CFG-D : seuil 4, fenetre 50, en-vol 8,
+ *                              echecs 2 -- validees sur carte le 15/09, 0 FP
+ *   TLC 3     QUARANTINE       CFG-D + Device ID revoque (ID_CFG = ~0)
+ *   TLC <= 2  BANNED           idem, VERROUILLE : terminal pour l'instance
+ * Sortir de QUARANTINE rend le Device ID ; sortir de BANNED est impossible.
+ * Tant que l'identite est revoquee, le trafic LEGITIME du script n'est pas
+ * emis (verdict `I`) : un accelerateur en quarantaine est tenu a l'arret.
+ *
+ * NON COUVERT, et a dire : la correlation entre slots (le LHA ne sait pas
+ * attaquer, il n'a pas de registre de mode), le cycle DPR (aucune
+ * reconfiguration sur ce banc), la VM de service. Le poids OUTS (k = 2) n'est
+ * pas exerce : SC03 sature le compteur d'en-vol pour le reste de la campagne.
+ *
+ * ORDRE : l'usurpation en DERNIER. Apres elle BAD_ID (bit 14) se re-arme en
+ * permanence et failure_count reste a 3 : tout trafic ulterieur du MHA en
+ * herite (voir l'ordre des scenarios dans main). Et l'usurpation n'est
+ * tranchee qu'au troisieme echec : les premiers pas de la phase E peuvent
+ * ne lever aucune alerte, c'est attendu.
+ *
+ * Exige le v18 (registre 0x110). Campagne AUTONOME : `-DBENCH_ASOS_TRAJ`
+ * court-circuite les scenarios, voir main.
+ * ============================================================ */
+
+#ifndef TRAJ_STEP_CY
+#define TRAJ_STEP_CY     1000000ULL      /* 20 ms a 50 MHz */
+#endif
+#define TRAJ_CFGP_TIGHT  0x02080032ULL   /* CFG-D : echecs 2, en-vol 8, fenetre 50 */
+#define TRAJ_ID_REVOKED  0xFFFFFFFFULL
+#define TRAJ_PULSES      (WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR)
+
+enum { EV_LEGIT, EV_STORM, EV_MSI, EV_SPOOF };
+static const uint64_t    traj_mode[] = { 0, 4, 6, 1 };   /* modes de l'accelerateur */
+static const char *const traj_evn[]  = { "legit", "storm", "msi", "spoof" };
+
+/* Le script, en segments. `every` = n : l'evenement tombe sur un pas sur n,
+ * les autres pas du segment sont du trafic legitime. */
+static const struct { unsigned ev, steps, every; const char *phase; } traj_script[] = {
+    { EV_LEGIT, 10,  1, "A-legit"    },  /* reference : score nul           */
+    { EV_STORM, 30, 10, "B-storms"   },  /* trois tempetes espacees         */
+    { EV_LEGIT, 40,  1, "C-recovery" },  /* decroissance, retour a ACTIVE   */
+    { EV_STORM,  1,  1, "D-attack"   },  /* tempete puis MSI coup sur coup  */
+    { EV_MSI,    1,  1, "D-attack"   },
+    { EV_LEGIT, 40,  1, "D-recovery" },  /* sortie de QUARANTINE            */
+    { EV_SPOOF,  5,  1, "E-spoof"    },  /* ban au 3e echec, puis BANNED    */
+    { EV_LEGIT, 20,  1, "E-after"    },  /* BANNED doit tenir               */
+};
+
+typedef struct {
+    volatile uint64_t *w;
+    uint64_t id_own;
+    uint64_t score, score_max;
+    unsigned tlc;          /* classe effective : verrouillee une fois BANNED */
+    unsigned pol;          /* politique en place : 6, 5, 4, 3 ou 2           */
+    int      banned;
+    unsigned changes;
+} traj_slot_t;
+
+static const char *traj_poln(unsigned pol) {
+    switch (pol) {
+    case 6:  return "reference";
+    case 5:  return "seuil-6";
+    case 4:  return "CFG-D";
+    case 3:  return "CFG-D+revoque";
+    default: return "CFG-D+revoque+BAN";
+    }
+}
+
+static void traj_apply(traj_slot_t *s, unsigned pol,
+                       uint64_t ctrl_ref, uint64_t cfgp_ref) {
+    uint64_t ctrl = ctrl_ref;
+    uint64_t cfgp = cfgp_ref;
+    uint64_t id   = s->id_own;
+    if (pol <= 5) ctrl = (ctrl_ref & ~WRAP_CTRL_THRESH(0xFF))
+                       | WRAP_CTRL_THRESH(pol == 5 ? 6 : 4);
+    if (pol <= 4) cfgp = TRAJ_CFGP_TIGHT;
+    if (pol <= 3) id   = TRAJ_ID_REVOKED;
+    s->w[WRAP_CFG_PARAMS_OFF / 8] = cfgp;
+    s->w[WRAP_ID_CFG_OFF     / 8] = id;
+    s->w[WRAP_CTRL_OFF       / 8] = ctrl;
+    fence();
+    s->pol = pol;
+    s->changes++;
+}
+
+/* Un pas de l'equation 3 pour un slot : lit et vide le collant, met a jour le
+ * score, reclasse, et actue si la politique change. Rend les bits lus. */
+static uint64_t traj_eval(traj_slot_t *s, uint64_t ctrl_ref, uint64_t cfgp_ref,
+                          int *acted) {
+    uint64_t st = s->w[WRAP_STICKY_OFF / 8];
+    uint64_t c  = s->w[WRAP_CTRL_OFF / 8] & ~TRAJ_PULSES;
+    s->w[WRAP_CTRL_OFF / 8] = c | WRAP_CTRL_STICKY_CLR;
+    fence();
+
+    uint64_t sc = (s->score * ASOS_GAMMA_NUM) >> ASOS_GAMMA_SH;
+    for (unsigned i = 0; i < ASOS_NEV; i++)
+        if (st & asos_ev[i].bit) sc += asos_ev[i].w;
+    s->score = sc;
+    if (sc > s->score_max) s->score_max = sc;
+
+    unsigned tlc = asos_tlc(sc);
+    if (s->banned && tlc > s->tlc) tlc = s->tlc;   /* BANNED ne se leve pas */
+    if (tlc <= 2) s->banned = 1;
+    s->tlc = tlc;
+
+    unsigned pol = s->banned ? 2 : (tlc >= 6 ? 6 : tlc);
+    *acted = (pol != s->pol);
+    if (*acted) traj_apply(s, pol, ctrl_ref, cfgp_ref);
+    return st;
+}
+
+static void run_asos_traj(void) {
+    volatile uint64_t *w1 = (volatile uint64_t *)WRAP1_BASE_ADDR;
+    volatile uint64_t *w2 = (volatile uint64_t *)WRAP2_BASE_ADDR;
+
+    printf("\r\n###### ASOS NIVEAU 2 (trajectoire, evaluation periodique) ######\r\n");
+    if (WRAP_MAGIC_VERSION(w2[WRAP_MAGIC_OFF / 8]) < 18) {
+        printf("# TRAJ : ATTENTION -- bitstream anterieur au v18, pas de registre "
+               "0x110 : la restriction CFG-D serait inerte. Bloc ignore.\r\n");
+        return;
+    }
+
+    /* Configuration de reference telle que le MATERIEL la porte. */
+    uint64_t ctrl_ref = w2[WRAP_CTRL_OFF / 8] & ~TRAJ_PULSES;
+    uint64_t cfgp_ref = w2[WRAP_CFG_PARAMS_OFF / 8];
+
+    traj_slot_t s1 = { w1, 1ULL, 0, 0, 10, 6, 0, 0 };
+    traj_slot_t s2 = { w2, 2ULL, 0, 0, 10, 6, 0, 0 };
+
+    /* Partir d'un collant vide : l'initialisation a pu y laisser des traces. */
+    w1[WRAP_CTRL_OFF / 8] = (w1[WRAP_CTRL_OFF / 8] & ~TRAJ_PULSES) | WRAP_CTRL_STICKY_CLR;
+    w2[WRAP_CTRL_OFF / 8] = ctrl_ref | WRAP_CTRL_STICKY_CLR;
+    fence();
+
+    printf("# TRAJ : gamma=%u/256, pas=%lu cycles, ctrl_ref=0x%lx, cfgp_ref=0x%lx\r\n",
+           ASOS_GAMMA_NUM, (unsigned long)TRAJ_STEP_CY,
+           (unsigned long)ctrl_ref, (unsigned long)cfgp_ref);
+    printf("# TRAJ,pas,phase,evt,verdict,collant2,score2,tlc2,etat2,action2,"
+           "ctrl2,cfgp2,id2,collant1,score1,tlc1,depasse\r\n");
+
+    unsigned step = 0, overruns = 0;
+    uint64_t t_next = read_counter();
+
+    for (unsigned g = 0; g < sizeof(traj_script) / sizeof(traj_script[0]); g++) {
+        for (unsigned j = 0; j < traj_script[g].steps; j++, step++) {
+            t_next += TRAJ_STEP_CY;
+
+            unsigned ev = (j % traj_script[g].every == 0) ? traj_script[g].ev
+                                                          : EV_LEGIT;
+            char v = 'I';
+            if (!(ev == EV_LEGIT && s2.pol <= 3)) {   /* revoque : tenu a l'arret */
+                uint64_t det = 0, tx = 0;
+                v = classify(fire_one('M', traj_mode[ev], LEGIT_DST, 0, &det, &tx));
+            }
+
+            int a1 = 0, a2 = 0;
+            uint64_t k1 = traj_eval(&s1, ctrl_ref, cfgp_ref, &a1);
+            uint64_t k2 = traj_eval(&s2, ctrl_ref, cfgp_ref, &a2);
+            if (a1)   /* le slot legitime ne devrait jamais changer de politique */
+                printf("# TRAJ : ATTENTION -- w1 passe en politique %s au pas %u\r\n",
+                       traj_poln(s1.pol), step);
+
+            int late = (read_counter() > t_next);
+            printf("# TRAJ,%u,%s,%s,%c,0x%lx,%lu,TLC-%u,%s,%s,0x%lx,0x%lx,0x%lx,"
+                   "0x%lx,%lu,TLC-%u,%d\r\n",
+                   step, traj_script[g].phase, traj_evn[ev], v,
+                   (unsigned long)k2, (unsigned long)s2.score, s2.tlc,
+                   asos_state(s2.tlc), a2 ? traj_poln(s2.pol) : "-",
+                   (unsigned long)(w2[WRAP_CTRL_OFF / 8] & ~TRAJ_PULSES),
+                   (unsigned long)w2[WRAP_CFG_PARAMS_OFF / 8],
+                   (unsigned long)w2[WRAP_ID_CFG_OFF / 8],
+                   (unsigned long)k1, (unsigned long)s1.score, s1.tlc, late);
+            if (late) { overruns++; t_next = read_counter(); }
+            while (read_counter() < t_next) { }
+        }
+    }
+
+    /* Sonde finale : l'accelerateur banni tente une transaction LEGITIME. Elle
+     * doit etre refusee -- la preuve que BANNED est applique, pas seulement
+     * affiche. Hors trajectoire : son verdict n'entre dans aucun score. */
+    uint64_t det = 0, tx = 0;
+    char probe = classify(fire_one('M', 0, LEGIT_DST, 0, &det, &tx));
+
+    printf("# TRAJ-FIN,pas=%u,etat2=%s,banni2=%d,score2_max=%lu,politiques2=%u,"
+           "sonde2=%c,score1_max=%lu,politiques1=%u,depassements=%u\r\n",
+           step, asos_state(s2.tlc), s2.banned, (unsigned long)s2.score_max,
+           s2.changes, probe, (unsigned long)s1.score_max, s1.changes, overruns);
+
+    /* Remise en etat. */
+    w1[WRAP_ID_CFG_OFF / 8] = 1ULL;
+    w2[WRAP_ID_CFG_OFF / 8] = 2ULL;
+    w1[WRAP_CFG_PARAMS_OFF / 8] = cfgp_ref;
+    w2[WRAP_CFG_PARAMS_OFF / 8] = cfgp_ref;
+    w1[WRAP_CTRL_OFF / 8] = ctrl_ref;
+    w2[WRAP_CTRL_OFF / 8] = ctrl_ref;
+    fence();
+}
+#endif /* BENCH_ASOS_TRAJ */
+#endif /* BENCH_ASOS || BENCH_ASOS_TRAJ */
 
 /* ============================================================
  * ASOS, NIVEAU 1 : la boucle complete, INTERRUPTION COMPRISE
@@ -2371,6 +2605,18 @@ void main(void) {
      * Placée avant, elle tournait ARMOR non armé et son ID_CFG était de toute
      * façon écrasé par armor_wrap_init. */
     wedge_probe();
+#endif
+
+#ifdef BENCH_ASOS_TRAJ
+    /* CAMPAGNE AUTONOME : la trajectoire ASOS, et rien d'autre. Elle doit
+     * partir de wrappers vierges -- apres les scenarios, SC03 laisse le
+     * compteur d'en-vol sature et SC01 le failure_count a 3, et tout le
+     * script en heriterait. Fond LHA actif, comme dans la campagne. */
+    lha_bg_start();
+    run_asos_traj();
+    lha_bg_stop();
+    printf("###### END ######\r\n");
+    while (1) asm volatile("wfi");
 #endif
 
     /* Configurer DDT : LHA(id=1) et MHA(id=2) autorisés sur 0x91000000.

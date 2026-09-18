@@ -1,13 +1,101 @@
 # Reprendre le travail ARMOR sur une autre machine
 
-État au **2026-09-16**, branche `testbench`. Ce document existe parce que le README amont
+État au **2026-09-18**, branche `testbench`. Ce document existe parce que le README amont
 ne dit rien de la chaîne de bench, et que tout le reste vivait dans les messages de commit.
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-18 — **RELECTURE FINIE JUSQU'À §6.6 ; ASOS RETROUVE UNE ÉVALUATION (option B), À JOUER SUR CARTE**
+>
+> **REPRENDRE ICI.** Deux chantiers ouverts, dans cet ordre : (1) la session carte de
+> l'option B, (2) la sous-section d'article qui en sort.
+>
+> **OÙ SONT LES PIÈCES DE L'ARTICLE (changé le 18/09)**
+> - **Le `.tex` est versionné** : `git clone https://gitlab.insa-rennes.fr/trust_gw/article_jsa.git`,
+>   fichier `cas-sc-template.tex`. Compiler : `pdflatex` ×2 + `bibtex` (renvois : 0 `??`, 30 pages).
+>   Utiliser les VRAIES étiquettes (`grep -n '\\label{'`), ne plus en supposer.
+> - `CONTRAINTES_RELECTURE.md` (règles R1–R9, contrôles 1–8) **n'est PAS versionné**, par choix :
+>   il voyage par téléchargement. Sans lui, la relecture perd ses règles.
+> - Le dossier-artefact (https://claude.ai/artifact/84VmBeb5agszoVD2KTif7m) **n'a PAS reçu la passe
+>   du 18/09 après-midi** : ce bloc-ci est le seul relevé de ce qui a été fait.
+>
+> **1. CE QUI A ÉTÉ FAIT DANS LE `.tex` LE 18/09** (tout en `\add{}`) :
+> - §6.5 réécrite et **simplifiée en trois paragraphes** (ARMOR aux bornes évaluées ; une borne est
+>   un choix contre une charge, le scan échappe à toutes ; partage du travail par échelle de temps).
+>   Trois contradictions supprimées : ASOS « négligeable » devant la détection (§6.4.3 dit « du même
+>   ordre »), l'épuisement « défait par la contention plutôt que par l'enforcement » (la Table 11 dit :
+>   moniteur de flux puis timeout), et le blocage « dans le même cycle » (la Table 8 dit ≤ 49 cycles).
+> - §6.6 réécrite : ASOS n'est plus évalué que pour son coût, dit comme une limite ; **la Table 13
+>   vient du bitstream v12** (MAGIC `0x…0c`, `results/asos_O2.log`, `asos_irq_00{1,2}.log`), dit en
+>   clair — paragraphe À SUPPRIMER si on la rejoue sur le v18.
+> - Raccords des coupes : abstract, dernière puce de §1.2, préambule §6 (Q4/Q5 supprimées, nouvelle Q4
+>   « containment vs bounds / what a bound-based monitor cannot detect »), §6.1 fusionnée et **§6.1.2
+>   supprimée** (étiquette `sec:virtplat` disparue), intro §6.4, Conclusion. Partout, l'épuisement
+>   « finit sur le timeout du maître », plus « bus contention ».
+> - Huit renvois réparés, dont les trois `??` historiques (`eq:score`, `eq:det`, `eq:detect`).
+>
+> **2. DÉCISIONS ENCORE OUVERTES**
+> - **Le lot : 45 ou 56 campagnes** (point 1 du dossier). L'abstract affiche maintenant **0,13 %**
+>   avec 2 250 injections (option A, cohérente) — **à confirmer par JC**.
+> - Bloc en commentaire `%The two campaigns deliberately use different experimental environments…`
+>   dans le préambule §6 : obsolète, à supprimer.
+> - §6.4.1 : « that path is exercised functionally » — vestige de la plateforme virtualisée.
+> - Table 14 : toujours des `\tbd{}`. Son journal (`bench_2026-09-16_120430.log`) **est dans `results/` depuis la fusion du 18/09** :
+  il était resté dans un commit non poussé (`b73504f`, bloc du 16/09 après-midi ci-dessous). C'est une
+  campagne `-DBENCH_ASOS -DBENCH_ASOS_IRQ` à −O2 **sur le v18** (MAGIC `0x12`) : elle rend la seconde
+  commande du point 4 probablement inutile, et le paragraphe « bitstream v12 » de §6.6 supprimable.
+>
+> **3. DIAGNOSTIC DU PAPIER ET DÉCISION.** La moitié ARMOR est solide. Mais §2.4 et trois des cinq
+> contributions reposent sur ASOS (corrélation, confiance persistante, cycle DPR) alors que §6 ne fait
+> plus que le chronométrer. **Option B retenue** : redonner à ASOS une évaluation fonctionnelle sur
+> carte, sans resynthèse. Elle couvre accumulation, transitions de TLC, mitigation appliquée au
+> matériel, décroissance, bannissement terminal. **Elle NE couvre PAS** la corrélation entre slots
+> (le LHA n'a pas de registre de mode : il faudrait toucher au RTL, marge WNS +0,061 ns), ni le DPR,
+> ni la VM de service.
+>
+> **4. LE FIRMWARE EST PRÊT : `-DBENCH_ASOS_TRAJ`** (commit `a8365cb`, `bench_runner.c`). Campagne
+> autonome, wrappers vierges, fond LHA actif. Un pas = une évaluation de l'équation 3, 20 ms.
+> Actuation réelle et relue : TLC-5 seuil 6, TLC-4 bornes CFG-D via `0x110`, QUARANTINE révoque
+> l'ID (rendu en sortie), BANNED **verrouillé**. Sonde finale : l'accélérateur banni doit être refusé.
+>
+> ```sh
+> # bitstream v18 flashé (DEUX passes, voir § 0 ter), puis :
+> tools/campagne.sh TRAJ 3 "-DBENCH_ASOS_TRAJ"
+> OPT_LEVEL=2 tools/campagne.sh ASOS 3 "-DBENCH_ASOS -DBENCH_ASOS_IRQ"   # Tables 13 et 14 sur le v18
+> ```
+> `campagne.sh` transmet `OPT_LEVEL` depuis le 18/09 (sinon mesure à −O0, ×5). Ses colonnes SC01–SC04
+> restent **vides pour TRAJ, c'est normal** : lire les lignes `# TRAJ` et `# TRAJ-FIN` du journal.
+>
+> **Trajectoire attendue** (simulée sur l'hôte, même arithmétique entière ; le bit BLOCKED, poids 25,
+> accompagne tout verdict appliqué : tempête 45, MSI 40, usurpation 65) :
+>
+> | pas | événement | score | classe | politique |
+> |---|---|---|---|---|
+> | 10 / 20 / 30 | tempête | 45 / **57** / **61** | TLC-5 / 4 / 4 | seuil 6 / CFG-D / CFG-D |
+> | 35 → 79 | légitime | décroît | → ACTIVE | référence |
+> | 80 / 81 | tempête puis MSI | 45 → 80 | QUARANTINE | ID révoqué |
+> | 83 → 88 | arrêt puis reprise | 63 → 35 | → ACTIVE | ID rendu à 83 |
+> | 124 / 125 | usurpation | 65 → 123 | **BANNED** | verrouillé jusqu'au bout |
+>
+> **À vérifier sur les trois journaux** : trajectoire identique au pas près (sinon, R7 : intervalle) ;
+> `TRAJ-FIN` avec `banni2=1`, `sonde2` bloquée (pas `D`), `score1_max=0`, `politiques1=0`,
+> `depassements=0`. Les deux premiers pas d'usurpation devraient ne lever aucune alerte (ban au 3ᵉ
+> échec) : si la carte diffère de la table, c'est la table qu'on corrige, pas le firmware.
+>
+> **Deux résultats de conception à assumer dans l'article** : (i) avec γ = 0,9 **par pas**, une
+> tempête isolée ne tient SUSPICIOUS que deux pas — la durée d'une restriction dépend de la période
+> d'évaluation, que le papier ne fixe nulle part ; (ii) une tempête soutenue mène au bannissement
+> (équilibre 45/(1−γ) ≈ 440).
+>
+> **5. APRÈS LA CARTE, DANS LE `.tex`** : une sous-section §6.4 « trajectoire » (~250 mots + figure
+> score/pas avec bandes de TLC), une Q sur le comportement à états d'ASOS, et reprendre en conséquence
+> §1.2, l'intro §6.4, §6.4.1 (**dire que la trajectoire est une évaluation périodique**, l'interruption
+> étant chronométrée à part), §6.6 et la Conclusion. Remplir la Table 14, et supprimer le paragraphe
+> « bitstream antérieur » de §6.6 si la Table 13 a été rejouée.
+
 > ### 2026-09-16 (soir) — **LE MANUSCRIT EST À JOUR ; le dossier de révision est clos**
 >
-> **REPRENDRE ICI.** Plus rien en attente : ni mesure, ni ajout, ni correction. Le PDF du
+> **(point de reprise précédent.)** Plus rien en attente : ni mesure, ni ajout, ni correction. Le PDF du
 > 16/09 à 14 h 07 (32 p.) passe les huit contrôles ci-dessous. L'artefact v35
 > (https://claude.ai/artifact/84VmBeb5agszoVD2KTif7m) ne contient plus de liste de tâches,
 > seulement l'annexe : la provenance de chaque chiffre.
@@ -173,7 +261,7 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 > ### 2026-09-15 (nuit) — **QUATRE POINTS D'AMÉLIORATION TRAITÉS ; artefact v28**
 >
-> **(point de reprise précédent.)** Il ne reste **que le report des 25 étapes dans le LaTeX**. Aucune mesure
+> *(Dépassé par le bloc du 18/09 ci-dessus.)* Il ne reste **que le report des 25 étapes dans le LaTeX**. Aucune mesure
 > n'est en attente. 201 campagnes au total sur le v18, toutes vérifiées.
 >
 > **1. Surface resynthétisée sur le RTL PUBLIÉ.** L'ancienne mesure datait d'avant le v18 :
@@ -225,7 +313,7 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 > ### 2026-09-15 (soir) — **L'ARTICLE PASSE SUR LA PLATEFORME RÉPARÉE (option B)**
 >
-> **(point de reprise précédent.)** 119 campagnes sur le v18, toutes vérifiées (MAGIC, fin de campagne,
+> *(Dépassé par le bloc du 18/09 ci-dessus.)* 119 campagnes sur le v18, toutes vérifiées (MAGIC, fin de campagne,
 > relecture du registre). Journaux dans `results/`, colonne de contrôle dans
 > `results/mesures_2026-09-15_v18.csv`. Artefact **version 27**, réécrit pour l'option B.
 > **Il reste à reporter les 25 étapes dans le LaTeX** — c'est le seul travail en attente.
