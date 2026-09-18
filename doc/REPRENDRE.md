@@ -5,9 +5,32 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-19 — **ARTICLE RÉVISÉ ET POUSSÉ : `article_jsa` @ `3a0d07c`**
+>
+> **REPRENDRE ICI.** Le manuscrit (`article.tex`, 30 pages, compilation propre, aucun `??`) est
+> commité et poussé sur le GitLab de l'INSA. Toute la révision est en rouge (`\add{}`), validée
+> passage par passage par JC.
+>
+> **Fait dans cette passe** : points 1 à 7 de la relecture scientifique (sections 4 et 5 alignées
+> sur le RTL, conception séparée de la réalisation, cadre de l'article mis à jour, lot de 60
+> campagnes, objection « réécrire l'ID », modèle temporel hybride d'ASOS, Figure 6 en TikZ,
+> bibliographie, ORCID) ; anglais américain et « runtime » partout ; 43 phrases lourdes
+> simplifiées (résumé : 211 mots) ; paragraphes coupés et réordonnés (§1.1, §6.3.3, §6.3.5,
+> §6.3.6, §6.4.3, conclusion) ; légendes ramenées à deux lignes ; colonnes des tableaux pleine
+> largeur réparées (les colonnes `L`/`R` de la classe collent les cellules) ; redites de §2 et
+> de §5.4.3 retirées, §4.6 supprimée.
+>
+> **Règles de rédaction de JC** (aussi en mémoire) : aucun chiffre du texte hors tableau ou
+> figure ; anglais très simple ; toute modification proposée en bleu (`\revb`) et validée avant
+> de repasser en rouge.
+>
+> **Reste ouvert** : e-mail de l'autrice correspondante (`\ead{}` vide) ; titre qui ne nomme
+> qu'ARMOR ; décomposition éventuelle de `L_notify` (instrumentation de Bao) ; *Highlights* si la
+> revue les exige.
+
 > ### 2026-09-19 (nuit) — **NOUVEAU LOT DE RÉFÉRENCE : 60 campagnes, qui remplace le mélange 45 / 55**
 >
-> **REPRENDRE ICI.** Décision de JC : harmoniser une fois pour toutes. **Le lot publié est désormais
+> **(point de reprise précédent.)** Décision de JC : harmoniser une fois pour toutes. **Le lot publié est désormais
 > `results/mesures_2026-09-19_ref60.csv`** (60 campagnes, `bench_2026-09-19_0025*` à `_003537`),
 > et **tous** ses chiffres sortent de `tools/lot_reference.py`. Le résultat est versionné :
 > `results/lot_reference_2026-09-19_ref60.txt`.
