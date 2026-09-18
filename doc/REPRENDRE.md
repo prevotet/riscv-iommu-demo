@@ -5,9 +5,47 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-18 (nuit, suite) — **E2 MESURÉ : la mémoire d'ASOS tient deux pas contre l'évasion**
+>
+> **REPRENDRE ICI.** E1 et E2 faits. Restent **une décision de conception** (ci-dessous), E3, E4,
+> puis le `.tex`.
+>
+> **E2a — l'attaquant patient** (`-DBENCH_ASOS_E1 -DE1_ARM=2 -DE1_DELAY=D`, 3 campagnes par D,
+> `results/bench_2026-09-18_1735*` à `_1738*`) : D pas de trafic sain entre la seconde tempête et
+> l'évasion pipelinée.
+>
+> | D (pas de 20 ms) | 0 | 1 | 2 | 3 | 5 | 10 |
+> |---|---|---|---|---|---|---|
+> | évasions bloquées / 30 | 30 | 30 | **0** | 0 | 0 | 0 |
+> | état final | BANNED | BANNED | ACTIVE | ACTIVE | ACTIVE | ACTIVE |
+>
+> **Une falaise, et elle est exactement prévisible** : TLC-4 (CFG-D + `RFMCNT`) tient deux pas
+> (57, 51) ; à 45, TLC-5 (seuil 6 **sans** `RFMCNT`) rend le DMA pipeliné invisible. **Un
+> attaquant qui attend 40 ms s'évade entièrement, sans jamais être banni.** Trois campagnes
+> identiques par case. `173537` a deux lignes parasitées dont celle du MAGIC (illisible) : les
+> deux autres campagnes du même build lisent `0x12`.
+>
+> **E2b — l'attaquant intermittent** (`-DBENCH_ASOS_E2B -DE2_PERIOD=n`, tempête classique tous
+> les n pas pendant 60 pas, 3 campagnes par n, `_1738*` à `_1741*`) :
+>
+> | n | 3 | 6 | 7 | 10 |
+> |---|---|---|---|---|
+> | banni | oui, pas 16 (score 99) | oui, pas 34 (score 87) | **non**, max 80 | **non**, max 63 |
+>
+> **La carte reproduit la prédiction de l'hôte au pas et à l'unité près** (même arithmétique :
+> frontière n ≤ 6 ⇔ 45/(1−γⁿ) ≥ 86). Une tempête pèse 45 même sous politique resserrée. **Le
+> modèle hôte est donc validé : E4 (sensibilité à γ, aux seuils, à la période) se fait sur l'hôte**,
+> et c'est à dire ainsi dans l'article. Après le ban, les tempêtes suivantes portent en plus les
+> bits d'usurpation (ID révoqué), d'où les maxima 443 / 249 : sans importance pour le verdict.
+>
+> **LA DÉCISION DE CONCEPTION QUE E2a IMPOSE** (à trancher par JC) : publier ASOS tel quel, avec la
+> falaise à 40 ms comme limite mesurée, ou **ajouter une hystérésis** (politique tenue un temps
+> minimal, ou relâchée seulement sous un seuil plus bas) et **mesurer le gain** avec le même E2a.
+> La seconde voie touche le firmware seul, pas le RTL.
+
 > ### 2026-09-18 (nuit) — **E1 MESURÉ : ASOS FACE AUX DEUX POLITIQUES STATIQUES**
 >
-> **REPRENDRE ICI.** **Option (b) retenue par JC** : les contributions ASOS se réduisent à « une
+> **(point de reprise précédent.)** **Option (b) retenue par JC** : les contributions ASOS se réduisent à « une
 > réponse graduée à états », évaluée par E1–E4 ; corrélation entre slots, DPR et VM de service
 > passent en conception non évaluée, dans les limites. E1 est fait ; restent E2 (attaquant
 > intermittent / patient), E3 (traces aléatoires), E4 (sensibilité, sur l'hôte), puis le `.tex`.

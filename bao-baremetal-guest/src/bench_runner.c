@@ -1662,7 +1662,7 @@ static void run_sc10(stats_t *st) {
  * ============================================================ */
 /* Les poids, les classes et l'actuation servent aussi a la trajectoire
  * (BENCH_ASOS_TRAJ, plus bas), qui ne chronometre rien. */
-#if defined(BENCH_ASOS) || defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1)
+#if defined(BENCH_ASOS) || defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1) || defined(BENCH_ASOS_E2B)
 
 #define ASOS_GAMMA_NUM   230u   /* 230/256 = 0,898 : gamma = 0,9 en MAC entier, */
 #define ASOS_GAMMA_SH    8u     /* sans division -- le papier dit « multiply-accumulate » */
@@ -1959,7 +1959,7 @@ static void run_asos(void) {
 }
 #endif /* BENCH_ASOS, chronometrage */
 
-#if defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1)
+#if defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1) || defined(BENCH_ASOS_E2B)
 /* ============================================================
  * ASOS, NIVEAU 2 : LA TRAJECTOIRE -- le comportement a etats, sur carte
  *
@@ -2088,13 +2088,37 @@ static const traj_seg_t traj_script[] = {
 #ifndef E1_DEPTH
 #define E1_DEPTH 4
 #endif
+/* E2a, l'attaquant PATIENT : E1_DELAY pas de trafic sain entre la seconde
+ * tempete et l'evasion. 0 = E1 tel que mesure le 18/09. */
+#ifndef E1_DELAY
+#define E1_DELAY 0
+#endif
 static const traj_seg_t traj_script[] = {
     { EV_DMA,   20,  1, "P1-sain"      },
     { EV_STORM, 11, 10, "P2-compromis" },  /* tempetes aux pas 0 et 10 du segment */
+    { EV_LEGIT, E1_DELAY, 1, "P2b-attente" },
     { EV_DMA,   30,  1, "P3-evasion"   },
 };
 #define TRAJ_NAME "E1"
 #define TRAJ_ARM  E1_ARM
+#endif
+
+#ifdef BENCH_ASOS_E2B
+/* E2b, l'attaquant INTERMITTENT : une tempete classique tous les E2_PERIOD
+ * pas, 60 pas durant, bras ASOS. Sur l'hote, le pic d'equilibre vaut
+ * 45 / (1 - gamma^n) : ban (>= 86) si n <= 6 environ, restriction
+ * periodique sans ban au-dela. La carte dit si le poids d'une tempete reste
+ * 45 quand elle tombe sous une politique deja resserree. */
+#ifndef E2_PERIOD
+#define E2_PERIOD 5
+#endif
+static const traj_seg_t traj_script[] = {
+    { EV_LEGIT, 10, 1, "A-sain"       },
+    { EV_STORM, 60, E2_PERIOD, "B-intermittent" },
+    { EV_LEGIT, 20, 1, "C-apres"      },
+};
+#define TRAJ_NAME "E2b"
+#define TRAJ_ARM  2
 #endif
 #define TRAJ_NSEG (sizeof(traj_script) / sizeof(traj_script[0]))
 static const char *const traj_armn[] = { "reference-fixe", "stricte-fixe", "ASOS" };
@@ -2703,7 +2727,7 @@ void main(void) {
     wedge_probe();
 #endif
 
-#if defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1)
+#if defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1) || defined(BENCH_ASOS_E2B)
     /* CAMPAGNE AUTONOME : la trajectoire ASOS, et rien d'autre. Elle doit
      * partir de wrappers vierges -- apres les scenarios, SC03 laisse le
      * compteur d'en-vol sature et SC01 le failure_count a 3, et tout le
