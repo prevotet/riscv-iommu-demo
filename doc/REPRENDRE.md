@@ -5,9 +5,38 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-18 (nuit, E3) — **E3 MESURÉ : 30 traces aléatoires, zéro resserrement à tort, 20 bannis sur 20**
+>
+> **REPRENDRE ICI.** E1, E2, hystérésis et E3 faits. Reste **E4 sur l'hôte** (le modèle hôte est validé
+> par E2b), puis le `.tex`.
+>
+> **E3** (`-DBENCH_ASOS_E3 -DASOS_HYST=1 -DE3_KIND=0|1 -DE3_SEED=n`, un build par graine, 100 pas,
+> slot MHA ; 30 journaux de `bench_2026-09-18_175803.log` à `bench_2026-09-18_180534.log`, lire `# E3-FIN`) :
+> - **Saines** (graines 101–110 ; 30 % de DMA pipeliné légitime, 70 % d'écritures simples) :
+>   **0/339 DMA bloqués, 0/661 écritures bloquées, 0 pas resserré sur 1 000.**
+> - **Malveillantes** (graines 1–20 ; saines jusqu'à T0 ∈ [10, 40[, puis 30 % d'attaques :
+>   tempête 40 %, MSI 20 %, évasion DMA 40 %) :
+>
+> | mesure | valeur |
+> |---|---|
+> | tempêtes bloquées | 176/176 |
+> | MSI bloquées | 94/94 |
+> | **évasions DMA bloquées** | **160/182 (87,9 %)** |
+> | DMA sain avant T0 bloqué | 0/171 |
+> | 1ʳᵉ restriction, pas après T0 | médiane **2**, de 0 à 15 |
+> | ban, pas après T0 | médiane **9**, de 1 à 33 ; **20/20 bannis** |
+>
+> **Où passent les 22 évasions** (classées d'après la politique en vigueur au job) : **17 sous la
+> référence**, avant que l'attaquant se soit révélé par une tempête ou une MSI, et **5 sous
+> TLC-5** (seuil 6 **sans** `RFMCNT`). **Sous TLC-4 ou plus bas : 160/160 bloquées.** Deux lectures
+> pour l'article : (i) la limite de E1, désormais chiffrée (ASOS ne voit pas un attaquant qui ne
+> s'est pas révélé) ; (ii) **une piste de conception** : `RFMCNT` dès TLC-5 fermerait les 5
+> derniers. Non mesuré : il faudrait d'abord savoir si seuil 6 + `RFMCNT` prend le DMA à
+> profondeur 4 (le seuil 4 le prend à 89 %, le seuil 8 jamais).
+
 > ### 2026-09-18 (nuit, fin) — **HYSTÉRÉSIS AJOUTÉE À ASOS (décision JC) : la mémoire passe de 40 à 220 ms**
 >
-> **REPRENDRE ICI.** La conception publiée est désormais **ASOS avec hystérésis**
+> **(point de reprise précédent.)** La conception publiée est désormais **ASOS avec hystérésis**
 > (`-DASOS_HYST=1`, toute campagne ASOS à venir). Restent E3, E4 (hôte), puis le `.tex`.
 >
 > **LA RÈGLE** (`traj_eval`) : **resserrer dès l'entrée dans une classe, ne relâcher qu'au retour à

@@ -1662,7 +1662,7 @@ static void run_sc10(stats_t *st) {
  * ============================================================ */
 /* Les poids, les classes et l'actuation servent aussi a la trajectoire
  * (BENCH_ASOS_TRAJ, plus bas), qui ne chronometre rien. */
-#if defined(BENCH_ASOS) || defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1) || defined(BENCH_ASOS_E2B)
+#if defined(BENCH_ASOS) || defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1) || defined(BENCH_ASOS_E2B) || defined(BENCH_ASOS_E3)
 
 #define ASOS_GAMMA_NUM   230u   /* 230/256 = 0,898 : gamma = 0,9 en MAC entier, */
 #define ASOS_GAMMA_SH    8u     /* sans division -- le papier dit « multiply-accumulate » */
@@ -1959,7 +1959,7 @@ static void run_asos(void) {
 }
 #endif /* BENCH_ASOS, chronometrage */
 
-#if defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1) || defined(BENCH_ASOS_E2B)
+#if defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1) || defined(BENCH_ASOS_E2B) || defined(BENCH_ASOS_E3)
 /* ============================================================
  * ASOS, NIVEAU 2 : LA TRAJECTOIRE -- le comportement a etats, sur carte
  *
@@ -2120,6 +2120,54 @@ static const traj_seg_t traj_script[] = {
 #define TRAJ_NAME "E2b"
 #define TRAJ_ARM  2
 #endif
+
+#ifdef BENCH_ASOS_E3
+/* ============================================================
+ * E3 : TRACES ALEATOIRES, une graine par build (-DE3_SEED=n), bras ASOS.
+ *
+ * Slot MHA, E3_STEPS pas. Deux types (-DE3_KIND) :
+ *   0  sain        : a chaque pas, 30 % DMA pipeline legitime (profondeur 4),
+ *                    70 % ecriture simple. Mesure : resserrements A TORT.
+ *   1  malveillant : le meme melange sain jusqu'a T0 (tire dans [10, 40[),
+ *                    puis a chaque pas 30 % d'attaque -- tempete 40 %,
+ *                    MSI 20 %, evasion DMA pipelinee 40 % -- et sinon une
+ *                    ecriture simple. Apres T0, un DMA est une evasion : le
+ *                    motif est le meme que le DMA sain, seule l'intention
+ *                    change (cadrage de E1).
+ * L'usurpation est EXCLUE : elle laisse BAD_ID arme et failure_count a 3,
+ * tout le trafic ulterieur en herite (voir l'en-tete de la trajectoire).
+ * ============================================================ */
+#ifndef E3_SEED
+#define E3_SEED 1
+#endif
+#ifndef E3_KIND
+#define E3_KIND 1
+#endif
+#ifndef E3_STEPS
+#define E3_STEPS 100
+#endif
+#ifndef E1_DEPTH
+#define E1_DEPTH 4
+#endif
+static uint32_t e3_x;
+static uint32_t e3_rand(void) {           /* xorshift32 */
+    e3_x ^= e3_x << 13; e3_x ^= e3_x >> 17; e3_x ^= e3_x << 5;
+    return e3_x;
+}
+static unsigned e3_t0;
+static unsigned e3_event(unsigned step) {
+    if (E3_KIND == 0 || step < e3_t0)
+        return (e3_rand() % 100 < 30) ? EV_DMA : EV_LEGIT;
+    if (e3_rand() % 100 >= 30) return EV_LEGIT;
+    unsigned r = e3_rand() % 100;
+    return r < 40 ? EV_STORM : (r < 60 ? EV_MSI : EV_DMA);
+}
+static const traj_seg_t traj_script[] = {
+    { EV_LEGIT, E3_STEPS, 1, "E3" },
+};
+#define TRAJ_NAME "E3"
+#define TRAJ_ARM  2
+#endif
 #define TRAJ_NSEG (sizeof(traj_script) / sizeof(traj_script[0]))
 static const char *const traj_armn[] = { "reference-fixe", "stricte-fixe", "ASOS" };
 
@@ -2220,7 +2268,7 @@ static void run_asos_traj(void) {
     traj_slot_t s1 = { w1, 1ULL, 0, 0, 10, 6, 0, 0 };
     traj_slot_t s2 = { w2, 2ULL, 0, 0, 10, 6, 0, 0 };
 
-#ifdef BENCH_ASOS_E1
+#if defined(BENCH_ASOS_E1) || defined(BENCH_ASOS_E3)
     *mha_pipe_depth = (uint64_t)E1_DEPTH;
     fence();
     printf("# E1 : profondeur DMA=%lu (relue), ctrl_ref=0x%lx\r\n",
@@ -2232,6 +2280,18 @@ static void run_asos_traj(void) {
     /* Par segment : jobs de l'evenement du segment tires, menes au bout (D),
      * tenus a l'arret (I). Bloques = tires - D. */
     unsigned n_fire[TRAJ_NSEG] = {0}, n_done[TRAJ_NSEG] = {0};
+#ifdef BENCH_ASOS_E3
+    e3_x  = (uint32_t)E3_SEED * 2654435761u | 1u;
+    for (int i = 0; i < 8; i++) (void)e3_rand();          /* chauffe */
+    e3_t0 = (E3_KIND == 1) ? 10 + e3_rand() % 30 : E3_STEPS;
+    /* [attaque][evenement] : tires, menes au bout (D) */
+    unsigned e3_f[2][5] = {{0}}, e3_d[2][5] = {{0}};
+    int e3_restr = -1, e3_ban = -1;
+    unsigned e3_tight = 0, e3_held = 0;
+    printf("# E3 : graine=%u type=%s t0=%u pas=%u hysteresis=%d\r\n",
+           (unsigned)E3_SEED, E3_KIND ? "malveillant" : "sain", e3_t0,
+           (unsigned)E3_STEPS, ASOS_HYST);
+#endif
 
     /* Partir d'un collant vide : l'initialisation a pu y laisser des traces. */
     w1[WRAP_CTRL_OFF / 8] = (w1[WRAP_CTRL_OFF / 8] & ~TRAJ_PULSES) | WRAP_CTRL_STICKY_CLR;
@@ -2260,6 +2320,9 @@ static void run_asos_traj(void) {
 
             unsigned ev = (j % traj_script[g].every == 0) ? traj_script[g].ev
                                                           : EV_LEGIT;
+#ifdef BENCH_ASOS_E3
+            ev = e3_event(step);
+#endif
             char v = 'I';
             if (!(ev == EV_LEGIT && s2.pol <= 3)) {   /* revoque : tenu a l'arret */
                 uint64_t det = 0, tx = 0;
@@ -2269,10 +2332,22 @@ static void run_asos_traj(void) {
                 n_fire[g]++;
                 if (v == 'D') n_done[g]++;
             }
+#ifdef BENCH_ASOS_E3
+            {
+                int att = (step >= e3_t0) && ev != EV_LEGIT;
+                if (v == 'I') e3_held++;
+                else { e3_f[att][ev]++; if (v == 'D') e3_d[att][ev]++; }
+            }
+#endif
 
             int a1 = 0, a2 = 0;
             uint64_t k1 = traj_eval(&s1, ctrl_ref, cfgp_ref, &a1);
             uint64_t k2 = traj_eval(&s2, ctrl_ref, cfgp_ref, &a2);
+#ifdef BENCH_ASOS_E3
+            if (s2.pol < 6) e3_tight++;
+            if (e3_restr < 0 && s2.pol < 6 && step >= e3_t0) e3_restr = (int)(step - e3_t0);
+            if (e3_ban   < 0 && s2.banned)                   e3_ban   = (int)(step - e3_t0);
+#endif
             if (a1)   /* le slot legitime ne devrait jamais changer de politique */
                 printf("# TRAJ : ATTENTION -- w1 passe en politique %s au pas %u\r\n",
                        traj_poln(s1.pol), step);
@@ -2304,6 +2379,21 @@ static void run_asos_traj(void) {
                    traj_armn[TRAJ_ARM], traj_script[g].phase,
                    traj_evn[traj_script[g].ev], n_fire[g], n_done[g],
                    n_fire[g] - n_done[g]);
+#ifdef BENCH_ASOS_E3
+    /* bloques = tires - menes ; resserres = pas sous politique < reference
+     * (dans une trace saine, ce sont des resserrements A TORT). */
+    printf("# E3-FIN,graine=%u,type=%s,t0=%u,restr=%d,ban=%d,"
+           "dma_sain=%u/%u,simple_sain=%u/%u,tempete=%u/%u,msi=%u/%u,"
+           "evasion=%u/%u,resserres=%u,tenus=%u\r\n",
+           (unsigned)E3_SEED, E3_KIND ? "malveillant" : "sain", e3_t0,
+           e3_restr, e3_ban,
+           e3_f[0][EV_DMA] - e3_d[0][EV_DMA], e3_f[0][EV_DMA],
+           e3_f[0][EV_LEGIT] - e3_d[0][EV_LEGIT], e3_f[0][EV_LEGIT],
+           e3_f[1][EV_STORM] - e3_d[1][EV_STORM], e3_f[1][EV_STORM],
+           e3_f[1][EV_MSI] - e3_d[1][EV_MSI], e3_f[1][EV_MSI],
+           e3_f[1][EV_DMA] - e3_d[1][EV_DMA], e3_f[1][EV_DMA],
+           e3_tight, e3_held);
+#endif
     printf("# TRAJ-FIN,pas=%u,etat2=%s,banni2=%d,score2_max=%lu,politiques2=%u,"
            "sonde2=%c,score1_max=%lu,politiques1=%u,depassements=%u\r\n",
            step, asos_state(s2.tlc), s2.banned, (unsigned long)s2.score_max,
@@ -2738,7 +2828,7 @@ void main(void) {
     wedge_probe();
 #endif
 
-#if defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1) || defined(BENCH_ASOS_E2B)
+#if defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1) || defined(BENCH_ASOS_E2B) || defined(BENCH_ASOS_E3)
     /* CAMPAGNE AUTONOME : la trajectoire ASOS, et rien d'autre. Elle doit
      * partir de wrappers vierges -- apres les scenarios, SC03 laisse le
      * compteur d'en-vol sature et SC01 le failure_count a 3, et tout le
