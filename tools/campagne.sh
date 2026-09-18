@@ -9,6 +9,8 @@
 #    tools/campagne.sh THR12 6 "-DARMOR_THRESH=12"        # balayage du seuil de flux
 #    tools/campagne.sh OUT8  6 "-DARMOR_MAXOUTS=8"        # balayage de la borne d'en-vol
 #    tools/campagne.sh ENF0  6 "-DARMOR_ENFORCE=0"        # baseline sans blocage
+#    OPT_LEVEL=2 tools/campagne.sh ASOS 3 "-DBENCH_ASOS -DBENCH_ASOS_IRQ"  # Tables 13-14
+#    tools/campagne.sh TRAJ  3 "-DBENCH_ASOS_TRAJ"     # trajectoire ASOS (autonome)
 #    tools/campagne.sh P9d8  6 "-DBENCH_SC09 -DBENCH_SC09_DEPTH=8 \
 #                              -DARMOR_RFMCNT=1 -DARMOR_BFATE=1"
 #
@@ -48,7 +50,9 @@ LABEL="$1"; N="$2"; shift 2
 
 cd "$ROOT/bao-baremetal-guest"
 make clean >/dev/null 2>&1
-if ! make PLATFORM=cva6 CROSS_COMPILE="$RISCV_BARE" BENCH=1 \
+#  OPT_LEVEL : 0 par defaut, comme le Makefile. Tout chiffre ASOS publie exige
+#  OPT_LEVEL=2 (la ligne `# CALIB` doit annoncer 2 cycles, 26 a -O0).
+if ! make PLATFORM=cva6 CROSS_COMPILE="$RISCV_BARE" BENCH=1 OPT_LEVEL="${OPT_LEVEL:-0}" \
         ARCH_CPPFLAGS="$BASE_FLAGS $*" -j"$(nproc)" > "$LOGDIR/build_$LABEL.log" 2>&1; then
     echo "$LABEL : ECHEC DE BUILD, voir $LOGDIR/build_$LABEL.log" >&2; exit 1
 fi
