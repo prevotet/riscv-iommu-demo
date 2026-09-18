@@ -59,7 +59,7 @@ TEX = r"""\documentclass[border=2pt]{standalone}
   axis line style={inkSoft}, tick style={inkSoft},
   xtick distance=10, minor x tick num=1,
 ]
-\nextgroupplot[height=6.2cm, ymin=0, ymax=@YMAX@, ylabel={Threat score},
+\nextgroupplot[height=4.4cm, ymin=0, ymax=@YMAX@, ylabel={Threat score},
   ytick={0,16,36,71,86,100}, clip=false, restrict y to domain=0:@YMAX@]
   \fill[sActive] (axis cs:0,0)   rectangle (axis cs:@XMAX@,16);
   \fill[sLearn]  (axis cs:0,16)  rectangle (axis cs:@XMAX@,36);
@@ -83,7 +83,7 @@ TEX = r"""\documentclass[border=2pt]{standalone}
   \addplot[only marks, mark=square*, mark size=2.4pt, evSpoof, draw=white,
            line width=0.6pt] table[x=step, y=score, restrict expr to domain={\thisrow{ev}}{3:3}] {asos_traj.dat};
 @LABELS@
-\nextgroupplot[height=3.4cm, ymin=-0.5, ymax=4.5, xlabel={Step (20\,ms each)},
+\nextgroupplot[height=2.6cm, ymin=-0.5, ymax=4.5, xlabel={Step (20\,ms each)},
   ytick={0,1,2,3,4},
   yticklabels={Reference, TLC-5, TLC-4, ID revoked, Banned},
   ylabel={Policy}, axis on top=false, ymajorgrids, grid style={inkSoft!20}]
