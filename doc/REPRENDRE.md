@@ -5,9 +5,41 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-18 (nuit, fin) — **HYSTÉRÉSIS AJOUTÉE À ASOS (décision JC) : la mémoire passe de 40 à 220 ms**
+>
+> **REPRENDRE ICI.** La conception publiée est désormais **ASOS avec hystérésis**
+> (`-DASOS_HYST=1`, toute campagne ASOS à venir). Restent E3, E4 (hôte), puis le `.tex`.
+>
+> **LA RÈGLE** (`traj_eval`) : **resserrer dès l'entrée dans une classe, ne relâcher qu'au retour à
+> ACTIVE** (TLC ≥ 8, score < 16). Aucun paramètre nouveau : ce sont les bandes de la Table 2. La
+> mémoire devient proportionnelle à la gravité, puisqu'un score haut met plus longtemps à redescendre.
+>
+> **E2a rejoué avec hystérésis** (3 campagnes par D, `results/bench_2026-09-18_1748*` à `_1752*`) :
+>
+> | D (pas de 20 ms) | 0 | 1 | 2 | 5 | 10 | 11 | 15 |
+> |---|---|---|---|---|---|---|---|
+> | sans hystérésis : évasions bloquées / 30 | 30 | 30 | **0** | 0 | 0 | — | — |
+> | **avec** : évasions bloquées / 30 | 30 | 29,7 | **30** | 30 | 29,7 | **0** | 0 |
+>
+> La falaise passe **de D = 2 à D = 11, exactement où l'hôte la prédisait** (57 redescend sous 16
+> en 11 pas). **Le prix, à dire avec** : c'est le même chiffre lu à l'envers. Un slot légitime
+> soupçonné à tort reste resserré 11 pas au lieu de 2, et un DMA légitime lancé dans cette
+> fenêtre est bloqué, puis banni. **Toute mémoire finie peut être attendue** : l'hystérésis
+> déplace la falaise, elle ne la supprime pas.
+>
+> **E1, bras ASOS, rejoué avec hystérésis** (`175256` à `175349`, 6 campagnes) : DMA sain
+> **120/120**, évasion bloquée **180/180**. Les bras fixes ne dépendent pas d'ASOS : inchangés.
+>
+> **Trajectoire rejouée avec hystérésis** (`175403`, `175416`, `175429`, identiques octet pour
+> octet ; **ce sont eux à publier**, plus ceux de la série 2) : scores et classes identiques,
+> **9 changements de politique au lieu de 16**. **QUARANTINE tient désormais 14 pas** (du pas 87
+> au pas 101, ID révoqué et trafic légitime tenu à l'arrêt), puis l'ID est rendu directement à
+> la référence. Cela lève la réserve « QUARANTINE ne dure qu'un pas » du bloc de la trajectoire.
+> E2b ne dépend que du score : inchangé par construction.
+
 > ### 2026-09-18 (nuit, suite) — **E2 MESURÉ : la mémoire d'ASOS tient deux pas contre l'évasion**
 >
-> **REPRENDRE ICI.** E1 et E2 faits. Restent **une décision de conception** (ci-dessous), E3, E4,
+> **(point de reprise précédent.)** E1 et E2 faits. Restent **une décision de conception** (ci-dessous), E3, E4,
 > puis le `.tex`.
 >
 > **E2a — l'attaquant patient** (`-DBENCH_ASOS_E1 -DE1_ARM=2 -DE1_DELAY=D`, 3 campagnes par D,

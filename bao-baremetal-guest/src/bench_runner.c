@@ -2185,6 +2185,17 @@ static uint64_t traj_eval(traj_slot_t *s, uint64_t ctrl_ref, uint64_t cfgp_ref,
     s->tlc = tlc;
 
     unsigned pol = s->banned ? 2 : (tlc >= 6 ? 6 : tlc);
+    /* HYSTERESIS (-DASOS_HYST=1, ajoutee le 18/09 apres E2a) : resserrer des
+     * l'entree dans une classe, ne relacher qu'au retour a ACTIVE (TLC >= 8).
+     * Sans elle, CFG-D + RFMCNT ne tient que deux pas apres un score de 57 et
+     * un attaquant qui attend 40 ms s'evade ; avec, onze pas. Le prix est le
+     * meme chiffre lu a l'envers : un slot legitime soupconne reste resserre
+     * aussi longtemps. Memoire proportionnelle a la gravite, aucun parametre
+     * nouveau : ce sont les bandes de la Table 2. */
+#ifndef ASOS_HYST
+#define ASOS_HYST 0
+#endif
+    if (ASOS_HYST && pol > s->pol && tlc < 8) pol = s->pol;
     *acted = (TRAJ_ARM == 2) && (pol != s->pol);   /* bras fixes : rien */
     if (*acted) traj_apply(s, pol, ctrl_ref, cfgp_ref);
     return st;
@@ -2234,8 +2245,8 @@ static void run_asos_traj(void) {
         traj_apply(&s2, 4, ctrl_ref, cfgp_ref);
     }
 
-    printf("# TRAJ : gamma=%u/256, pas=%lu cycles, ctrl_ref=0x%lx, cfgp_ref=0x%lx\r\n",
-           ASOS_GAMMA_NUM, (unsigned long)TRAJ_STEP_CY,
+    printf("# TRAJ : gamma=%u/256, hysteresis=%d, pas=%lu cycles, ctrl_ref=0x%lx, cfgp_ref=0x%lx\r\n",
+           ASOS_GAMMA_NUM, ASOS_HYST, (unsigned long)TRAJ_STEP_CY,
            (unsigned long)ctrl_ref, (unsigned long)cfgp_ref);
     printf("# TRAJ,pas,phase,evt,verdict,collant2,score2,tlc2,etat2,action2,"
            "ctrl2,cfgp2,id2,collant1,score1,tlc1,depasse\r\n");
