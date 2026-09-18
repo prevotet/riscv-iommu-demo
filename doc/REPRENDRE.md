@@ -30,9 +30,23 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 > référence**, avant que l'attaquant se soit révélé par une tempête ou une MSI, et **5 sous
 > TLC-5** (seuil 6 **sans** `RFMCNT`). **Sous TLC-4 ou plus bas : 160/160 bloquées.** Deux lectures
 > pour l'article : (i) la limite de E1, désormais chiffrée (ASOS ne voit pas un attaquant qui ne
-> s'est pas révélé) ; (ii) **une piste de conception** : `RFMCNT` dès TLC-5 fermerait les 5
-> derniers. Non mesuré : il faudrait d'abord savoir si seuil 6 + `RFMCNT` prend le DMA à
-> profondeur 4 (le seuil 4 le prend à 89 %, le seuil 8 jamais).
+> s'est pas révélé) ; (ii) les 5 passées sous TLC-5 — voir la mesure ci-dessous.
+>
+> **LA PISTE « `RFMCNT` DÈS TLC-5 » EST FERMÉE** (mesuré le 18/09 au soir, 6 campagnes par seuil,
+> SC-09 à profondeur 4, bornes `0x110` de référence, fond LHA actif) :
+>
+> | seuil, avec `RFMCNT` | 4 (CFG-D, E0) | **5** | **6** | 8 (15/09) |
+> |---|---|---|---|---|
+> | SC-09 d4 bloqués / 50 | 44,7 | **0** | **0** | 0 |
+> | fond LHA `storm=` | 0 | 0 | 0 | 0 |
+>
+> Journaux : seuil 6 `bench_2026-09-18_1817*` à `_181821`, seuil 5 `_181854` à `_181951`.
+> **Frontière nette entre 4 et 5** : ce DMA se tient à une unité de la borne, et le fond LHA
+> (densité 4) aussi. C'est une marge fragile, à dire. **Conséquence** : fermer les 5 évasions de
+> TLC-5 imposerait le seuil 4 dès TLC-5, c'est-à-dire **fusionner TLC-5 dans la politique TLC-4**
+> et perdre le palier intermédiaire. Aucun coût mesuré sur le trafic légitime (0 FP partout),
+> mais une réponse moins graduée. **Décision de conception laissée à JC, rien n'est modifié.**
+> La ligne « parasites=1 » de ces journaux est un « é » du firmware (SC08), pas l'UART.
 
 > ### 2026-09-18 (nuit, fin) — **HYSTÉRÉSIS AJOUTÉE À ASOS (décision JC) : la mémoire passe de 40 à 220 ms**
 >
