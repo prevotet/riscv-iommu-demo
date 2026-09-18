@@ -1,0 +1,144 @@
+
+OpenSBI v1.0
+   ____                    _____ ____ _____
+  / __ \                  / ____|  _ \_   _|
+ | |  | |_ __   ___ _ __ | (___ | |_) || |
+ | |  | | '_ \ / _ \ '_ \ \___ \|  _ < | |
+ | |__| | |_) |  __/ | | |____) | |_) || |_
+  \____/| .__/ \___|_| |_|_____/|____/_____|
+        | |
+        |_|
+
+Platform Name             : ARIANE RISC-V
+Platform Features         : medeleg
+Platform HART Count       : 1
+Platform IPI Device       : aclint-mswi
+Platform Timer Device     : aclint-mtimer @ 1000000Hz
+Platform Console Device   : uart8250
+Platform HSM Device       : ---
+Platform Reboot Device    : ---
+Platform Shutdown Device  : ---
+Firmware Base             : 0x80000000
+Firmware Size             : 220 KB
+Runtime SBI Version       : 0.3
+
+Domain0 Name              : root
+Domain0 Boot HART         : 0
+Domain0 HARTs             : 0*
+Domain0 Region00          : 0x0000000002008000-0x000000000200bfff (I)
+Domain0 Region01          : 0x0000000002000000-0x0000000002007fff (I)
+Domain0 Region02          : 0x0000000080000000-0x000000008003ffff ()
+Domain0 Region03          : 0x0000000000000000-0xffffffffffffffff (R,W,X)
+Domain0 Next Address      : 0x0000000080200000
+Domain0 Next Arg1         : 0x0000000082200000
+Domain0 Next Mode         : S-mode
+Domain0 SysReset          : yes
+
+Boot HART ID              : 0
+Boot HART Domain          : root
+Boot HART ISA             : rv64imafdcsuh
+Boot HART Features        : scounteren,mcounteren
+Boot HART PMP Count       : 16
+Boot HART PMP Granularity : 8
+Boot HART PMP Address Bits: 54
+Boot HART MHPM Count      : 0
+Boot HART MIDELEG         : 0x0000000000000666
+Boot HART MEDELEG         : 0x0000000000f0b509
+Bao Hypervisor
+BAO WARNING: trying to flush caches but the operation is not defined for this platform
+BAO INFO: ASSIGN irq 1 to vm
+BAO INFO: ASSIGN irq 4 to vm
+BAO INFO: ASSIGN irq 5 to vm
+BAO INFO: ASSIGN irq 6 to vm
+BAO INFO: ASSIGN irq 7 to vm
+BAO INFO: ASSIGN irq 2 to vm
+BAO INFO: ASSIGN irq 3 to vm
+BAO INFO: ASSIGN irq 13 to vm
+BAO INFO: ASSIGN irq 14 to vm
+
+
+###### ARMOR BENCH RUNNER ######
+# CSV header : scenario,iter,expected_block,verdict,det_lat_cy,tx_lat_cy
+# det_lat = DETECTION (lancement -> 1er verdict ARMOR/DONE)
+# tx_lat  = TRANSACTION (lancement -> BUSY=0, round-trip complet)
+# verdict : M=MSI O=OUTS S=STORM B=BANNED b=BLOCKED D=DONE E=ERROR
+# SUMMARY-DET / SUMMARY-TX,name,N,n,n_lat,TP,FP,FN,TN,Lmin,Lavg,Lp50,Lp99,Lmax
+# CALIB : une lecture de `cycle` coute 26 (min) / 26 (moy sur 64)
+# CALIB : `det` et `tx` sont separes par exactement une de ces lectures
+# UNITE : compteur = cycle, cycles coeur 50 MHz
+# IOMMU DDT init OK (DDT @ 0xaffff000, LHA=allow ID=1, MHA=allow ID=2)
+# ARMOR CSR magic : wrap1=0x41524d4f52000012 wrap2=0x41524d4f52000012
+# ARMOR arme : ENFORCE=1, W_SKID=1, FRESH=1, WCAP=0, RHOLD=1, WFATE=1, BFATE=1, RFMCNT=0, SEUIL=synthese (8), ID_CFG w1=1 w2=2, MSI_ADDR=0x91008000
+# ARMOR CTRL relu : w1=0x731 w2=0x731 (attendu 0x731)
+# ARMOR devid_last : w1=0 w2=0
+
+###### ASOS NIVEAU 2 (E1, bras ASOS, evaluation periodique) ######
+# E1 : profondeur DMA=4 (relue), ctrl_ref=0x731
+# TRAJ : gamma=230/256, hysteresis=1, pas=1000000 cycles, ctrl_ref=0x731, cfgp_ref=0x0
+# TRAJ,pas,phase,evt,verdict,collant2,score2,tlc2,etat2,action2,ctrl2,cfgp2,id2,collant1,score1,tlc1,depasse
+# TRAJ,0,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,1,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,2,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,3,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,4,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,5,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,6,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,7,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,8,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,9,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,10,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,11,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,12,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,13,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,14,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,15,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,16,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,17,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,18,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,19,P1-sain,dma,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,20,P2-compromis,storm,S,0x228,45,TLC-5,SUSPICIOUS,seuil-6,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,21,P2-compromis,legit,D,0x0,40,TLC-5,SUSPICIOUS,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,22,P2-compromis,legit,D,0x0,35,TLC-6,LEARNING,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,23,P2-compromis,legit,D,0x0,31,TLC-6,LEARNING,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,24,P2-compromis,legit,D,0x0,27,TLC-6,LEARNING,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,25,P2-compromis,legit,D,0x0,24,TLC-7,LEARNING,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,26,P2-compromis,legit,D,0x0,21,TLC-7,LEARNING,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,27,P2-compromis,legit,D,0x0,18,TLC-7,LEARNING,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,28,P2-compromis,legit,D,0x0,16,TLC-7,LEARNING,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,29,P2-compromis,legit,D,0x0,14,TLC-8,ACTIVE,reference,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,30,P2-compromis,storm,S,0x228,57,TLC-4,SUSPICIOUS,CFG-D,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,31,P3-evasion,dma,S,0x228,96,TLC-2,BANNED,CFG-D+revoque+BAN,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,32,P3-evasion,dma,E,0x4000,86,TLC-2,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,33,P3-evasion,dma,B,0x4118,142,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,34,P3-evasion,dma,E,0x4118,192,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,35,P3-evasion,dma,B,0x4118,237,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,36,P3-evasion,dma,E,0x4118,277,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,37,P3-evasion,dma,B,0x4118,313,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,38,P3-evasion,dma,E,0x4118,346,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,39,P3-evasion,dma,B,0x4118,375,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,40,P3-evasion,dma,E,0x4118,401,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,41,P3-evasion,dma,B,0x4118,425,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,42,P3-evasion,dma,E,0x4118,446,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,43,P3-evasion,dma,B,0x4118,465,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,44,P3-evasion,dma,E,0x4118,482,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,45,P3-evasion,dma,B,0x4118,498,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,46,P3-evasion,dma,E,0x4118,512,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,47,P3-evasion,dma,B,0x4118,525,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,48,P3-evasion,dma,E,0x4118,536,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,49,P3-evasion,dma,B,0x4118,546,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,50,P3-evasion,dma,E,0x4118,555,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,51,P3-evasion,dma,B,0x4118,563,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,52,P3-evasion,dma,E,0x4118,570,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,53,P3-evasion,dma,B,0x4118,577,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,54,P3-evasion,dma,E,0x4118,583,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,55,P3-evasion,dma,B,0x4118,588,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,56,P3-evasion,dma,E,0x4118,593,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,57,P3-evasion,dma,B,0x4118,597,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,58,P3-evasion,dma,E,0x4118,601,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,59,P3-evasion,dma,B,0x4118,604,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# TRAJ,60,P3-evasion,dma,E,0x4118,607,TLC-1,BANNED,-,0x41731,0x2080032,0xffffffff,0x0,0,TLC-10,0
+# PHASE,ASOS,P1-sain,dma,tires=20,menes=20,bloques=0
+# PHASE,ASOS,P2-compromis,storm,tires=2,menes=0,bloques=2
+# PHASE,ASOS,P3-evasion,dma,tires=30,menes=0,bloques=30
+# TRAJ-FIN,pas=61,etat2=BANNED,banni2=1,score2_max=607,politiques2=4,sonde2=B,score1_max=0,politiques1=0,depassements=0
+###### END ######
