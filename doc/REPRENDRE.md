@@ -5,9 +5,45 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-19 (nuit) — **NOUVEAU LOT DE RÉFÉRENCE : 60 campagnes, qui remplace le mélange 45 / 55**
+>
+> **REPRENDRE ICI.** Décision de JC : harmoniser une fois pour toutes. **Le lot publié est désormais
+> `results/mesures_2026-09-19_ref60.csv`** (60 campagnes, `bench_2026-09-19_0025*` à `_003537`),
+> et **tous** ses chiffres sortent de `tools/lot_reference.py`. Le résultat est versionné :
+> `results/lot_reference_2026-09-19_ref60.txt`.
+>
+> **Même firmware que le lot du 15/09, prouvé et non supposé** : `bench_runner.o` compilé à
+> `417e105` et à `HEAD` avec les options de référence (`-O0`, aucun drapeau) donne des sections,
+> un désassemblage et des relocations identiques. Même bitstream v18 (archivé le 15/09 à 10 h 43,
+> avant le lot), et Bao inchangé.
+>
+> **Le script est validé** : sur l'ancien lot (`--csv … REF REF2`), il retrouve **tous** les
+> chiffres publiés. **Les ± de l'article sont des intervalles de confiance à 95 %**
+> (1,96 σ/√n), et non des écarts-types. La Table 14 (coût d'ASOS) donne des écarts-types :
+> **à corriger**.
+>
+> | | lot du 15/09 (publié) | **lot du 19/09 (60)** |
+> |---|---|---|
+> | usurpation / tempête / MSI | 2 250 (45 ; 55 pour deux lignes) | **3 000 / 3 000** chacune |
+> | borne (règle de trois) | 0,13 % / 0,11 % | **0,10 %** |
+> | épuisement contenu | 26,0 ± 2,4 % | **27,5 ± 2,8 %** |
+> | … par le moniteur d'en-vol seul | 2,4 ± 0,7 % | **3,2 ± 1,1 %** |
+> | balayage, faux positifs | 0 / 31 500 ; 0 / 40 500 | **0 / 42 000 ; 0 / 54 000** |
+> | Table 8 : verdicts, attente max | 2 205 / 16 398 / 73 458 ; 1 / 30 / 49 | **2 940 / 21 769 / 97 967 ; 1 / 35 / 46** |
+> | Table 11, borne 16 : en-vol, Lp50 | 1,2 ± 0,4 ; 65 685 | **1,6 ± 0,6 ; 65 685 dans 59 campagnes sur 60** |
+> | Table 12, fond : pic, fenêtres | 4 ; 261 000–268 000 | **4 ; 261 564–268 154** |
+>
+> **Deux affirmations du texte deviennent fausses** : l'attente de la tempête n'est plus
+> « reproduite au cycle près » (30 dans 55 campagnes, 34–35 dans 5), et la latence médiane de
+> SC-03 n'est plus identique partout (une campagne, `003456`, où 27 injections sur 50 reçoivent
+> un verdict, dont 15 par l'en-vol, donne une médiane de 237 cycles).
+>
+> **`campagne.sh` corrigé** : une capture ratée lui faisait relire le journal précédent et sortir
+> une ligne propre. 13 campagnes fantômes après le flash de 00 h 18 ; désormais « AUCUN-JOURNAL ».
+
 > ### 2026-09-18 (fin de soirée) — **`L_notify` ET `L_exit` NE VIENNENT PAS DU CACHE FROID**
 >
-> **REPRENDRE ICI.** JC trouve `L_notify` (45 700 cycles, 0,91 ms) et `L_exit` (15 750, 0,31 ms)
+> **(point de reprise précédent.)** JC trouve `L_notify` (45 700 cycles, 0,91 ms) et `L_exit` (15 750, 0,31 ms)
 > énormes, et il a raison : **la table ne les explique pas**. Un accès au PLIC émulé coûte 849
 > cycles, soit moins de 2 % de `L_notify`. **La dernière phrase de §6.4.3 (« what dominates the
 > response is the virtualised interrupt controller ») n'est pas démontrée**, à revoir.
