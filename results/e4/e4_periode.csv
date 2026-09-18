@@ -1,0 +1,11 @@
+periode_ms,gamma_fixe,gamma_pas,gnum,falaise_pas,falaise_ms
+5,par-pas,0.898,230,11,55
+5,par-seconde,0.9735,249,40,200
+10,par-pas,0.898,230,11,110
+10,par-seconde,0.9476,243,22,220
+20,par-pas,0.898,230,11,220
+20,par-seconde,0.898,230,11,220
+50,par-pas,0.898,230,11,550
+50,par-seconde,0.7642,196,0,0
+100,par-pas,0.898,230,11,1100
+100,par-seconde,0.584,149,0,0
