@@ -71,8 +71,17 @@ pkill -x hw_server 2>/dev/null; pkill -x cs_server 2>/dev/null
 
 ELF="$ROOT/opensbi/build/platform/fpga/ariane/firmware/fw_payload.elf"
 for ((i=1;i<=N;i++)); do
+    #  GARDE-FOU DU 19/09 : une capture qui echoue sans rien ecrire laissait
+    #  `ls -t` rendre le journal PRECEDENT, deja valide, et la ligne sortait
+    #  propre -- 13 campagnes fantomes d'affilee apres un flash. On compare
+    #  donc le journal le plus recent avant et apres la capture.
+    AVANT=$(ls -t results/bench_*.log 2>/dev/null | head -1)
     timeout 300 tools/capture_uart.sh -j "$ELF" >/dev/null 2>&1
     L=$(ls -t results/bench_*.log | head -1)
+    if [[ "$L" == "$AVANT" || ! -s "$L" ]]; then
+        echo "$LABEL,$i,AUCUN-JOURNAL,capture echouee -- campagne a rejouer"
+        continue
+    fi
     mg=$(grep -m1 "magic"       "$L" | grep -oE "0x41524d4f520000[0-9a-f]{2}" | tail -c3)
     fin=$(grep -c "END ######"  "$L")
     cfg=$(grep -m1 "Table 4"    "$L" | grep -oE "0x[0-9a-f]{8}")
