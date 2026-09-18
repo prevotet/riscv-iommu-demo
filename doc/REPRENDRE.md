@@ -5,9 +5,55 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-18 (nuit, E4) — **E4 FAIT SUR L'HÔTE, AVEC UN MODÈLE VALIDÉ SUR 122 JOURNAUX DE CARTE**
+>
+> **REPRENDRE ICI.** Le programme d'évaluation d'ASOS (E1–E4) est complet. Reste le `.tex`, et
+> **deux décisions de conception ouvertes** : la fusion TLC-5 → TLC-4 (bloc E3), et le choix de γ
+> au vu du compromis ci-dessous.
+>
+> **LE MODÈLE** (`tools/asos_model.py`, transcription de `traj_eval`/`traj_apply`, poids relevés
+> dans les collants de carte, y compris sous ID révoqué). `tools/asos_model.py valide <journaux>`
+> rejoue chaque journal. Sur les **122 journaux ASOS** du 18/09 (hors `164955`, qui a perdu des
+> pas sur l'UART) : **117 reproduits au pas près jusqu'au ban inclus**, puis BANNED tenu ; **3**
+> fuites des 6 % sous TLC-4 (trajectoire exacte jusque-là) ; **2** scores MSI dispersés (90 / 75 /
+> 60 sous CFG-D) avec **ban au même pas**. **Aucun écart inexpliqué.**
+>
+> **LE MODÈLE A CORRIGÉ UNE ERREUR** : E2b avec hystérésis (`E2bHN7-9`, 9 campagnes,
+> `results/bench_2026-09-18_18[2-3]*`) donne un ban au pas **31** pour n = 7, au pas **42** pour
+> n = 8, et **jamais** pour n = 9. C'est la prédiction de l'hôte au pas près.
+>
+> **E4** (`tools/asos_e4.py`, 10 s, CSV dans `results/e4/`). Métriques : falaise E2a, plus grande
+> période n bannie (E2b, 200 pas), 2 000 traces E3, et **coût** : un locataire sain sur 1 000 pas,
+> avec une fausse alerte de poids tempête à la probabilité p par pas. **p est une HYPOTHÈSE** : le
+> banc a mesuré 0 fausse alerte partout. À p = 0, le coût est nul pour toutes les configurations.
+>
+> | γ (hystérésis) | 0,80 | 0,85 | **0,898** | 0,95 | 0,98 |
+> |---|---|---|---|---|---|
+> | falaise E2a (pas) | 0 | 7 | **11** | 22 | 50 |
+> | ban jusqu'à n = | 4 | 5 | **8** | 15 | 33 |
+> | E3 : évasions bloquées | 84,7 % | 86,0 % | **87,0 %** | 87,8 % | 87,6 % |
+> | sain banni, p = 0,001 | 0,4 % | 0,4 % | **0,4 %** | 1,6 % | 3,2 % |
+> | sain banni, p = 0,005 | 13 % | 17 % | **27 %** | 41 % | 53 % |
+>
+> Sans hystérésis, à γ = 0,898 : falaise 2, n = 6, sain banni à p = 0,005 : 16 %. **L'hystérésis
+> double à peu près le coût** : c'est le prix de sa mémoire. **Le mécanisme du coût** : un DMA
+> sain lancé sous TLC-4 est bloqué et lève 45, exactement comme une évasion. Une fausse alerte
+> peut donc s'emballer jusqu'au ban.
+>
+> **Seuils de la Table 2** (γ = 0,898, hystérésis), multipliés par k : **k = 0,5** → la politique
+> ne se relâche plus (falaise > 200 pas), mais un sain est banni dans 64 % des cas dès p = 0,001 :
+> inutilisable. **k = 1,5 et 2** → deux tempêtes espacées n'atteignent plus TLC-4 (falaise 0), et
+> les évasions bloquées tombent à 81 % puis 68 %. **La Table 2 actuelle est au coude.**
+>
+> **Période** : avec γ fixé **par pas** (le firmware), la mémoire en temps croît avec la période
+> (falaise 55 ms à 5 ms par pas, 1,1 s à 100 ms par pas). Avec γ fixé **par seconde**, elle reste
+> à ~200–220 ms tant que le pas vaut 20 ms au plus. À 50 ms et plus, deux tempêtes espacées de
+> 10 pas ne s'additionnent plus jusqu'à TLC-4 (falaise 0). **Pour l'article : spécifier γ par
+> unité de temps, et une période d'évaluation ≤ 20 ms.** Le papier ne fixe ni l'un ni l'autre.
+
 > ### 2026-09-18 (nuit, E3) — **E3 MESURÉ : 30 traces aléatoires, zéro resserrement à tort, 20 bannis sur 20**
 >
-> **REPRENDRE ICI.** E1, E2, hystérésis et E3 faits. Reste **E4 sur l'hôte** (le modèle hôte est validé
+> **(point de reprise précédent.)** E1, E2, hystérésis et E3 faits. Reste **E4 sur l'hôte** (le modèle hôte est validé
 > par E2b), puis le `.tex`.
 >
 > **E3** (`-DBENCH_ASOS_E3 -DASOS_HYST=1 -DE3_KIND=0|1 -DE3_SEED=n`, un build par graine, 100 pas,
@@ -78,7 +124,9 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 > **9 changements de politique au lieu de 16**. **QUARANTINE tient désormais 14 pas** (du pas 87
 > au pas 101, ID révoqué et trafic légitime tenu à l'arrêt), puis l'ID est rendu directement à
 > la référence. Cela lève la réserve « QUARANTINE ne dure qu'un pas » du bloc de la trajectoire.
-> E2b ne dépend que du score : inchangé par construction.
+> ~~E2b ne dépend que du score : inchangé par construction.~~ **FAUX, corrigé par E4** (voir le
+> bloc E4) : avec hystérésis, la quarantaine tenue fait peser 65 aux tempêtes suivantes, et le
+> ban va jusqu'à n = 8 au lieu de 6. Mesuré sur carte.
 
 > ### 2026-09-18 (nuit, suite) — **E2 MESURÉ : la mémoire d'ASOS tient deux pas contre l'évasion**
 >
