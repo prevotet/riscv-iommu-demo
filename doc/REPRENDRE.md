@@ -37,9 +37,18 @@ ne dit rien de la chaîne de bench, et que tout le reste vivait dans les message
 > | `L_total` (k=0 / k=2) | 61 656 / 61 727 | **6 752 ± 17 / 6 848 ± 9** | ÷ 9,1 |
 > | part de la décision | 0,4 % / 0,5 % | **3,6 % / 5,0 %** | |
 >
-> **Ouvert** : `L_mmio` à 3 écritures passe de 87 à 125 cycles, alors que le correctif ne touche
-> pas ce chemin (accès directs au wrapper). Suspect : `bench_runner.c` a changé depuis le 18/09
-> (tampon et échauffement ajoutés), ce qui déplace le code. **À vérifier avant de publier.**
+> **`L_mmio` à 3 écritures, 125 au lieu de 87 : RÉSOLU, ce n'est pas le correctif.** C'est un effet
+> du firmware `e5d6a70`, qui a ajouté le tampon et l'échauffement et déplacé le code. En mode
+> témoin (un `printf` entre deux réactions), les campagnes du 18/09 à 19 h 39 donnaient déjà
+> **215 / 125** avec le Bao d'origine (`193903`, `193914`), et **204 / 87** en mode tampon
+> (`193929` à `194007`). Rejoué le 19/09 avec le vPLIC corrigé et `-DASOS_IRQ_BUFFER=1`
+> (`bench_2026-09-19_100802`, `_100814`) : **204 / 87** dans 26 réactions TLC-4 sur 26 hors
+> rodage, `L_notify` 4 444, `L_exit` 1 944, `L_total` 6 680. Le `printf` entre deux réactions
+> chasse du cache une partie du chemin d'actuation ; selon la disposition du code, cela coûte
+> 38 cycles ou rien (le firmware `b1fbd6b` du 18/09 donnait 87 même en mode témoin). Il coûte
+> aussi environ 110 cycles à `L_notify`. **Pour l'article** : le mode tampon est la mesure
+> propre, mais il ne produit presque que des réactions k = 2 (le collant se regarnit) ; la
+> colonne k = 0 vient du mode témoin.
 >
 > **Conséquences pour l'article** : Table 15 et parts à refaire ; la phrase sur le 0,4 % tombe ;
 > la modification de Bao doit être annoncée ; la dernière phrase de §6.4.3 devient démontrée
