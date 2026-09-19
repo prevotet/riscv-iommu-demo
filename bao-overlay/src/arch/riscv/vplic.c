@@ -39,13 +39,8 @@ static bool vplic_get_pend(struct vcpu* vcpu, irqid_t id)
     return ret;
 }
 
-static bool vplic_get_act(struct vcpu* vcpu, irqid_t id)
-{
-    bool ret = false;
-    struct vplic * vplic = &vcpu->vm->arch.vplic;
-    if (id <= PLIC_MAX_INTERRUPTS) ret = bitmap_get(vplic->act, id);
-    return ret;
-}
+/* MODIFIED : vplic_get_act retiree, son seul appelant etait l'ancienne
+ * boucle de vplic_next_pending (et -Werror refuse une fonction inutilisee). */
 
 static bool vplic_get_enbl(struct vcpu* vcpu, int vcntxt, irqid_t id)
 {
@@ -88,14 +83,28 @@ static uint32_t vplic_get_threshold(struct vcpu* vcpu, int vcntxt)
 
 static irqid_t vplic_next_pending(struct vcpu *vcpu, int vcntxt)
 {
+    /* MODIFIED : parcours par mots de 32 bits au lieu de 1025 appels a
+     * get_pend / get_act / get_enbl. La boucle d'origine coutait ~14 600
+     * cycles sur CVA6 a 50 MHz, et elle tourne trois fois dans la livraison
+     * (inject, claim x2) et une fois dans le complete : c'etait l'essentiel de
+     * L_notify (~45 700) et de L_exit (~15 700). Seuls les bits candidats
+     * (pend & ~act & enbl) sont examines. Meme resultat : identifiant de plus
+     * haute priorite, le plus petit en cas d'egalite. La borne `<=` d'origine
+     * lisait aussi un bit au-dela des bitmaps (et prio[1024]) : corrige. */
+    struct vplic *vplic = &vcpu->vm->arch.vplic;
     uint32_t max_prio = 0;
     irqid_t int_id = 0;
 
-    for (size_t i = 0; i <= PLIC_MAX_INTERRUPTS; i++) {
-        if (vplic_get_pend(vcpu, i) && !vplic_get_act(vcpu, i) && 
-            vplic_get_enbl(vcpu, vcntxt, i)) {
-
-            uint32_t prio = vplic_get_prio(vcpu,i);
+    for (size_t w = 0; w < BITMAP_SIZE(PLIC_MAX_INTERRUPTS); w++) {
+        bitmap_granule_t cand = vplic->pend[w] & ~vplic->act[w] &
+                                vplic->enbl[vcntxt][w];
+        /* Decalage bit a bit et non __builtin_ctz : sans Zbb, GCC appelle
+         * __ctzdi2 de libgcc, que Bao ne lie pas. Seuls les mots non nuls
+         * paient ces 32 tours au plus. */
+        for (size_t b = 0; cand != 0; b++, cand >>= 1) {
+            if (!(cand & 1)) continue;
+            irqid_t i = (irqid_t)(w * BITMAP_GRANULE_LEN + b);
+            uint32_t prio = vplic->prio[i];
             if (prio > max_prio) {
                 max_prio = prio;
                 int_id = i;

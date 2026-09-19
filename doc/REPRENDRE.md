@@ -1,13 +1,58 @@
 # Reprendre le travail ARMOR sur une autre machine
 
-État au **2026-09-18**, branche `testbench`. Ce document existe parce que le README amont
+État au **2026-09-19**, branche `testbench`. Ce document existe parce que le README amont
 ne dit rien de la chaîne de bench, et que tout le reste vivait dans les messages de commit.
 
 ## 0. Où reprendre, exactement
 
+> ### 2026-09-19 (matin) — **`L_notify` ET `L_exit` EXPLIQUÉS ET DIVISÉS PAR 9 : la boucle du vPLIC de Bao**
+>
+> **REPRENDRE ICI.** Le délai « structurel » du 18/09 ne venait ni du RTL ni du cache : il venait de
+> `vplic_next_pending()` (`bao-hypervisor/src/arch/riscv/vplic.c`). Cette fonction parcourt les
+> **1 025** identifiants possibles (`i <= PLIC_MAX_INTERRUPTS`), avec trois appels de bitmap par
+> tour, alors que le design a une quinzaine de sources. Coût d'un parcours : environ **14 600
+> cycles**. Il tourne **3 fois** dans la livraison (`vplic_inject`, puis `claim` : `next_pending` et
+> `update_hart_line`) et **1 fois** dans le `complete`. Le rapport 3 pour 1 colle aux mesures. Les
+> 849 cycles du « vPLIC émulé » ont été mesurés sur une lecture de registre simple, qui ne lance
+> pas la boucle : c'est pour cela que la décomposition ne l'expliquait pas.
+>
+> **Correctif** (`bao-overlay/src/arch/riscv/vplic.c`) : parcours par mots de 32 bits de
+> `pend & ~act & enbl`, seuls les bits à 1 sont examinés. Même résultat (plus haute priorité, plus
+> petit identifiant en cas d'égalité). La borne `<=`, qui lisait au-delà des bitmaps et de
+> `prio[1024]`, est corrigée. Deux contraintes de compilation : `vplic_get_act` retirée (plus
+> d'appelant, `-Werror`), et pas de `__builtin_ctz` (sans Zbb, GCC appelle `__ctzdi2`, que Bao ne
+> lie pas).
+>
+> **Mesure** (v18 reflashé, `OPT_LEVEL=2 tools/campagne.sh VPLIC 3 "-DBENCH_ASOS -DBENCH_ASOS_IRQ
+> -DARMOR_BFATE=1"`, `results/bench_2026-09-19_100457`, `_100508`, `_100519` ; MAGIC `0x12`,
+> `CALIB` 2 cycles, SC-01 à SC-04 50/50, FP = 0, 48 réactions, aucune sans remontée). Médianes hors
+> la première réaction de chaque type, ± = IC à 95 % :
+>
+> | | 18/09 (Bao d'origine) | **19/09 (vPLIC corrigé)** | gain |
+> |---|---|---|---|
+> | `L_notify` | 45 707 | **4 557 ± 16** | ÷ 10,0 |
+> | `L_processing` (k=0 / k=2) | 183 / 209 | 189 / 215 | — |
+> | `L_mmio` (1 / 3 écritures) | 56 / 87 | 56 / **125** | — |
+> | `L_exit` | 15 710 | **1 946 ± 2** | ÷ 8,1 |
+> | `L_total` (k=0 / k=2) | 61 656 / 61 727 | **6 752 ± 17 / 6 848 ± 9** | ÷ 9,1 |
+> | part de la décision | 0,4 % / 0,5 % | **3,6 % / 5,0 %** | |
+>
+> **Ouvert** : `L_mmio` à 3 écritures passe de 87 à 125 cycles, alors que le correctif ne touche
+> pas ce chemin (accès directs au wrapper). Suspect : `bench_runner.c` a changé depuis le 18/09
+> (tampon et échauffement ajoutés), ce qui déplace le code. **À vérifier avant de publier.**
+>
+> **Conséquences pour l'article** : Table 15 et parts à refaire ; la phrase sur le 0,4 % tombe ;
+> la modification de Bao doit être annoncée ; la dernière phrase de §6.4.3 devient démontrée
+> (c'est bien le contrôleur virtualisé qui dominait, par cette boucle et non par le coût d'un
+> piège). Reste environ 4 500 + 1 950 cycles : pièges vers Bao, `claim` et `complete` émulés,
+> `sret`. Seul l'AIA (IMSIC, fichiers d'interruption par invité) retirerait Bao de ce chemin.
+>
+> **Carte** : coupée ce matin (FT2232 absent de `lsusb` à 09 h 59), rallumée par JC, v18 reflashé
+> en deux passes (échec puis `End of startup status: HIGH`, comme toujours).
+
 > ### 2026-09-19 — **ARTICLE RÉVISÉ ET POUSSÉ : `article_jsa` @ `3a0d07c`**
 >
-> **REPRENDRE ICI.** Le manuscrit (`article.tex`, 30 pages, compilation propre, aucun `??`) est
+> **(point de reprise précédent.)** Le manuscrit (`article.tex`, 30 pages, compilation propre, aucun `??`) est
 > commité et poussé sur le GitLab de l'INSA. Toute la révision est en rouge (`\add{}`), validée
 > passage par passage par JC.
 >
