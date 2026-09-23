@@ -218,6 +218,23 @@
 #define ARMOR_THRESH 0
 #endif
 
+/* -DARMOR_THRESH_W2=<n> : seuil de flux du SEUL wrapper 2 (le slot supervise),
+ * le wrapper 1 gardant ARMOR_THRESH. Zero = les deux wrappers au meme seuil,
+ * comportement historique.
+ *
+ * POURQUOI CE FLAG EXISTE. Le balayage du seuil ecrit la meme valeur sur les
+ * deux wrappers, deliberement : sans cela le LHA et le MHA ne seraient pas
+ * juges a la meme aune. Mais c'est ce qui rend le seuil 3 inutilisable dans le
+ * balayage -- le generateur de fond legitime, sur SON wrapper, y leve 263 212
+ * verdicts. Or une borne calibree n'est PAS globale : chaque wrapper apprend la
+ * sienne sur le trafic de son slot. Ce flag mesure exactement cela, et la
+ * difference entre les deux lectures est l'argument de l'adaptation par
+ * accelerateur.
+ */
+#ifndef ARMOR_THRESH_W2
+#define ARMOR_THRESH_W2 0
+#endif
+
 /* Les trois derniers seuils de detection figes a la synthese, reglables depuis
  * le v18 par le registre 0x110 du wrapper. ZERO = valeur de synthese, exactement
  * comme ARMOR_THRESH : un firmware qui ne les touche pas ne change rien.
@@ -695,8 +712,15 @@ static void armor_wrap_init(int enforce) {
                   | (ARMOR_RFMCNT ? WRAP_CTRL_RFMCNT : 0ULL)
                   | WRAP_CTRL_THRESH(ARMOR_THRESH)
                   | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
+    /* Seuil par slot : w2 seul est resserre si ARMOR_THRESH_W2 le demande. */
+    uint64_t ctrl2 = ctrl;
+    if (ARMOR_THRESH_W2) {
+        ctrl2 = (ctrl & ~WRAP_CTRL_THRESH(0xFFu)) | WRAP_CTRL_THRESH(ARMOR_THRESH_W2);
+        printf("# Seuil de flux PAR SLOT : w1=%u (fond legitime), w2=%u (slot supervise)\r\n",
+               WRAP_CTRL_THRESH_GET(ctrl), WRAP_CTRL_THRESH_GET(ctrl2));
+    }
     w1[WRAP_CTRL_OFF / 8] = ctrl;
-    w2[WRAP_CTRL_OFF / 8] = ctrl;
+    w2[WRAP_CTRL_OFF / 8] = ctrl2;
     fence();
 
     printf("# ARMOR arme : ENFORCE=%d, W_SKID=%d, FRESH=%d, WCAP=%d, RHOLD=%d, WFATE=%d, "
@@ -1474,6 +1498,31 @@ static void run_scenario(const char *tag, char accel, uint64_t mode,
      * agrégés tout à la fin (qui peuvent ne jamais venir si on freeze). */
     int c_done=0, c_blk=0, c_ban=0, c_storm=0, c_outs=0, c_msi=0,
         c_err=0, c_unk=0;
+    /* BITS BRUTS, HORS CASCADE (temoin ENFORCE=0, 2026-09-23).
+     *
+     * classify() est une cascade de priorite : le moindre bit de verdict ARMOR
+     * masque ST_DONE. Sous ENFORCE=1 c'est ce qu'on veut -- une transaction
+     * coupee ne se termine pas. Sous ENFORCE=0 c'est faux et trompeur : les
+     * moniteurs continuent de lever leurs bits (`armor_status_i` alimente le
+     * collant quelle que soit la valeur d'ENFORCE, seule l'ACTION est desarmee),
+     * la transaction ABOUTIT quand meme, et la ligne de fin de scenario la
+     * comptait en `BAN=` ou `STORM=`.
+     *
+     * Le temoin a besoin de la question inverse : l'attaque a-t-elle atteint la
+     * memoire visee ?
+     *
+     * ST_DONE seul n'y repond PAS : mesure du 2026-09-23, les quatre scenarios
+     * d'attaque sortent FIN=50 ET ERRBIT=50 sous ENFORCE=1. L'accelerateur pose
+     * DONE quand sa FSM a fini, meme si toutes ses transactions ont ete coupees,
+     * et pose ERROR en plus. Le discriminant est donc DONE SANS ERROR :
+     *
+     *   OK=     terminee sans erreur      -> l'attaque est allee au bout
+     *   ERRBIT= ST_ERROR leve             -> coupee (SLVERR) ou echue d'elle-meme
+     *   FIN=    ST_DONE leve, avec ou sans erreur : la FSM a rendu la main.
+     *
+     * Les trois sont emis : c'est leur ECART qui a montre le defaut ci-dessus,
+     * et un seul d'entre eux l'aurait cache. */
+    int c_fin=0, c_errbit=0, c_ok=0;
 
     for (int i = 0; i < N; i++) {
         uint64_t lat_det = 0, lat_tx = 0;
@@ -1481,6 +1530,10 @@ static void run_scenario(const char *tag, char accel, uint64_t mode,
         char v = classify(status);
         int obs = armor_blocked(status) || (status & ST_ERROR);
         stat_add(st, expected_block, obs, lat_det, lat_tx);
+
+        if (status & ST_DONE)  c_fin++;
+        if (status & ST_ERROR) c_errbit++;
+        if ((status & ST_DONE) && !(status & ST_ERROR)) c_ok++;
 
         switch (v) {
             case 'D': c_done++;  break;
@@ -1501,9 +1554,10 @@ static void run_scenario(const char *tag, char accel, uint64_t mode,
 
     volatile uint64_t *st_reg = (accel == 'M') ? mha_status : lha_status;
     printf("# %s STATUS_final=0x%lx | DONE=%d BLOCK=%d BAN=%d STORM=%d "
-           "OUTS=%d MSI=%d ERR=%d UNK=%d\r\n",
+           "OUTS=%d MSI=%d ERR=%d UNK=%d FIN=%d ERRBIT=%d OK=%d\r\n",
            tag, (unsigned long)*st_reg,
-           c_done, c_blk, c_ban, c_storm, c_outs, c_msi, c_err, c_unk);
+           c_done, c_blk, c_ban, c_storm, c_outs, c_msi, c_err, c_unk,
+           c_fin, c_errbit, c_ok);
     armor_wrap_report(tag);   /* recoupement cote wrapper, independant de l'accel */
     armor_wrap_perf(tag);     /* latences et cycles mesures PAR LE MATERIEL */
 }
@@ -2429,6 +2483,226 @@ static void run_asos_traj(void) {
 #endif /* BENCH_ASOS || BENCH_ASOS_TRAJ || BENCH_ASOS_E1 */
 
 /* ============================================================
+ * CALIBRATION AUTOMATIQUE DES BORNES (-DBENCH_ASOS_CALIB)
+ *
+ * Campagne AUTONOME. Repond a l'auto-critique du papier : les bornes par
+ * defaut sont posees a la synthese, et la Table 19 montre qu'elles sont
+ * grotesquement larges -- occupation de fenetre 1 pour une borne de 8,
+ * profondeur d'en-vol 1 pour une borne de 16. Une borne large laisse
+ * l'attaque d'epuisement finir sur un timeout plutot que sur un verdict.
+ *
+ * L'idee tient en trois phases :
+ *
+ *   A  APPRENTISSAGE  CAL_LEARN jobs LEGITIMES, bornes de reference en place.
+ *                     On releve les pics que le wrapper tient deja en
+ *                     materiel : reqmax (CNT_STORM[39:32]) et outsmax
+ *                     (CNT_OUTS[39:32]).
+ *   B  CALIBRATION    borne = pic + CAL_MARGIN, ecrite dans CTRL[23:16] et
+ *                     CFG_PARAMS[23:16], relue, et JAMAIS relachee au-dela de
+ *                     la reference : on ne fait que resserrer.
+ *   C  CONTROLE       trafic legitime des DEUX formes, puis les attaques.
+ *
+ * POURQUOI LE PIC EST LISIBLE, ET QUAND IL NE L'EST PAS. reqmax suit
+ * flow_req_cnt en continu, et flow_req_cnt ne retombe qu'a la fermeture de la
+ * fenetre. Mais des que le seuil est franchi, request_manager coupe : plus
+ * aucun handshake ne s'accomplit et le compteur cesse de monter. Le pic lu est
+ * donc le VRAI pic tant qu'AUCUN VERDICT N'EST TOMBE, et le seuil lui-meme
+ * sinon. La calibration verifie donc le collant en fin d'apprentissage et se
+ * REFUSE s'il n'est pas vide : mieux vaut pas de calibration qu'une borne
+ * posee sur un pic ecrete.
+ *
+ * LES DEUX FORMES DE TRAFIC LEGITIME. Le papier insiste sur le job DMA
+ * pipeline -- seize ecritures, plusieurs adresses en vol -- que les bornes de
+ * reference laissent passer. Une calibration apprise sur des copies simples
+ * seules pose une borne que ce job franchit : elle fabrique des faux positifs.
+ * C'est le resultat que CAL_MIX permet de montrer plutot que de supposer :
+ *
+ *   CAL_MIX=0  copies simples seulement       -> borne etroite
+ *   CAL_MIX=1  70 % copies, 30 % DMA pipeline -> borne representative
+ *
+ * et la phase C mesure les deux formes dans les deux cas. Une calibration
+ * n'est pas meilleure que le trafic qu'elle a vu, et la table le chiffre.
+ *
+ * Bras temoin : -DCAL_ARM=0 saute la phase B et garde les bornes de reference,
+ * a trafic et scenario identiques.
+ * ============================================================ */
+#ifdef BENCH_ASOS_CALIB
+
+#ifndef CAL_LEARN
+#define CAL_LEARN   40          /* jobs de la phase d'apprentissage */
+#endif
+#ifndef CAL_MIX
+#define CAL_MIX      1          /* 0 = copies seules, 1 = copies + DMA pipeline */
+#endif
+#ifndef CAL_MARGIN
+#define CAL_MARGIN   2          /* marge ajoutee au pic observe */
+#endif
+#ifndef CAL_CHECK
+#define CAL_CHECK   50          /* jobs legitimes par forme, phase de controle */
+#endif
+#ifndef CAL_ATTACK
+#define CAL_ATTACK  50          /* jobs d'attaque par scenario */
+#endif
+#ifndef CAL_ARM
+#define CAL_ARM      1          /* 1 = calibre, 0 = bornes de reference */
+#endif
+#ifndef CAL_DEPTH
+#define CAL_DEPTH    4          /* profondeur du job DMA pipeline (mode 7) */
+#endif
+#define CAL_FLOOR    2          /* jamais de borne en dessous : 1 bloquerait tout */
+
+/* Un job, et son issue lue comme le temoin ENFORCE=0 la lit : terminee sans
+ * erreur, ou pas. classify() ne sert pas ici -- sa cascade masque ST_DONE des
+ * qu'un bit de verdict est leve, ce qui est precisement ce qu'on mesure. */
+static int cal_job(uint64_t mode) {
+    uint64_t det = 0, tx = 0;
+    uint64_t st = fire_one('M', mode, LEGIT_DST, 0, &det, &tx);
+    return ((st & ST_DONE) && !(st & ST_ERROR)) ? 1 : 0;
+}
+
+/* Le melange legitime : un job sur trois est un DMA pipeline si CAL_MIX. */
+static uint64_t cal_legit_mode(unsigned i) {
+    return (CAL_MIX && (i % 3 == 2)) ? 7ULL : 0ULL;
+}
+
+static void cal_purge(volatile uint64_t *w, uint64_t ctrl_ref) {
+    w[WRAP_CTRL_OFF / 8] = ctrl_ref | WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR;
+    fence();
+}
+
+static void run_asos_calib(void) {
+    volatile uint64_t *w2 = (volatile uint64_t *)WRAP2_BASE_ADDR;
+
+    printf("\r\n###### CALIBRATION DES BORNES (bras %s) ######\r\n",
+           CAL_ARM ? "calibre" : "reference");
+    if (WRAP_MAGIC_VERSION(w2[WRAP_MAGIC_OFF / 8]) < 18) {
+        printf("# CALIB : bitstream anterieur au v18, pas de registre 0x110. "
+               "Bloc ignore.\r\n");
+        return;
+    }
+
+    uint64_t ctrl_ref = w2[WRAP_CTRL_OFF / 8] & ~(WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR);
+    uint64_t cfgp_ref = w2[WRAP_CFG_PARAMS_OFF / 8];
+    unsigned thr_ref  = WRAP_CTRL_THRESH_GET(ctrl_ref);
+    unsigned outs_ref = (unsigned)((cfgp_ref >> 16) & 0xFFULL);
+    /* ZERO = valeur de synthese, pour les deux champs. Sans cette conversion
+     * la comparaison « ne jamais relacher » se ferait contre 0 et toute borne
+     * calibree passerait pour un relachement. */
+    if (thr_ref  == 0) thr_ref  = 8;
+    if (outs_ref == 0) outs_ref = 16;
+
+    *mha_pipe_depth = (uint64_t)CAL_DEPTH;
+    fence();
+    printf("# CALIB : learn=%d mix=%d marge=%d check=%d attack=%d depth=%lu "
+           "ctrl_ref=0x%lx cfgp_ref=0x%lx thr_ref=%u outs_ref=%u\r\n",
+           CAL_LEARN, CAL_MIX, CAL_MARGIN, CAL_CHECK, CAL_ATTACK,
+           (unsigned long)*mha_pipe_depth, (unsigned long)ctrl_ref,
+           (unsigned long)cfgp_ref, thr_ref, outs_ref);
+
+    /* ---- A : apprentissage ------------------------------------------- */
+    cal_purge(w2, ctrl_ref);
+    unsigned pic_req = 0, pic_outs = 0, learn_ok = 0;
+    for (int i = 0; i < CAL_LEARN; i++) {
+        learn_ok += (unsigned)cal_job(cal_legit_mode((unsigned)i));
+        uint64_t stm = w2[WRAP_CNT_STORM_OFF / 8];
+        uint64_t out = w2[WRAP_CNT_OUTS_OFF  / 8];
+        unsigned r = (unsigned)((stm >> 32) & 0xFFULL);
+        unsigned o = (unsigned)((out >> 32) & 0xFFULL);
+        if (r > pic_req)  pic_req  = r;
+        if (o > pic_outs) pic_outs = o;
+    }
+    uint64_t collant = w2[WRAP_STICKY_OFF / 8];
+    int refus = (collant != 0);
+
+    printf("# CALIB-A,jobs=%d,aboutis=%u,pic_req=%u,pic_outs=%u,collant=0x%lx,refus=%d\r\n",
+           CAL_LEARN, learn_ok, pic_req, pic_outs, (unsigned long)collant, refus);
+    if (refus)
+        printf("# CALIB : REFUS -- un verdict est tombe pendant l'apprentissage, "
+               "les pics sont ecretes par les bornes en place. Bornes inchangees.\r\n");
+
+    /* ---- B : calibration ---------------------------------------------- */
+    unsigned thr = thr_ref, outs = outs_ref;
+    int applique = 0;
+    if (CAL_ARM && !refus) {
+        thr  = pic_req  + CAL_MARGIN;
+        outs = pic_outs + CAL_MARGIN;
+        if (thr  < CAL_FLOOR) thr  = CAL_FLOOR;
+        if (outs < CAL_FLOOR) outs = CAL_FLOOR;
+        /* On ne RELACHE jamais : une calibration ne doit pas pouvoir affaiblir
+         * la configuration posee a la synthese. */
+        if (thr  > thr_ref)  thr  = thr_ref;
+        if (outs > outs_ref) outs = outs_ref;
+
+        uint64_t ctrl = (ctrl_ref & ~WRAP_CTRL_THRESH(0xFF)) | WRAP_CTRL_THRESH(thr);
+        uint64_t cfgp = (cfgp_ref & ~(0xFFULL << 16)) | ((uint64_t)outs << 16);
+        w2[WRAP_CTRL_OFF / 8] = ctrl;
+        w2[WRAP_CFG_PARAMS_OFF / 8] = cfgp;
+        fence();
+        /* Relecture : une borne qu'on croit avoir ecrite et qui n'est pas dans
+         * le registre ferait passer la campagne de reference pour une campagne
+         * calibree. C'est le garde-fou du 14/09, applique ici. */
+        unsigned thr_lu  = WRAP_CTRL_THRESH_GET(w2[WRAP_CTRL_OFF / 8]);
+        unsigned outs_lu = (unsigned)((w2[WRAP_CFG_PARAMS_OFF / 8] >> 16) & 0xFFULL);
+        applique = (thr_lu == thr && outs_lu == outs);
+        printf("# CALIB-B,thr=%u,outs=%u,thr_lu=%u,outs_lu=%u,applique=%d\r\n",
+               thr, outs, thr_lu, outs_lu, applique);
+        if (!applique)
+            printf("# CALIB : ATTENTION -- relecture differente de l'ecriture, "
+                   "la suite ne mesure PAS ce qu'elle annonce.\r\n");
+    } else {
+        printf("# CALIB-B,thr=%u,outs=%u,thr_lu=%u,outs_lu=%u,applique=0\r\n",
+               thr_ref, outs_ref, thr_ref, outs_ref);
+    }
+
+    /* ---- C : controle -------------------------------------------------- */
+    /* Trafic legitime des deux formes, SEPAREMENT : c'est l'ecart entre les
+     * deux qui dit si la calibration a appris sur un trafic representatif. */
+    cal_purge(w2, w2[WRAP_CTRL_OFF / 8] & ~(WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR));
+    unsigned ok_copie = 0;
+    for (int i = 0; i < CAL_CHECK; i++) ok_copie += (unsigned)cal_job(0);
+    printf("# CALIB-C,legit,copie,%d,%u,collant=0x%lx\r\n",
+           CAL_CHECK, ok_copie, (unsigned long)w2[WRAP_STICKY_OFF / 8]);
+
+    cal_purge(w2, w2[WRAP_CTRL_OFF / 8] & ~(WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR));
+    unsigned ok_dma = 0;
+    for (int i = 0; i < CAL_CHECK; i++) ok_dma += (unsigned)cal_job(7);
+    printf("# CALIB-C,legit,dma_pipeline,%d,%u,collant=0x%lx\r\n",
+           CAL_CHECK, ok_dma, (unsigned long)w2[WRAP_STICKY_OFF / 8]);
+
+    /* Attaques : tempete (mode 4) et epuisement d'en-vol (mode 5), les deux
+     * que les bornes de flux et d'en-vol sont censees arreter. */
+    static const struct { uint64_t mode; const char *nom; } atk[] = {
+        { 4ULL, "tempete" }, { 5ULL, "en_vol" },
+    };
+    for (unsigned a = 0; a < sizeof(atk) / sizeof(atk[0]); a++) {
+        cal_purge(w2, w2[WRAP_CTRL_OFF / 8] & ~(WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR));
+        unsigned abouti = 0;
+        for (int i = 0; i < CAL_ATTACK; i++) abouti += (unsigned)cal_job(atk[a].mode);
+        uint64_t stm = w2[WRAP_CNT_STORM_OFF / 8];
+        uint64_t out = w2[WRAP_CNT_OUTS_OFF / 8];
+        printf("# CALIB-C,attaque,%s,%d,%u,collant=0x%lx,storm=%lu,outs=%lu,"
+               "reqmax=%lu,outsmax=%lu\r\n",
+               atk[a].nom, CAL_ATTACK, abouti,
+               (unsigned long)w2[WRAP_STICKY_OFF / 8],
+               (unsigned long)(stm & 0xFFFFFFFFULL),
+               (unsigned long)(out & 0xFFFFFFFFULL),
+               (unsigned long)((stm >> 32) & 0xFFULL),
+               (unsigned long)((out >> 32) & 0xFFULL));
+    }
+
+    printf("# CALIB-FIN,arm=%d,mix=%d,refus=%d,applique=%d,thr=%u,outs=%u,"
+           "pic_req=%u,pic_outs=%u,legit_copie=%u/%d,legit_dma=%u/%d\r\n",
+           CAL_ARM, CAL_MIX, refus, applique, thr, outs, pic_req, pic_outs,
+           ok_copie, CAL_CHECK, ok_dma, CAL_CHECK);
+
+    /* Remise en etat : la campagne suivante doit partir de la reference. */
+    w2[WRAP_CFG_PARAMS_OFF / 8] = cfgp_ref;
+    w2[WRAP_CTRL_OFF / 8] = ctrl_ref;
+    fence();
+}
+#endif /* BENCH_ASOS_CALIB */
+
+/* ============================================================
  * ASOS, NIVEAU 1 : la boucle complete, INTERRUPTION COMPRISE
  *
  * Le niveau 0 mesurait le calcul et l'actuation, pas la notification. Or ASOS
@@ -2882,6 +3156,18 @@ void main(void) {
      * Placée avant, elle tournait ARMOR non armé et son ID_CFG était de toute
      * façon écrasé par armor_wrap_init. */
     wedge_probe();
+#endif
+
+#ifdef BENCH_ASOS_CALIB
+    /* CAMPAGNE AUTONOME : la calibration des bornes, et rien d'autre. Meme
+     * raison que la trajectoire -- SC03 laisse le compteur d'en-vol sature et
+     * SC01 le failure_count a 3, et la phase d'apprentissage heriterait des
+     * deux. Fond LHA actif : une borne apprise sans contention ne vaut rien. */
+    lha_bg_start();
+    run_asos_calib();
+    lha_bg_stop();
+    printf("###### END ######\r\n");
+    while (1) asm volatile("wfi");
 #endif
 
 #if defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1) || defined(BENCH_ASOS_E2B) || defined(BENCH_ASOS_E3)
