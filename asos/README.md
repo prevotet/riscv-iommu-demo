@@ -47,7 +47,7 @@ make -C asos/tests
 ## État
 
 La logique des modules 1, 3 et 4 est celle qui a tourné sur carte dans le
-banc (`bench_runner.c`, blocs `BENCH_ASOS_*`) ; le rejeu le vérifie. Pas encore
-exercés sur carte : le contrôle du working set (événement `OUT_OF_SET`, poids
-40) et la calibration portée par le module 2. Le banc n'appelle pas encore
-cette bibliothèque.
+banc ; le rejeu le vérifie. Le banc (`bao-baremetal-guest/src/bench_runner.c`,
+blocs `BENCH_ASOS_*`) appelle désormais cette bibliothèque : le Makefile du
+guest la compile avec `BENCH=1`. Pas encore exercé sur carte : le contrôle du
+working set (événement `OUT_OF_SET`, poids 40), que le banc n'active pas.
