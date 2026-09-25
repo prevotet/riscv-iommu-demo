@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Modele hote d'ASOS, transcription de bench_runner.c (traj_eval / traj_apply).
+"""Modele hote d'ASOS, transcription d'asos/ (supervision_unit, update_unit).
 
 Meme arithmetique entiere (gamma = 230/256 par pas), memes seuils TLC, meme
 hysteresis (ASOS_HYST), meme verrou BANNED. Ce que le materiel apporte est

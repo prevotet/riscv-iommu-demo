@@ -23,6 +23,7 @@
 #include <cpu.h>
 #include <wfi.h>
 #include <uart.h>
+#include "asos.h"          /* ../asos, ajoute aux chemins par le Makefile (BENCH=1) */
 
 /* ============================================================
  * MMIO map (identique à main.c)
@@ -196,8 +197,8 @@
  * (CTRL[23:16], MAGIC v15). 0 = valeur de synthese, soit 8.
  *
  * A QUOI CA SERT. Une campagne par valeur produit la courbe detection / faux
- * positifs en fonction du seuil -- la figure qui remplacerait le « 80 % » isole
- * du papier. Sans ce champ il fallait une SYNTHESE par point de courbe.
+ * positifs en fonction du seuil, au lieu d'un taux isole a une seule valeur.
+ * Sans ce champ il fallait une SYNTHESE par point de courbe.
  *
  * CE QUE LA CARTE A DEJA MESURE, le 2026-09-13, et qui dit ou chercher :
  *   trafic legitime pilote par le logiciel  : 1 requete par fenetre (pic 1)
@@ -239,7 +240,7 @@
  * le v18 par le registre 0x110 du wrapper. ZERO = valeur de synthese, exactement
  * comme ARMOR_THRESH : un firmware qui ne les touche pas ne change rien.
  *
- * Ce sont les configurations de la Table 4 de l'article, jusqu'ici annoncees
+ * Ce sont les quatre configurations de reference (CFG-A a CFG-D), jusqu'ici annoncees
  * sans resultat faute de pouvoir les atteindre autrement qu'en resynthetisant :
  *
  *   CFG-A (reference) : rien a definir
@@ -405,7 +406,7 @@
  * mémoire armor-sc07-storm-fp. XFER_SIZE=8 le masquait par timing mais n'est
  * pas déployable (les vrais accélérateurs font de gros bursts). */
 /* Surchargeable a la compilation : -DXFER_SIZE=512 donne le profil P-BURST de
- * la Table 4 (CFG-B) sans resynthese, la taille partant dans le registre 0x18
+ * la configuration CFG-B sans resynthese, la taille partant dans le registre 0x18
  * de l'accelerateur a chaque lancement. 64 octets = 8 beats de 64 bits. */
 #ifndef XFER_SIZE
 #define XFER_SIZE               (64)
@@ -477,7 +478,7 @@ static volatile uint64_t *lha_config  = (volatile uint64_t *)(LHA_BASE_ADDR + LH
  * illégale, hcounteren.TM la laisse filer jusqu'en M-mode, et OpenSBI l'émule
  * en lisant le mtime du CLINT sur le bus. Coût mesuré le 2026-09-09 :
  * **638 ticks, soit ~1276 cycles cœur, par lecture** — la moitié de chaque
- * latence publiée. Et la valeur est en ticks de 25 MHz, donc 2 cycles cœur
+ * latence rapportée jusque-là. Et la valeur est en ticks de 25 MHz, donc 2 cycles cœur
  * chacun : deux pièges d'un coup.
  *
  * La ligne `# UNITE` imprimée au démarrage dit lequel est compilé, et `# CALIB`
@@ -516,7 +517,7 @@ static inline uint64_t read_counter(void) { return 0; }
  * VS-mode, `csrr time` trappe vers l'hyperviseur, d'ou ~650 ticks (~1300 cycles
  * coeur) par lecture.
  *
- * Consequence : ~48 % du chiffre publie pour SC06 (1351 ticks) est du temps de
+ * Consequence : ~48 % du chiffre rapporte pour SC06 (1351 ticks) est du temps de
  * sonde, pas du temps de transaction. On imprime la calibration pour que la
  * soustraction soit possible -- et pour qu'un lecteur voie l'ordre de grandeur
  * avant de comparer nos latences a celles d'une autre implementation. */
@@ -681,7 +682,7 @@ static void armor_wrap_init(int enforce) {
     w2[WRAP_ID_CFG_OFF   / 8] = 2ULL;         /* MHA : STREAM_ID = 2 */
     w2[WRAP_MSI_ADDR_OFF / 8] = MSI_TARGET_DST;   /* cible des ecritures SC04 */
 
-    /* Table 4 : les trois seuils reglables. Ecrits sur LES DEUX wrappers, sinon
+    /* Configurations CFG-x : les trois seuils reglables. Ecrits sur LES DEUX wrappers, sinon
      * le LHA et le MHA ne seraient pas juges a la meme aune et la comparaison
      * des faux positifs perdrait son sens. */
     {
@@ -781,7 +782,7 @@ static void armor_wrap_report_one(const char *tag, const char *who, uint64_t bas
      * `reqmax=6` sur un scenario non detecte dit cela en un chiffre ; sans lui
      * on ne pouvait que le supposer. Et `storm/(req_up/winact)` donne le debit
      * de l'attaque TEL QUE LE MONITEUR LE VOIT, a comparer aux 16 par salve
-     * qu'annonce la Table 5.
+     * de la specification de la tempete.
      *
      * Sur un bitstream anterieur a v14 les deux champs lisent zero, et le
      * controle de version l'a deja dit en tete de campagne. */
@@ -824,11 +825,11 @@ static void armor_wrap_report(const char *tag) {
 
 /* Compteurs MATERIELS du wrapper (MAGIC v2), lus en fin de scenario.
  *
- * Ce que ces chiffres apportent par rapport aux latences deja publiees : ils
+ * Ce que ces chiffres apportent par rapport aux latences deja rapportees : ils
  * sont pris DANS le wrapper, au cycle, sans instrument dans la boucle. Les
  * latences logicielles de ce fichier sont bornees par la sonde -- une lecture
  * de compteur coute ~1300 cycles coeur sous Bao, jusqu'a 48 % du chiffre
- * publie. `Lhw` n'a pas ce biais, et l'ecart `Lp50 - Lhw` chiffre la sonde.
+ * rapporte. `Lhw` n'a pas ce biais, et l'ecart `Lp50 - Lhw` chiffre la sonde.
  *
  * ATTENTION a ce qui est compte : le wrapper mesure UNE TRANSACTION AXI (front
  * de presentation -> reponse rendue au maitre), la ou le logiciel mesure UNE
@@ -870,7 +871,7 @@ static void armor_wrap_perf_one(const char *tag, const char *who, uint64_t base)
     uint64_t tx_avg  = n ? tx_sum  / n : 0;
 
     /* Les minima valent 0xFFFF au reset : sans echantillon ils ne veulent rien
-     * dire, et les publier tels quels ferait croire a une latence de 65535. */
+     * dire, et les imprimer tels quels ferait croire a une latence de 65535. */
     if (n == 0) {
         /* Surtout PAS de return ici : ARMORSTALL et ARMORHW gardent tout leur
          * sens sans echantillon de latence -- c'est meme le cas ou ils sont le
@@ -881,7 +882,7 @@ static void armor_wrap_perf_one(const char *tag, const char *who, uint64_t base)
     /* det_sum et tx_sum en fin de ligne : les moyennes ci-dessus sont TRONQUEES
      * (division entiere), et un surcout d'un cycle -- celui de FRESH_VERDICT sur
      * carte, 2026-09-11 -- disparait dedans (37 -> 37). La somme donne la
-     * moyenne exacte ; c'est elle qu'on publie. */
+     * moyenne exacte ; c'est elle qu'on retient. */
     printf("# ARMORLAT,%s,%s,n=%lu,n_verdict=%lu,det_avg=%lu,tx_avg=%lu,"
            "det_last=%lu,tx_last=%lu,det_min=%lu,det_max=%lu,tx_min=%lu,tx_max=%lu,"
            "det_sum=%lu,tx_sum=%lu\r\n",
@@ -1685,81 +1686,56 @@ static void run_sc10(stats_t *st) {
 /* ============================================================
  * ASOS, NIVEAU 0 : cout logiciel de la boucle de decision, MESURE SUR CARTE
  *
- * La Table 8 du papier mesure L_processing, L_mmio et L_total dans une
- * co-simulation QEMU + Verilator, et doit excuser la dispersion de ses chiffres
- * par l'ordonnancement non deterministe du coeur emule. Or deux de ses trois
- * colonnes n'ont pas besoin d'interruption pour etre mesurees : dans
- * l'equation (5), seul le point t0 en depend. L'evaluation de la menace est du
- * calcul pur, l'actuation une sequence d'ecritures MMIO -- les deux sont
- * mesurables ici, sur silicium, avec le compteur deja calibre par `# CALIB`.
+ * Une reaction d'ASOS se decoupe en L_processing, L_mmio et L_total. Les deux
+ * premiers termes n'ont pas besoin d'interruption pour etre mesures : seul le
+ * point de depart de L_total en depend. L'evaluation de la menace est du calcul
+ * pur, l'actuation une sequence d'ecritures MMIO -- les deux sont mesurables
+ * ici, sur silicium, avec le compteur deja calibre par `# CALIB`.
  *
  * CE QUI EST MESURE
- *   L_processing : lecture de STATUS, decroissance gamma, somme ponderee des
- *                  bits d'alerte actifs, classification TLC (9 seuils,
- *                  Table 2), selection de l'etat.
+ *   L_processing : lecture de STICKY, decodage en evenements (Event
+ *                  Processing d'asos/), decroissance gamma, somme ponderee,
+ *                  classification TLC et etat (Supervision Unit d'asos/).
  *   L_mmio       : ecritures de politique dans ARMOR, RELECTURE COMPRISE. Sans
  *                  la relecture on chronometrerait une ecriture postee, c'est
  *                  a dire rien.
  *
  * CE QUI NE L'EST PAS, et qu'il ne faut pas presenter comme tel : le chemin
- * d'interruption, absent du RTL synthetise (`wrapper.sv` n'a pas de `irq_o`),
- * et la notification inter-VM avec sa copie de 8 Kio -- que le papier designe
- * lui-meme comme le terme dominant de la variabilite de L_mmio. Ce bloc mesure
- * la configuration a VM unique, pas l'architecture a VM de service.
+ * d'interruption (niveau 1, BENCH_ASOS_IRQ), et la notification inter-VM d'une
+ * architecture a VM de service. Ce bloc mesure la configuration a VM unique.
  *
  * LIMITE D'ACTUATION. Le design n'expose aucun registre de debit : les etats
- * SUSPICIOUS de la Table 2 (« resource throttling ») n'ont pas d'equivalent
- * materiel ici et sont actues par le seul moyen disponible, re-armement de
- * ENFORCE et purge du collant. QUARANTINE et BANNED, eux, le sont exactement
- * comme le papier les decrit : la revocation du Device ID autorise s'ecrit dans
- * ID_CFG. C'est pour ca que L_mmio depend du TLC atteint, et c'est le resultat.
+ * SUSPICIOUS (« resource throttling ») sont actues par le seuil de flux et les
+ * bornes. QUARANTINE et BANNED revoquent le Device ID autorise dans ID_CFG.
+ * C'est pour ca que L_mmio depend du TLC atteint, et c'est le resultat.
  * ============================================================ */
-/* Les poids, les classes et l'actuation servent aussi a la trajectoire
- * (BENCH_ASOS_TRAJ, plus bas), qui ne chronometre rien. */
-#if defined(BENCH_ASOS) || defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1) || defined(BENCH_ASOS_E2B) || defined(BENCH_ASOS_E3)
+/* La decision est celle d'asos/ ; ce qui suit la chronometre (niveaux 0 et 1),
+ * la deroule dans le temps (niveau 2) et la pilote depuis le banc. */
+#if defined(BENCH_ASOS) || defined(BENCH_ASOS_IRQ) || defined(BENCH_ASOS_TRAJ) || defined(BENCH_ASOS_E1) || defined(BENCH_ASOS_E2B) || defined(BENCH_ASOS_E3)
 
-#define ASOS_GAMMA_NUM   230u   /* 230/256 = 0,898 : gamma = 0,9 en MAC entier, */
-#define ASOS_GAMMA_SH    8u     /* sans division -- le papier dit « multiply-accumulate » */
 #define ASOS_REPEAT      20     /* repetitions, pour donner une dispersion */
 
-/* Poids de severite par type d'evenement, sur les bits d'alerte de STATUS. */
-static const struct { uint64_t bit; unsigned w; const char *name; } asos_ev[] = {
-    { 1ULL << 4, 40, "BANNED"  },   /* usurpation d'identite confirmee */
-    { 1ULL << 6, 30, "OUTS"    },
-    { 1ULL << 3, 25, "BLOCKED" },
-    { 1ULL << 5, 20, "STORM"   },
-    { 1ULL << 7, 15, "MSI"     },
+/* Bits d'alerte de STICKY et type d'evenement correspondant, pour les
+ * micro-mesures ASOS-K et ASOS-DECOMP : elles chronometrent des variantes de
+ * l'evaluation et gardent donc leur propre boucle. Les poids viennent
+ * d'asos_su_weight(). */
+static const struct { uint64_t bit; asos_event_kind_t kind; } bench_ev[] = {
+    { 1ULL << 4, ASOS_EV_SPOOF   },   /* usurpation d'identite confirmee */
+    { 1ULL << 6, ASOS_EV_OUTS    },
+    { 1ULL << 3, ASOS_EV_BLOCKED },
+    { 1ULL << 5, ASOS_EV_STORM   },
+    { 1ULL << 7, ASOS_EV_MSI     },
 };
-#define ASOS_NEV  (sizeof(asos_ev) / sizeof(asos_ev[0]))
+#define ASOS_NEV  (sizeof(bench_ev) / sizeof(bench_ev[0]))
 #define ARMOR_ALERT_MASK  ((1ULL<<3)|(1ULL<<4)|(1ULL<<5)|(1ULL<<6)|(1ULL<<7))
 
-/* Table 2 : neuf seuils, dix classes. */
-static unsigned asos_tlc(uint64_t sc) {
-    static const uint64_t th[9] = { 1, 6, 16, 26, 36, 51, 71, 86, 100 };
-    unsigned tlc = 10;
-    for (unsigned i = 0; i < 9; i++) if (sc >= th[i]) tlc = 9 - i;
-    return tlc;
-}
-
-static const char *asos_state(unsigned tlc) {
-    if (tlc >= 8) return "ACTIVE";
-    if (tlc >= 6) return "LEARNING";
-    if (tlc >= 4) return "SUSPICIOUS";
-    if (tlc == 3) return "QUARANTINE";
-    return "BANNED";
-}
-
-/* Actuation : ce que la politique ecrit REELLEMENT dans ARMOR. La relecture
- * finale fait partie de la mesure, voir l'en-tete. */
-/* La politique PUBLIEE (Table 4 de l'article), la meme que traj_apply.
- * Jusqu'au 18/09, TLC-4/5 reecrivait deux fois le meme CTRL sans resserrer
- * aucune borne : le L_mmio de la table ASOS mesurait une actuation qui n'etait
- * pas celle de l'article. Desormais : bornes 0x110, Device ID, puis CTRL (seuil,
- * RFMCNT a TLC-4 et en dessous) avec l'acquittement du collant -- trois
- * ecritures. ACTIVE/LEARNING : l'acquittement seul. L'hysteresis ne joue pas
- * ici : chaque reaction chronometree part d'un score nul. */
-#define ASOS_CFGP_TIGHT  0x02080032ULL   /* CFG-D : echecs 2, en-vol 8, fenetre 50 */
-#define ASOS_ID_REVOKED  0xFFFFFFFFULL
+/* Actuation chronometree des niveaux 0 et 1. Les valeurs de registres sont
+ * celles de l'Update Unit (asos_uu_values) ; la sequence reste celle du banc.
+ * ACTIVE/LEARNING : l'acquittement seul. En dessous : bornes, Device ID, puis
+ * CTRL avec l'acquittement du collant -- trois ecritures. Le CTRL passe en
+ * argument porte deja ce que l'appelant veut garder ou retirer (le niveau 1 y
+ * desarme IRQ_EN). L'hysteresis ne joue pas ici : chaque reaction chronometree
+ * part d'un score donne. */
 static uint64_t asos_cfgp_ref;           /* 0x110 de reference, relu au depart */
 
 static unsigned asos_actuate(volatile uint64_t *w, unsigned tlc, uint64_t ctrl) {
@@ -1768,19 +1744,37 @@ static unsigned asos_actuate(volatile uint64_t *w, unsigned tlc, uint64_t ctrl) 
         w[WRAP_CTRL_OFF / 8] = ctrl;
         nw = 1;
     } else {
-        uint64_t id   = (w == (volatile uint64_t *)WRAP1_BASE_ADDR) ? 1ULL : 2ULL;
-        uint64_t cfgp = asos_cfgp_ref;
-        uint64_t c    = (ctrl & ~WRAP_CTRL_THRESH(0xFF))
-                      | WRAP_CTRL_THRESH(tlc == 5 ? 6 : 4);
-        if (tlc <= 4) { c |= WRAP_CTRL_RFMCNT; cfgp = ASOS_CFGP_TIGHT; }
-        if (tlc <= 3) id = ASOS_ID_REVOKED;
-        w[WRAP_CFG_PARAMS_OFF / 8] = cfgp;
-        w[WRAP_ID_CFG_OFF     / 8] = id;
-        w[WRAP_CTRL_OFF       / 8] = c | WRAP_CTRL_STICKY_CLR;
+        static asos_context_t c;
+        asos_regs_t r;
+        c.w        = w;
+        c.id_own   = (w == (volatile uint64_t *)WRAP1_BASE_ADDR) ? 1ULL : 2ULL;
+        c.ctrl_ref = ctrl;
+        c.cfgp_ref = asos_cfgp_ref;
+        asos_uu_values(&c, tlc <= 2 ? ASOS_POL_BANNED : tlc, &r);
+        w[WRAP_CFG_PARAMS_OFF / 8] = r.cfgp;
+        w[WRAP_ID_CFG_OFF     / 8] = r.id;
+        w[WRAP_CTRL_OFF       / 8] = r.ctrl | WRAP_CTRL_STICKY_CLR;
         nw = 3;
     }
     (void)w[WRAP_CTRL_OFF / 8];     /* force la fin des ecritures postees */
     return nw;
+}
+
+/* Evaluation d'une reaction chronometree : Event Processing puis Supervision
+ * Unit d'asos/, sur un contexte dont le score est impose. Rend le nombre
+ * d'evenements, le score et la TLC. */
+static unsigned asos_evaluate(uint64_t st, uint64_t *score, unsigned *tlc) {
+    static asos_context_t c;
+    asos_batch_t b;
+    asos_ep_decode(0, st, 0, &b);
+    c.score  = *score;
+    c.tlc    = 10;
+    c.banned = 0;
+    c.pol    = ASOS_POL_REFERENCE;
+    (void)asos_su_assess(&c, asos_su_batch_weight(&b));
+    *score = c.score;
+    *tlc   = c.tlc;
+    return b.n;
 }
 
 /* Puits volatile. SANS LUI, -O2 elimine toute l'evaluation : ni le score, ni le
@@ -1799,10 +1793,10 @@ static void asos_acc(asos_acc_t *a, uint64_t v) {
 }
 
 /* Une reaction complete : evaluation puis actuation, chronometrees separement. */
-static void asos_step(volatile uint64_t *w, uint64_t ctrl, uint64_t snap,
-                      uint64_t *score,
-                      unsigned *o_tlc, unsigned *o_k, unsigned *o_nw,
-                      uint64_t *o_proc, uint64_t *o_mmio) {
+static void asos_react(volatile uint64_t *w, uint64_t ctrl, uint64_t snap,
+                       uint64_t *score,
+                       unsigned *o_tlc, unsigned *o_k, unsigned *o_nw,
+                       uint64_t *o_proc, uint64_t *o_mmio) {
     uint64_t t0 = read_counter();
     /* Le COLLANT, pas STATUS. Les verdicts de flux ne durent que BLOCK_CYCLES
      * (4 a 10 cycles en profil BENCH) : une lecture de STATUS apres coup ne voit
@@ -1812,11 +1806,9 @@ static void asos_step(volatile uint64_t *w, uint64_t ctrl, uint64_t snap,
      * d'alertes evalue ne change pas d'une repetition a l'autre -- sans quoi le
      * STICKY_CLR de l'actuation viderait le registre des la premiere. */
     uint64_t st = w[WRAP_STICKY_OFF / 8] | snap;
-    uint64_t sc = (*score * ASOS_GAMMA_NUM) >> ASOS_GAMMA_SH;
-    unsigned k  = 0;
-    for (unsigned i = 0; i < ASOS_NEV; i++)
-        if (st & asos_ev[i].bit) { sc += asos_ev[i].w; k++; }
-    unsigned tlc = asos_tlc(sc);
+    uint64_t sc = *score;
+    unsigned tlc;
+    unsigned k  = asos_evaluate(st, &sc, &tlc);
     const char *stname = asos_state(tlc);
     asos_sink = sc + tlc + (uint64_t)(uintptr_t)stname;
     uint64_t t1 = read_counter();
@@ -1844,7 +1836,7 @@ static void run_asos(void) {
     printf("# ASOS,slot,evt,k,tlc,etat,ecritures,"
            "proc_min,proc_moy,proc_max,mmio_min,mmio_moy,mmio_max\r\n");
 
-    /* Sequence calquee sur la Table 8, ramenee aux deux slots de la plateforme.
+    /* Sequence de reference des mesures de cout, ramenee aux deux slots.
      * Les bits d'alerte lus sont ceux que la campagne vient reellement de
      * produire dans chaque wrapper : rien n'est simule. */
     static const struct { int slot; const char *evt; } seq[] = {
@@ -1872,7 +1864,7 @@ static void run_asos(void) {
              * repetitions ne mesureraient pas la meme chose. */
             uint64_t score = (uint64_t)r * 20ULL;
             uint64_t pr = 0, mm = 0;
-            asos_step(w, ctrl, snap, &score, &tlc, &k, &nw, &pr, &mm);
+            asos_react(w, ctrl, snap, &score, &tlc, &k, &nw, &pr, &mm);
             asos_acc(&ap, pr); asos_acc(&am, mm);
         }
 
@@ -1884,14 +1876,13 @@ static void run_asos(void) {
                (unsigned long)am.max);
     }
 
-    /* Cout en fonction du nombre de bits d'alerte simultanes. Le papier annonce
-     * un cout O(k) « well under 100 integer cycles » sans jamais le mesurer ;
-     * ici le masque est force, de 0 a 5 bits, la lecture de STATUS restant
+    /* Cout en fonction du nombre de bits d'alerte simultanes. Un cout O(k)
+     * de l'ordre de la centaine de cycles est attendu ; ici le masque est force, de 0 a 5 bits, la lecture de STATUS restant
      * reelle. C'est la seule partie de ce bloc qui n'est pas in situ. */
     printf("# ASOS-K,k,proc_min,proc_moy,proc_max\r\n");
     for (unsigned kk = 0; kk <= ASOS_NEV; kk++) {
         uint64_t mask = 0;
-        for (unsigned i = 0; i < kk; i++) mask |= asos_ev[i].bit;
+        for (unsigned i = 0; i < kk; i++) mask |= bench_ev[i].bit;
         asos_acc_t ap = {0,0,0,0};
         for (unsigned i = 0; i < ASOS_REPEAT; i++) {
             uint64_t t0 = read_counter();
@@ -1899,7 +1890,7 @@ static void run_asos(void) {
             uint64_t sc = (42ULL * ASOS_GAMMA_NUM) >> ASOS_GAMMA_SH;
             unsigned k = 0;
             for (unsigned j = 0; j < ASOS_NEV; j++)
-                if (st & asos_ev[j].bit) { sc += asos_ev[j].w; k++; }
+                if (st & bench_ev[j].bit) { sc += asos_su_weight(bench_ev[j].kind); k++; }
             unsigned tlc = asos_tlc(sc);
             const char *nm = asos_state(tlc);
             asos_sink = sc + tlc + k + (uint64_t)(uintptr_t)nm;
@@ -1946,7 +1937,7 @@ static void run_asos(void) {
             uint64_t sc = (42ULL * ASOS_GAMMA_NUM) >> ASOS_GAMMA_SH;
             unsigned k = 0;
             for (unsigned j = 0; j < ASOS_NEV; j++)
-                if (msk & asos_ev[j].bit) { sc += asos_ev[j].w; k++; }
+                if (msk & bench_ev[j].bit) { sc += asos_su_weight(bench_ev[j].kind); k++; }
             asos_sink = sc + asos_tlc(sc) + k;
         }
         t1 = read_counter();
@@ -1954,8 +1945,8 @@ static void run_asos(void) {
                (unsigned long)(t1 - t0), (unsigned long)((t1 - t0) / 100));
 
         /* d. la MEME evaluation, mais reellement en O(k) : on n'itere que sur
-         *    les bits ACTIFS, par extraction du bit de poids faible. C'est ce
-         *    que le papier decrit ; la version (c) parcourt les 5 types a
+         *    les bits ACTIFS, par extraction du bit de poids faible. C'est la
+         *    forme O(k) visee ; la version (c) parcourt les 5 types a
          *    chaque fois et est donc O(NEV), d'ou sa platitude en k. */
         t0 = read_counter();
         for (unsigned i = 0; i < 100; i++) {
@@ -1965,7 +1956,7 @@ static void run_asos(void) {
             while (rem) {
                 uint64_t lsb = rem & (~rem + 1ULL);
                 for (unsigned j = 0; j < ASOS_NEV; j++)
-                    if (asos_ev[j].bit == lsb) { sc += asos_ev[j].w; break; }
+                    if (bench_ev[j].bit == lsb) { sc += asos_su_weight(bench_ev[j].kind); break; }
                 k++; rem ^= lsb;
             }
             asos_sink = sc + asos_tlc(sc) + k;
@@ -2026,7 +2017,7 @@ static void run_asos(void) {
            (unsigned long)w1[WRAP_ID_CFG_OFF / 8],
            (unsigned long)w2[WRAP_ID_CFG_OFF / 8]);
     printf("# ASOS : rappel -- retrancher le cout d'une lecture de compteur "
-           "(voir `# CALIB`) pour comparer a un chiffre publie.\r\n");
+           "(voir `# CALIB`) pour comparer a une autre mesure.\r\n");
 }
 #endif /* BENCH_ASOS, chronometrage */
 
@@ -2036,18 +2027,18 @@ static void run_asos(void) {
  *
  * Les niveaux 0 et 1 chronometrent UNE reaction, score remis a zero avant
  * chacune. Ce bloc fait l'inverse : il ne chronometre rien et enchaine les
- * evenements dans le temps, pour montrer ce que l'article decrit sans jamais
- * l'avoir mesure -- accumulation (equation 3), transitions de TLC (Table 4),
+ * evenements dans le temps, pour montrer sur carte le comportement a etats
+ * d'ASOS -- accumulation du score, transitions de TLC,
  * mitigation graduee REELLEMENT appliquee au materiel, decroissance, et
  * bannissement terminal.
  *
- * UN PAS = UNE EVALUATION de l'equation 3 (t -> t+1), a periode fixe
+ * UN PAS = UNE EVALUATION du score (t -> t+1), a periode fixe
  * TRAJ_STEP_CY. La periode physique n'entre pas dans la trajectoire, seul
  * compte le nombre de pas ; elle doit seulement couvrir l'injection et la
  * ligne UART du pas (~10 ms a 115200 bauds). Un depassement est compte.
  * C'EST UNE EVALUATION PERIODIQUE, et non le gestionnaire d'interruption des
- * niveaux 0/1 : le §6.4.1 decrit un ASOS sans boucle de sondage, l'article
- * doit donc le dire s'il publie ce bloc. Le chemin d'interruption est
+ * niveaux 0/1 : ASOS est concu sans boucle de sondage, et un resultat tire de
+ * ce bloc doit le preciser. Le chemin d'interruption est
  * chronometre a part, par BENCH_ASOS_IRQ.
  *
  * Evenements : les bits d'alerte du COLLANT de chaque wrapper, lus puis vides
@@ -2058,7 +2049,7 @@ static void run_asos(void) {
  * leve par tout verdict applique. Une tempete contenue pese donc 20 + 25 = 45,
  * une usurpation bannie 40 + 25 = 65. Une rafale MSI pese 60 et non 40 : elle
  * leve AUSSI le moniteur de flux (collant 0xaa8, storm=75 sur SC04 seul, et le
- * 18/09 sur la carte). C'est la Table 3 telle que le materiel la presente, pas
+ * 18/09 sur la carte). Ce sont les poids tels que le materiel les presente, pas
  * une erreur de somme.
  *
  * Actuation, sur CHANGEMENT de politique seulement, et relue a chaque pas :
@@ -2090,8 +2081,6 @@ static void run_asos(void) {
 #ifndef TRAJ_STEP_CY
 #define TRAJ_STEP_CY     1000000ULL      /* 20 ms a 50 MHz */
 #endif
-#define TRAJ_CFGP_TIGHT  0x02080032ULL   /* CFG-D : echecs 2, en-vol 8, fenetre 50 */
-#define TRAJ_ID_REVOKED  0xFFFFFFFFULL
 #define TRAJ_PULSES      (WRAP_CTRL_STICKY_CLR | WRAP_CTRL_CNT_CLR)
 
 enum { EV_LEGIT, EV_STORM, EV_MSI, EV_SPOOF, EV_DMA };
@@ -2133,7 +2122,7 @@ static const traj_seg_t traj_script[] = {
  * ecritures pipelinees a profondeur 4, c'est le motif d'un DMA de streaming
  * LEGITIME : aucune borne statique ne separe ce DMA de la tempete pipelinee,
  * la reference laisse passer les deux, la stricte bloque les deux. HYPOTHESE
- * DE CADRAGE, a dire dans l'article : ce DMA est une charge legitime.
+ * DE CADRAGE, a expliciter avec tout resultat : ce DMA est une charge legitime.
  *
  * Un seul slot (le MHA), trois phases :
  *   P1  DMA pipeline sain           -- doit passer
@@ -2242,82 +2231,27 @@ static const traj_seg_t traj_script[] = {
 #define TRAJ_NSEG (sizeof(traj_script) / sizeof(traj_script[0]))
 static const char *const traj_armn[] = { "reference-fixe", "stricte-fixe", "ASOS" };
 
-typedef struct {
-    volatile uint64_t *w;
-    uint64_t id_own;
-    uint64_t score, score_max;
-    unsigned tlc;          /* classe effective : verrouillee une fois BANNED */
-    unsigned pol;          /* politique en place : 6, 5, 4, 3 ou 2           */
-    int      banned;
-    unsigned changes;
-} traj_slot_t;
-
-static const char *traj_poln(unsigned pol) {
-    switch (pol) {
-    case 6:  return "reference";
-    case 5:  return "seuil-6";
-    case 4:  return "CFG-D";
-    case 3:  return "CFG-D+revoque";
-    default: return "CFG-D+revoque+BAN";
-    }
-}
-
-static void traj_apply(traj_slot_t *s, unsigned pol,
-                       uint64_t ctrl_ref, uint64_t cfgp_ref) {
-    uint64_t ctrl = ctrl_ref;
-    uint64_t cfgp = cfgp_ref;
-    uint64_t id   = s->id_own;
-    if (pol <= 5) ctrl = (ctrl_ref & ~WRAP_CTRL_THRESH(0xFF))
-                       | WRAP_CTRL_THRESH(pol == 5 ? 6 : 4);
-    /* TLC-4 et en dessous comptent les TRANSFERTS : c'est ce qui rend visible
-     * la tempete pipelinee (SC09), invisible a la reference. Ajoute le 18/09
-     * pour E1 ; la trajectoire du 18/09 (series 1 et 2) a tourne SANS. */
-    if (pol <= 4) ctrl |= WRAP_CTRL_RFMCNT;
-    if (pol <= 4) cfgp = TRAJ_CFGP_TIGHT;
-    if (pol <= 3) id   = TRAJ_ID_REVOKED;
-    s->w[WRAP_CFG_PARAMS_OFF / 8] = cfgp;
-    s->w[WRAP_ID_CFG_OFF     / 8] = id;
-    s->w[WRAP_CTRL_OFF       / 8] = ctrl;
-    fence();
-    s->pol = pol;
-    s->changes++;
-}
-
-/* Un pas de l'equation 3 pour un slot : lit et vide le collant, met a jour le
- * score, reclasse, et actue si la politique change. Rend les bits lus. */
-static uint64_t traj_eval(traj_slot_t *s, uint64_t ctrl_ref, uint64_t cfgp_ref,
-                          int *acted) {
-    uint64_t st = s->w[WRAP_STICKY_OFF / 8];
-    uint64_t c  = s->w[WRAP_CTRL_OFF / 8] & ~TRAJ_PULSES;
-    s->w[WRAP_CTRL_OFF / 8] = c | WRAP_CTRL_STICKY_CLR;
-    fence();
-
-    uint64_t sc = (s->score * ASOS_GAMMA_NUM) >> ASOS_GAMMA_SH;
-    for (unsigned i = 0; i < ASOS_NEV; i++)
-        if (st & asos_ev[i].bit) sc += asos_ev[i].w;
-    s->score = sc;
-    if (sc > s->score_max) s->score_max = sc;
-
-    unsigned tlc = asos_tlc(sc);
-    if (s->banned && tlc > s->tlc) tlc = s->tlc;   /* BANNED ne se leve pas */
-    if (tlc <= 2) s->banned = 1;
-    s->tlc = tlc;
-
-    unsigned pol = s->banned ? 2 : (tlc >= 6 ? 6 : tlc);
-    /* HYSTERESIS (-DASOS_HYST=1, ajoutee le 18/09 apres E2a) : resserrer des
-     * l'entree dans une classe, ne relacher qu'au retour a ACTIVE (TLC >= 8).
-     * Sans elle, CFG-D + RFMCNT ne tient que deux pas apres un score de 57 et
-     * un attaquant qui attend 40 ms s'evade ; avec, onze pas. Le prix est le
-     * meme chiffre lu a l'envers : un slot legitime soupconne reste resserre
-     * aussi longtemps. Memoire proportionnelle a la gravite, aucun parametre
-     * nouveau : ce sont les bandes de la Table 2. */
+/* HYSTERESIS (-DASOS_HYST=1, ajoutee le 18/09 apres E2a) : resserrer des
+ * l'entree dans une classe, ne relacher qu'au retour a ACTIVE (TLC >= 8).
+ * Sans elle, CFG-D + RFMCNT ne tient que deux pas apres un score de 57 et un
+ * attaquant qui attend 40 ms s'evade ; avec, onze pas. Le prix est le meme
+ * chiffre lu a l'envers : un slot legitime soupconne reste resserre aussi
+ * longtemps. Memoire proportionnelle a la gravite, aucun parametre nouveau :
+ * ce sont les bandes de classe. La regle est dans la Supervision Unit. */
 #ifndef ASOS_HYST
 #define ASOS_HYST 0
 #endif
-    if (ASOS_HYST && pol > s->pol && tlc < 8) pol = s->pol;
-    *acted = (TRAJ_ARM == 2) && (pol != s->pol);   /* bras fixes : rien */
-    if (*acted) traj_apply(s, pol, ctrl_ref, cfgp_ref);
-    return st;
+
+/* Un slot supervise est un contexte d'asos/. Les deux partent de la reference
+ * lue sur le wrapper 2, comme avant l'extraction ; seul le bras ASOS ecrit.
+ * TLC-4 et en dessous comptent les TRANSFERTS (RFMCNT) : ajoute le 18/09 pour
+ * E1 ; la trajectoire du 18/09 (series 1 et 2) a tourne SANS. */
+static void traj_slot_init(asos_context_t *s, volatile uint64_t *w, uint64_t id,
+                           uint64_t ctrl_ref, uint64_t cfgp_ref) {
+    asos_sc_opts_t o = { .hyst = ASOS_HYST, .enforce = (TRAJ_ARM == 2) };
+    asos_sc_create(s, (unsigned)id, w, id, &o);
+    s->ctrl_ref = ctrl_ref;
+    s->cfgp_ref = cfgp_ref;
 }
 
 static void run_asos_traj(void) {
@@ -2336,8 +2270,9 @@ static void run_asos_traj(void) {
     uint64_t ctrl_ref = w2[WRAP_CTRL_OFF / 8] & ~TRAJ_PULSES;
     uint64_t cfgp_ref = w2[WRAP_CFG_PARAMS_OFF / 8];
 
-    traj_slot_t s1 = { w1, 1ULL, 0, 0, 10, 6, 0, 0 };
-    traj_slot_t s2 = { w2, 2ULL, 0, 0, 10, 6, 0, 0 };
+    asos_context_t s1, s2;
+    traj_slot_init(&s1, w1, 1ULL, ctrl_ref, cfgp_ref);
+    traj_slot_init(&s2, w2, 2ULL, ctrl_ref, cfgp_ref);
 
 #if defined(BENCH_ASOS_E1) || defined(BENCH_ASOS_E3)
     *mha_pipe_depth = (uint64_t)E1_DEPTH;
@@ -2372,8 +2307,8 @@ static void run_asos_traj(void) {
      * reecrit le CTRL de w2 a la reference -- place avant, le bras ne portait
      * que 0x110 (constate le 18/09, ctrl2 relu 0x731). */
     if (TRAJ_ARM == 1) {
-        traj_apply(&s1, 4, ctrl_ref, cfgp_ref);
-        traj_apply(&s2, 4, ctrl_ref, cfgp_ref);
+        asos_uu_apply(&s1, ASOS_POL_TIGHT);
+        asos_uu_apply(&s2, ASOS_POL_TIGHT);
     }
 
     printf("# TRAJ : gamma=%u/256, hysteresis=%d, pas=%lu cycles, ctrl_ref=0x%lx, cfgp_ref=0x%lx\r\n",
@@ -2412,8 +2347,8 @@ static void run_asos_traj(void) {
 #endif
 
             int a1 = 0, a2 = 0;
-            uint64_t k1 = traj_eval(&s1, ctrl_ref, cfgp_ref, &a1);
-            uint64_t k2 = traj_eval(&s2, ctrl_ref, cfgp_ref, &a2);
+            uint64_t k1 = asos_step(&s1, read_counter(), 0, &a1);
+            uint64_t k2 = asos_step(&s2, read_counter(), 0, &a2);
 #ifdef BENCH_ASOS_E3
             if (s2.pol < 6) e3_tight++;
             if (e3_restr < 0 && s2.pol < 6 && step >= e3_t0) e3_restr = (int)(step - e3_t0);
@@ -2421,14 +2356,14 @@ static void run_asos_traj(void) {
 #endif
             if (a1)   /* le slot legitime ne devrait jamais changer de politique */
                 printf("# TRAJ : ATTENTION -- w1 passe en politique %s au pas %u\r\n",
-                       traj_poln(s1.pol), step);
+                       asos_uu_policy_name(s1.pol), step);
 
             int late = (read_counter() > t_next);
             printf("# TRAJ,%u,%s,%s,%c,0x%lx,%lu,TLC-%u,%s,%s,0x%lx,0x%lx,0x%lx,"
                    "0x%lx,%lu,TLC-%u,%d\r\n",
                    step, traj_script[g].phase, traj_evn[ev], v,
                    (unsigned long)k2, (unsigned long)s2.score, s2.tlc,
-                   asos_state(s2.tlc), a2 ? traj_poln(s2.pol) : "-",
+                   asos_state(s2.tlc), a2 ? asos_uu_policy_name(s2.pol) : "-",
                    (unsigned long)(w2[WRAP_CTRL_OFF / 8] & ~TRAJ_PULSES),
                    (unsigned long)w2[WRAP_CFG_PARAMS_OFF / 8],
                    (unsigned long)w2[WRAP_ID_CFG_OFF / 8],
@@ -2485,9 +2420,8 @@ static void run_asos_traj(void) {
 /* ============================================================
  * CALIBRATION AUTOMATIQUE DES BORNES (-DBENCH_ASOS_CALIB)
  *
- * Campagne AUTONOME. Repond a l'auto-critique du papier : les bornes par
- * defaut sont posees a la synthese, et la Table 19 montre qu'elles sont
- * grotesquement larges -- occupation de fenetre 1 pour une borne de 8,
+ * Campagne AUTONOME. Les bornes par defaut sont posees a la synthese, et
+ * les mesures d'occupation montrent qu'elles sont tres larges -- occupation de fenetre 1 pour une borne de 8,
  * profondeur d'en-vol 1 pour une borne de 16. Une borne large laisse
  * l'attaque d'epuisement finir sur un timeout plutot que sur un verdict.
  *
@@ -2511,7 +2445,7 @@ static void run_asos_traj(void) {
  * REFUSE s'il n'est pas vide : mieux vaut pas de calibration qu'une borne
  * posee sur un pic ecrete.
  *
- * LES DEUX FORMES DE TRAFIC LEGITIME. Le papier insiste sur le job DMA
+ * LES DEUX FORMES DE TRAFIC LEGITIME. Le cas qui compte est le job DMA
  * pipeline -- seize ecritures, plusieurs adresses en vol -- que les bornes de
  * reference laissent passer. Une calibration apprise sur des copies simples
  * seules pose une borne que ce job franchit : elle fabrique des faux positifs.
@@ -2549,7 +2483,6 @@ static void run_asos_traj(void) {
 #ifndef CAL_DEPTH
 #define CAL_DEPTH    4          /* profondeur du job DMA pipeline (mode 7) */
 #endif
-#define CAL_FLOOR    2          /* jamais de borne en dessous : 1 bloquerait tout */
 
 /* Un job, et son issue lue comme le temoin ENFORCE=0 la lit : terminee sans
  * erreur, ou pas. classify() ne sert pas ici -- sa cascade masque ST_DONE des
@@ -2624,20 +2557,19 @@ static void run_asos_calib(void) {
     unsigned thr = thr_ref, outs = outs_ref;
     int applique = 0;
     if (CAL_ARM && !refus) {
-        thr  = pic_req  + CAL_MARGIN;
-        outs = pic_outs + CAL_MARGIN;
-        if (thr  < CAL_FLOOR) thr  = CAL_FLOOR;
-        if (outs < CAL_FLOOR) outs = CAL_FLOOR;
-        /* On ne RELACHE jamais : une calibration ne doit pas pouvoir affaiblir
-         * la configuration posee a la synthese. */
-        if (thr  > thr_ref)  thr  = thr_ref;
-        if (outs > outs_ref) outs = outs_ref;
-
-        uint64_t ctrl = (ctrl_ref & ~WRAP_CTRL_THRESH(0xFF)) | WRAP_CTRL_THRESH(thr);
-        uint64_t cfgp = (cfgp_ref & ~(0xFFULL << 16)) | ((uint64_t)outs << 16);
-        w2[WRAP_CTRL_OFF / 8] = ctrl;
-        w2[WRAP_CFG_PARAMS_OFF / 8] = cfgp;
-        fence();
+        /* Borne = pic + marge, jamais sous 2, et on ne RELACHE jamais : une
+         * calibration ne doit pas pouvoir affaiblir la configuration posee a
+         * la synthese. Le calcul est celui de la Security Context Creation
+         * d'asos/, l'ecriture celle de l'Update Unit (politique de reference,
+         * sur les bornes calibrees). */
+        asos_context_t cx;
+        asos_sc_create(&cx, 2, w2, 2ULL, 0);
+        cx.ctrl_ref = ctrl_ref;
+        cx.cfgp_ref = cfgp_ref;
+        (void)asos_sc_calibrate(&cx, pic_req, pic_outs, CAL_MARGIN, collant);
+        thr  = ARMOR_CTRL_THRESH_GET(cx.ctrl_ref);
+        outs = ARMOR_CFGP_OUTS_GET(cx.cfgp_ref);
+        asos_uu_apply(&cx, ASOS_POL_REFERENCE);
         /* Relecture : une borne qu'on croit avoir ecrite et qui n'est pas dans
          * le registre ferait passer la campagne de reference pour une campagne
          * calibree. C'est le garde-fou du 14/09, applique ici. */
@@ -2713,8 +2645,8 @@ static void run_asos_calib(void) {
  * 813 cycles contre 17 pour un CSR passthrough, soit un facteur 48. Le `claim`
  * et le `complete` d'une interruption sont deux de ces acces.
  *
- * Ce bloc decoupe donc la reaction en quatre, la ou la Table 8 n'en voit que
- * deux :
+ * Ce bloc decoupe donc la reaction en quatre, la ou le decoupage habituel n'en voit
+ * que deux :
  *
  *   L_notify  declenchement -> entree dans le gestionnaire. Contient la
  *             detection ARMOR, la livraison de l'interruption physique, son
@@ -2762,11 +2694,9 @@ static void asos_irq_handler(unsigned id) {
                          : (volatile uint64_t *)WRAP2_BASE_ADDR;
 
     uint64_t st = w[WRAP_STICKY_OFF / 8];
-    uint64_t sc = (asos_irq_score * ASOS_GAMMA_NUM) >> ASOS_GAMMA_SH;
-    unsigned k  = 0;
-    for (unsigned i = 0; i < ASOS_NEV; i++)
-        if (st & asos_ev[i].bit) { sc += asos_ev[i].w; k++; }
-    unsigned tlc = asos_tlc(sc);
+    uint64_t sc = asos_irq_score;
+    unsigned tlc;
+    unsigned k  = asos_evaluate(st, &sc, &tlc);
     asos_sink = sc + tlc + (uint64_t)(uintptr_t)asos_state(tlc);
 
     asos_t_assessed = read_counter();
@@ -2776,7 +2706,7 @@ static void asos_irq_handler(unsigned id) {
      * le collant aussitot et la source de niveau repart : 560 000 entrees dans
      * le gestionnaire mesurees le 2026-09-12. C'est le comportement correct
      * d'un niveau, et c'est precisement ce qui justifie le traitement groupe
-     * des notifications decrit au paragraphe 5 du papier -- mais pour
+     * des notifications prevu par la conception d'ASOS -- mais pour
      * chronometrer UNE reaction il faut la borner. Re-arme par l'appelant. */
     unsigned nw = asos_actuate(w, tlc, asos_ctrl_saved & ~WRAP_CTRL_IRQEN);
 
@@ -2881,7 +2811,7 @@ static void run_asos_irq(void) {
          * materielle, injection par Bao, et `claim` sur le vPLIC emule -- sans
          * y meler la latence de detection d'ARMOR, qui est deja mesuree par
          * ailleurs (37 cycles, `ARMORLAT`). C'est un meilleur decoupage que
-         * celui de la Table 8, pas un repli. */
+         * celui en deux termes, pas un repli. */
         uint64_t det = 0, tx = 0;
         (void)fire_one('M', 1 /* usurpation : garnit le collant */, LEGIT_DST,
                        0, &det, &tx);
@@ -3339,7 +3269,7 @@ void main(void) {
      * au banc, 2,3 requêtes par fenêtre de 100 cycles pour un seuil de 8, zéro
      * détection. Le mode 7 présente ses seize adresses à la volée avant le
      * premier beat de données, comme le fait tout DMA réel et comme l'annonce
-     * la Table 5 du papier. Son débit ne dépend plus de l'aval.
+     * la specification de la tempete. Son débit ne dépend plus de l'aval.
      *
      * L'ATTENDU DÉPEND DE L'ARME, et c'est tout le résultat :
      *   ARMOR_RFMCNT=0 : AUCUN verdict. Seize adresses transférées sur seize

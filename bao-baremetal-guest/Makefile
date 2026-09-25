@@ -71,6 +71,17 @@ OBJS = $(C_SRC:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o) $(ASM_SRC:$(SRC_DIR)/%.S=$(BUILD
 DEPS = $(OBJS:%=%.d) $(GEN_LD_FILE).d
 DIRS:=$(sort $(dir $(OBJS) $(DEPS)))
 
+# ASOS (../asos), lie au banc : BENCH=1
+ifeq ($(BENCH),1)
+ASOS_DIR:= ../asos
+ASOS_MODS:= event_processing security_context supervision_unit update_unit
+INC_DIRS+= $(ASOS_DIR)/include $(addprefix $(ASOS_DIR)/, $(ASOS_MODS))
+ASOS_SRC:= $(ASOS_DIR)/asos.c $(foreach m, $(ASOS_MODS), $(ASOS_DIR)/$(m)/$(m).c)
+ASOS_OBJS:= $(ASOS_SRC:$(ASOS_DIR)/%.c=$(BUILD_DIR)/asos/%.o)
+OBJS+= $(ASOS_OBJS)
+DIRS+= $(sort $(dir $(ASOS_OBJS)))
+endif
+
 CC=$(CROSS_COMPILE)gcc
 AS=$(CROSS_COMPILE)as
 LD=$(CROSS_COMPILE)ld
@@ -116,6 +127,11 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.S
 	$(CC) $(ASFLAGS) $(CPPFLAGS) -c $< -o $@
+
+ifeq ($(BENCH),1)
+$(BUILD_DIR)/asos/%.o: $(ASOS_DIR)/%.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+endif
 
 $(GEN_LD_FILE): $(LD_FILE)
 	$(CC) $(CPPFLAGS) -E -x assembler-with-cpp $< | grep "^[^#;]" > $@
