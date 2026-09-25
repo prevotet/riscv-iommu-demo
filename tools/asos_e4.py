@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""E4 : sensibilite d'ASOS a gamma, aux seuils de la Table 2 et a la periode.
+"""E4 : sensibilite d'ASOS a gamma, aux seuils de classification TLC et a la periode.
 
 Sur l'hote, avec tools/asos_model.py -- valide sur les 113 journaux ASOS du
 18/09 (108 au pas pres jusqu'au ban, 3 fuites des 6 %, 2 bans au meme pas).

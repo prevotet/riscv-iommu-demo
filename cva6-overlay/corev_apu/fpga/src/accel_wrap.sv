@@ -82,7 +82,7 @@
 //  detectee une salve sur quatre environ -- non parce que le seuil serait mal
 //  calibre, mais parce que le scenario est POSE SUR LA FRONTIERE.
 //
-//  La Table 5 du papier annonce pourtant « 16 requetes par salve, 2 x MAX_REQ ».
+//  La specification de la tempete annonce pourtant « 16 requetes par salve, 2 x MAX_REQ ».
 //  Ce n'est vrai que d'un maitre qui presente ses adresses sans attendre ses
 //  donnees -- c'est-a-dire de tout DMA reel, et de toute tempete ecrite par
 //  quelqu'un qui cherche a saturer un bus. Le mode 7 est ce maitre : PIPE_REQS

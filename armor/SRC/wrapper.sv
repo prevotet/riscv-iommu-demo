@@ -173,8 +173,8 @@ logic                   csr_bfate_q;      // CTRL[10] : sort de chaque ecriture 
 logic                   csr_irqen_q;      // CTRL[11] : interruption armee (v13)
 logic                   csr_rfmcnt_q;     // CTRL[12] : moniteur de flux compte les transferts (v14)
 logic [7:0]             csr_thresh_q;     // CTRL[23:16] : seuil de flux, 0 = valeur de synthese (v15)
-//  0x110 CFG_PARAMS (v18) : les trois seuils de detection que la Table 4 de
-//  l'article fait varier et qui restaient figes a la synthese. Meme convention
+//  0x110 CFG_PARAMS (v18) : les trois seuils de detection que les campagnes
+//  de configuration font varier et qui restaient figes a la synthese. Meme convention
 //  que le seuil de flux -- ZERO = valeur de synthese -- de sorte qu'un
 //  bitstream non configure se comporte exactement comme avant.
 logic [15:0]            csr_window_q;     // [15:0]  largeur de la fenetre de flux
@@ -206,7 +206,7 @@ logic [31:0]            flow_window_cnt; // position dans la fenetre
 //    cnt_winact_q : nombre de fenetres FERMEES en ayant compte au moins une
 //                   requete. Avec cnt_req_up_q, il donne l'occupation MOYENNE
 //                   d'une fenetre active, donc le debit reel de l'attaque tel
-//                   que le moniteur le voit -- et non tel que la Table 5
+//                   que le moniteur le voit -- et non tel que le scenario
 //                   l'annonce.
 // =============================================================================
 logic [7:0]             cnt_reqmax_q;
@@ -348,7 +348,7 @@ logic verdict_known_eff;
 //
 //  Ces 2 cycles sont donc le PRIX du controle d'identite reellement effectue
 //  avant emission. Sans eux, la garantie ne tient que parce que l'IOMMU est plus
-//  lent que la fenetre de fuite. C'est le chiffre a publier comme surcout
+//  lent que la fenetre de fuite. C'est le chiffre a retenir comme surcout
 //  d'ARMOR sur paquet valide, et il est honnete.
 // -----------------------------------------------------------------------------
 logic aw_v_in_q, ar_v_in_q;
@@ -716,7 +716,7 @@ end
 //  cesser d'etre vraie : « accel_wrap n'a jamais plus d'un AW sans W en
 //  attente ». Le mode 7 de l'accelerateur emet ses adresses A LA VOLEE, seize
 //  avant le premier beat de donnees -- c'est ce que fait n'importe quel DMA
-//  reel, et c'est ce que la Table 5 du papier decrit deja. Avec 4 entrees, la
+//  reel, et c'est la tempete telle qu'elle est specifiee. Avec 4 entrees, la
 //  cinquieme poussee est PERDUE : le sort d'une ecriture est inconnu, son beat
 //  W part sur la foi de la tete d'une autre, et fate_ovf_q se leve. On dimensionne
 //  donc comme la file B (64), au-dessus des 48 ecritures de SC04-MSI.
@@ -1270,8 +1270,8 @@ response_delayer #(
 //                         d'en-vol, [31:24] echecs consecutifs avant blocage.
 //                         ZERO par champ = valeur de synthese, comme pour le
 //                         seuil de flux de CTRL[23:16]. Ces trois-la etaient
-//                         les derniers parametres de detection figes, et la
-//                         Table 4 de l'article les fait varier : une campagne
+//                         les derniers parametres de detection figes, et les
+//                         campagnes de configuration les font varier : une campagne
 //                         par configuration plutot qu'une synthese.
 //
 //  ADDR_SPAN / ADDR_WALK : ce que les moniteurs de DEBIT ne peuvent pas voir.
@@ -1578,11 +1578,11 @@ end
 //
 //  Deux besoins, un seul bloc.
 //
-//  1. MESURER. Toutes les latences publiees jusqu'ici sont prises par le
+//  1. MESURER. Toutes les latences rapportees jusqu'ici sont prises par le
 //     logiciel, autour de `*ctrl = 1`, avec une lecture de compteur de part et
 //     d'autre. Le cout de la sonde elle-meme (~650 ticks par lecture de `time`
 //     sous Bao, ~1300 cycles coeur) representait jusqu'a 48 % du chiffre
-//     publie : la mesure etait bornee par l'instrument, pas par le materiel.
+//     rapporte : la mesure etait bornee par l'instrument, pas par le materiel.
 //     Les compteurs ci-dessous chronometrent DANS le wrapper, au cycle, sans
 //     instrument dans la boucle. C'est la mesure qu'on peut opposer a une autre
 //     implementation.
@@ -1682,7 +1682,7 @@ assign up_r_last_hs = resp_IP_wrapper_o.r_valid & req_IP_wrapper_i.r_ready
 //               last) -- ce qui couvre aussi bien une transaction qui aboutit
 //               qu'une que response_manager termine en SLVERR.
 //
-//  Trois approximations assumees, a garder en tete avant de publier :
+//  Trois approximations assumees, a garder en tete avant d'exploiter ces chiffres :
 //    - `tx` est lu au cycle de la fin, donc peut etre court d'un cycle ;
 //    - un verdict qui apparait dans le meme cycle que le depart n'est pas vu
 //      comme detection (la mesure n'est pas encore armee) : `det` vaut alors

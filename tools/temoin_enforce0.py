@@ -66,7 +66,7 @@ MAGIC = "0x41524d4f52000012"        # v18
 CTRL_ENF1 = "0x331"                 # reference validee carte
 CTRL_ENF0 = "0x330"                 # la meme, bit ENFORCE en moins
 
-#  Noms firmware -> noms de l'article (meme table que tools/lot_reference.py).
+#  Noms firmware -> identifiants SC-xx (meme table que tools/lot_reference.py).
 NOMS = [
     ("SC01-SPOOF", "SC-01", "usurpation d'identite"),
     ("SC02-STORM", "SC-02", "tempete de requetes"),

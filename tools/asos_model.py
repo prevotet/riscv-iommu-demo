@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Modele hote d'ASOS, transcription de bench_runner.c (traj_eval / traj_apply).
 
-Meme arithmetique entiere (gamma = 230/256 par pas), meme Table 2, meme
+Meme arithmetique entiere (gamma = 230/256 par pas), memes seuils TLC, meme
 hysteresis (ASOS_HYST), meme verrou BANNED. Ce que le materiel apporte est
 ramene a des poids MESURES sur carte le 18/09 :
 
@@ -33,7 +33,7 @@ import re
 import sys
 
 GAMMA_NUM, GAMMA_SH = 230, 8
-TH = [1, 6, 16, 26, 36, 51, 71, 86, 100]          # Table 2
+TH = [1, 6, 16, 26, 36, 51, 71, 86, 100]          # seuils TLC
 W_STORM, W_MSI, W_FAIL, W_EVASION = 45, 60, 65, 45
 
 

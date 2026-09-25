@@ -2002,7 +2002,7 @@ module tb_accel_armor;
             //  elle ne dit donc RIEN du debit de l'attaque. C'est ici qu'il se
             //  lit, toutes les requetes circulant : occ max donne le vrai
             //  nombre de requetes par fenetre, a comparer aux 16 par salve
-            //  qu'annonce la Table 5 du papier -- les deux ne coincident que si
+            //  de la specification de la tempete -- les deux ne coincident que si
             //  la salve tient dans une seule fenetre.
             //
             //  C'est aussi le seul regime ou le compteur de fenetre pouvait
@@ -2035,7 +2035,7 @@ module tb_accel_armor;
             //  Meme salve que SC02 -- seize ecritures -- mais les seize adresses
             //  partent a la volee avant le premier beat de donnees. Le debit
             //  cesse alors de dependre de la vitesse de l'aval, et c'est ce que
-            //  la Table 5 du papier decrit depuis le debut.
+            //  la specification de la tempete decrit depuis le debut.
             //
             //  L'ATTENTE DEPEND DE L'ARME, et c'est tout le resultat :
             //    RFMCNT=0 : AUCUN verdict. Seize adresses transferees sur seize

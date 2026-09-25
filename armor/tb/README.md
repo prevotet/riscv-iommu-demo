@@ -201,7 +201,7 @@ où rien n'est coupé, il se voit tout de suite (`STORMOFF=1 DN_LAT=2`) :
 
 Le reste de la campagne est **identique ligne pour ligne** entre les deux RTL :
 le correctif de largeur ne change pas l'enforcement, il rend au bras `ENFORCE=0`
-— celui du baseline publié — la capacité de voir ce qu'il observe.
+— celui du témoin — la capacité de voir ce qu'il observe.
 
 ### Le comptage par fronts sous-compte un maître pipeliné (scénario 4)
 
@@ -233,8 +233,8 @@ Le mode 4 émet seize écritures **une à la fois** : `G_AW → G_W → G_NEXT`,
 précédente ait poussé ses données. Son débit au niveau du wrapper est donc fixé
 par la vitesse de l'aval, et c'est ce que montre le tableau de la section
 précédente. Le mode 7 présente ses seize adresses à la volée, puis leurs seize
-beats : c'est ce que fait tout DMA réel, et c'est ce que la Table 5 du papier
-décrit déjà (« 16 requêtes par salve, 2 × MAX_REQ »).
+beats : c'est ce que fait tout DMA réel, et c'est la tempête telle qu'elle est
+spécifiée (« 16 requêtes par salve, 2 × MAX_REQ »).
 
 Même salve, 8 itérations × 16 écritures = 128 transactions, aval rapide
 (`DN_LAT=4`) :
@@ -260,7 +260,7 @@ Et sous l'aval réaliste, celui qui fait passer SC02 intégralement :
 
 **Le débit du mode 7 ne dépend plus de l'aval.** C'est la seule modification qui
 fasse remonter la détection sans toucher au seuil ni au moniteur — et elle rend
-la Table 5 conforme au RTL au lieu de l'inverse.
+la spécification de la tempête conforme au RTL au lieu de l'inverse.
 
 #### Ce que le mode 7 a coûté au wrapper
 

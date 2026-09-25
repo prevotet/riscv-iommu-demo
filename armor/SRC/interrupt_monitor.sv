@@ -55,7 +55,7 @@ module interrupt_monitor #(
         end
     end
 
-    // Storm detection (paper logic)
+    // Storm detection
     assign msi_storm =
         (msi_cnt >= MAX_MSI_PER_WINDOW) ||
         ((dma_cnt != 0) && (msi_cnt >= MAX_RATIO_MSI_DMA * dma_cnt));

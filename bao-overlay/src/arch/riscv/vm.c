@@ -51,7 +51,7 @@ void vcpu_arch_reset(struct vcpu *vcpu, vaddr_t entry)
      * le mtime du CLINT sur le bus. Cout mesure le 2026-09-09 : 638 ticks, soit
      * ~1276 cycles coeur, PAR LECTURE D'HORLOGE.
      *
-     * C'etait la moitie de chaque latence publiee par bench_runner.c. Avec le
+     * C'etait la moitie de chaque latence mesuree par bench_runner.c. Avec le
      * bit CY, `rdcycle` s'execute en materiel en quelques cycles, et le bench
      * lit des cycles coeur directement -- plus de conversion x2, plus de trap.
      *

@@ -50,7 +50,7 @@ LABEL="$1"; N="$2"; shift 2
 
 cd "$ROOT/bao-baremetal-guest"
 make clean >/dev/null 2>&1
-#  OPT_LEVEL : 0 par defaut, comme le Makefile. Tout chiffre ASOS publie exige
+#  OPT_LEVEL : 0 par defaut, comme le Makefile. Toute mesure de cout ASOS exige
 #  OPT_LEVEL=2 (la ligne `# CALIB` doit annoncer 2 cycles, 26 a -O0).
 if ! make PLATFORM=cva6 CROSS_COMPILE="$RISCV_BARE" BENCH=1 OPT_LEVEL="${OPT_LEVEL:-0}" \
         ARCH_CPPFLAGS="$BASE_FLAGS $*" -j"$(nproc)" > "$LOGDIR/build_$LABEL.log" 2>&1; then

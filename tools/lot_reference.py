@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Toutes les valeurs de l'article tirees d'UN lot de campagnes de reference.
+"""Toutes les valeurs de reference tirees d'UN lot de campagnes de reference.
 
   tools/lot_reference.py results/bench_A.log results/bench_B.log ...
   tools/lot_reference.py --csv results/mesures_2026-09-15_v18.csv REF REF2
 
-Ecrit en clair, pour chaque valeur, le tableau de l'article qui la porte :
-Table 7 (detection), Table 8 (latence mesuree par le wrapper), Table 11
-(ligne 16, borne de synthese), Table 12 (occupation, fenetres, etendue),
-§6.2/6.3.3 (aller-retour), et la borne de la regle de trois.
+Ecrit en clair, par rubrique : detection, latence mesuree par le wrapper,
+borne d'en-vol de synthese (16), occupation (fenetres, etendue),
+aller-retour, et la borne de la regle de trois.
 
-Correspondance des noms (firmware -> article) :
+Correspondance des noms (firmware -> identifiants SC-xx) :
   SC01-SPOOF  -> SC-01   usurpation              SC06-LHAOK -> SC-06 benin
   SC02-STORM  -> SC-02   tempete                 SC07-MHAOK -> SC-07 benin
   SC03-OUTS   -> SC-03   epuisement d'en-vol     SC08-LAS   -> SC-05 benin soutenu
@@ -114,8 +113,8 @@ def per_campaign(txt):
 
 def fmt(v):
     """Moyenne ± demi-intervalle de confiance a 95 % (1,96 sigma / racine n) :
-    c'est la convention des ± de l'article, verifiee sur la Table 7 (26,0 ± 2,4)
-    et la Table 10 (44,8 ± 2,2). L'ecart-type par campagne suit entre crochets."""
+    c'est la convention des ± de toutes les syntheses de campagne, verifiee
+    sur deux valeurs de reference (26,0 ± 2,4 et 44,8 ± 2,2). L'ecart-type par campagne suit entre crochets."""
     if len(v) < 2 or st.stdev(v) == 0:
         return f"{st.mean(v):g} (identique)"
     sd = st.stdev(v)
@@ -144,7 +143,7 @@ def main():
     col = lambda k: [r[k] for r in runs]
 
     inj = 50 * n
-    print("\n== Table 7 (sur 50 par campagne)")
+    print("\n== detection (sur 50 par campagne)")
     for k, lab in (("spoof", "usurpation"), ("storm", "tempete"), ("msi", "MSI")):
         print(f"  {lab:12s} {int(sum(col(k)))} / {inj}   par campagne {fmt(col(k))}")
     pc = [100 * x / 50 for x in col("outs_contained")]
@@ -155,23 +154,23 @@ def main():
     print(f"  faux positifs {int(sum(col('fp')))} / {int(sum(col('benign_n')))} transactions benignes")
     print(f"  regle de trois : 0 sur {inj} -> taux < {300 / inj:.2f} % (95 %)")
 
-    print("\n== Table 8 (latence du wrapper, w2)")
+    print("\n== latence du wrapper (w2)")
     for k, lab in (("spoof", "usurpation"), ("storm", "tempete"), ("msi", "MSI")):
         mx = col(f"lat_{k}_max")
         print(f"  {lab:12s} verdicts {sum(col(f'lat_{k}_nv'))}   attente max {max(mx)}   "
               f"(par campagne de {min(mx)} a {max(mx)})")
 
-    print("\n== Table 11, ligne 16 (synth.)")
+    print("\n== borne d'en-vol de synthese (16)")
     print(f"  verdicts d'en-vol sur 50 : {fmt(col('outs_inflight'))}   Lp50 : {fmt(col('outs_lp50'))}")
 
-    print("\n== Table 12 (pic, fenetres actives, cycles/transfert, pages, changements)")
+    print("\n== occupation (pic, fenetres actives, cycles/transfert, pages, changements)")
     print(f"  fond LHA     pic {max(col('bg_peak'))}   fenetres {min(col('bg_winact'))}–{max(col('bg_winact'))}")
     for key, lab in (("sc06", "SC-06"), ("sc05", "SC-05"), ("scan", "SC-08 balayage"), ("storm", "SC-02 tempete")):
         t = col(f"t12_{key}")
         print(f"  {lab:14s} pic {max(x[0] for x in t)}   fenetres {min(x[1] for x in t)}–{max(x[1] for x in t)}   "
               f"Lp50 {fmt([x[4] for x in t])}   pages {max(x[2] for x in t)}   changements {min(x[3] for x in t)}–{max(x[3] for x in t)}")
 
-    print("\n== §6.3.3 aller-retour lu par le wrapper (SC-06, w1)")
+    print("\n== aller-retour lu par le wrapper (SC-06, w1)")
     print(f"  {fmt(col('rtt_read'))} cycles")
 
 

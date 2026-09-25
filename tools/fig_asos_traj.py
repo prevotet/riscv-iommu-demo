@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Figure de la trajectoire ASOS (article, §6.4) : donnees tirees d'un journal.
+"""Figure de la trajectoire ASOS : donnees tirees d'un journal.
 
   tools/fig_asos_traj.py <journal TRAJ> <repertoire de sortie>
 
 Ecrit asos_traj.dat (pas, score, politique en vigueur, evenement) et
 asos_traj.tex (pgfplots, classe standalone), puis compile asos_traj.pdf.
-Journal publie : results/bench_2026-09-18_175403.log (hysteresis, v18 ;
+Journal de reference : results/bench_2026-09-18_175403.log (hysteresis, v18 ;
 identique octet pour octet a 175416 et 175429).
 
 Politique en vigueur APRES l'evaluation du pas, lue dans les registres

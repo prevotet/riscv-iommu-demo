@@ -1,12 +1,12 @@
 // =============================================================================
 //  Enveloppe de synthese HORS CONTEXTE du wrapper ARMOR
 //
-//  A quoi ca sert. Le papier annonce 180 LUT et 157 bascules par wrapper. La
+//  A quoi ca sert. Le chiffre de depart etait 180 LUT et 157 bascules par wrapper. La
 //  seule mesure disponible jusqu'ici etait l'utilisation PAR HIERARCHIE d'une
 //  synthese complete -- 2 676 LUT et 1 927 bascules au v15 -- mais Vivado y
 //  optimise a travers les frontieres de hierarchie, et ce chiffre depend donc
 //  de ce qui entoure le wrapper. Une synthese hors contexte du module seul est
-//  la source defendable pour un article.
+//  la seule mesure qui ne depende pas de son environnement.
 //
 //  Pourquoi une enveloppe et pas le module directement : les types des canaux
 //  AXI sont des PARAMETRES DE TYPE dont la valeur par defaut est `logic`.
@@ -18,7 +18,7 @@
 //  PROFIL : synthetiser avec +define+BENCH_PROFILE. En profil DEMO les durees
 //  de blocage valent 750 000 000 cycles au lieu de 4 et 10, soit des compteurs
 //  de 30 bits au lieu de 3 : ce n'est pas le meme circuit, et c'est le profil
-//  BENCH qui est evalue dans le papier.
+//  BENCH qui est evalue sur carte.
 //
 //  Usage : armor/ooc/run_ooc.sh
 // =============================================================================
