@@ -11,3 +11,11 @@
 [submodule "linux"]
 	path = linux
 	url = git@github.com:prevotet/linux.git
+[submodule "armor"]
+	path = armor
+	url = git@github.com:prevotet/ARMOR.git
+	branch = main
+[submodule "asos"]
+	path = asos
+	url = git@github.com:prevotet/ASOS.git
+	branch = main
