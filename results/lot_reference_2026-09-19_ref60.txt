@@ -1,0 +1,28 @@
+LOT : 60 campagnes retenues, 0 rejetees
+
+== Table 7 (sur 50 par campagne)
+  usurpation   3000 / 3000   par campagne 50 (identique)
+  tempete      3000 / 3000   par campagne 50 (identique)
+  MSI          3000 / 3000   par campagne 50 (identique)
+  epuisement   contenu 27.50 ± 2.78 [sigma 10.98] %   en-vol seul 3.20 ± 1.13 [sigma 4.47] %   timeout 72.50 ± 2.78 [sigma 10.98] %
+  balayage     0 verdicts / 42000 injections
+  faux positifs 0 / 54000 transactions benignes
+  regle de trois : 0 sur 3000 -> taux < 0.10 % (95 %)
+
+== Table 8 (latence du wrapper, w2)
+  usurpation   verdicts 2940   attente max 1   (par campagne de 1 a 1)
+  tempete      verdicts 21769   attente max 35   (par campagne de 30 a 35)
+  MSI          verdicts 97967   attente max 46   (par campagne de 30 a 46)
+
+== Table 11, ligne 16 (synth.)
+  verdicts d'en-vol sur 50 : 1.60 ± 0.57 [sigma 2.23]   Lp50 : 64594.20 ± 2137.97 [sigma 8449.30]
+
+== Table 12 (pic, fenetres actives, cycles/transfert, pages, changements)
+  fond LHA     pic 4   fenetres 261564–268154
+  SC-06          pic 1   fenetres 97–100   Lp50 269 (identique)   pages 1   changements 0–0
+  SC-05          pic 1   fenetres 685–698   Lp50 269 (identique)   pages 1   changements 0–0
+  SC-08 balayage pic 1   fenetres 680–700   Lp50 269 (identique)   pages 256   changements 699–699
+  SC-02 tempete  pic 8   fenetres 54–82   Lp50 275 (identique)   pages 1   changements 0–0
+
+== §6.3.3 aller-retour lu par le wrapper (SC-06, w1)
+  37 (identique) cycles

@@ -1,0 +1,170 @@
+
+OpenSBI v1.0
+   ____                    _____ ____ _____
+  / __ \                  / ____|  _ \_   _|
+ | |  | |_ __   ___ _ __ | (___ | |_) || |
+ | |  | | '_ \ / _ \ '_ \ \___ \|  _ < | |
+ | |__| | |_) |  __/ | | |____) | |_) || |_
+  \____/| .__/ \___|_| |_|_____/|____/_____|
+        | |
+        |_|
+
+Platform Name             : ARIANE RISC-V
+Platform Features         : medeleg
+Platform HART Count       : 1
+Platform IPI Device       : aclint-mswi
+Platform Timer Device     : aclint-mtimer @ 1000000Hz
+Platform Console Device   : uart8250
+Platform HSM Device       : ---
+Platform Reboot Device    : ---
+Platform Shutdown Device  : ---
+Firmware Base             : 0x80000000
+Firmware Size             : 220 KB
+Runtime SBI Version       : 0.3
+
+Domain0 Name              : root
+Domain0 Boot HART         : 0
+Domain0 HARTs             : 0*
+Domain0 Region00          : 0x0000000002008000-0x000000000200bfff (I)
+Domain0 Region01          : 0x0000000002000000-0x0000000002007fff (I)
+Domain0 Region02          : 0x0000000080000000-0x000000008003ffff ()
+Domain0 Region03          : 0x0000000000000000-0xffffffffffffffff (R,W,X)
+Domain0 Next Address      : 0x0000000080200000
+Domain0 Next Arg1         : 0x0000000082200000
+Domain0 Next Mode         : S-mode
+Domain0 SysReset          : yes
+
+Boot HART ID              : 0
+Boot HART Domain          : root
+Boot HART ISA             : rv64imafdcsuh
+Boot HART Features        : scounteren,mcounteren
+Boot HART PMP Count       : 16
+Boot HART PMP Granularity : 8
+Boot HART PMP Address Bits: 54
+Boot HART MHPM Count      : 0
+Boot HART MIDELEG         : 0x0000000000000666
+Boot HART MEDELEG         : 0x0000000000f0b509
+Bao Hypervisor
+BAO WARNING: trying to flush caches but the operation is not defined for this platform
+BAO INFO: ASSIGN irq 1 to vm
+BAO INFO: ASSIGN irq 4 to vm
+BAO INFO: ASSIGN irq 5 to vm
+BAO INFO: ASSIGN irq 6 to vm
+BAO INFO: ASSIGN irq 7 to vm
+BAO INFO: ASSIGN irq 2 to vm
+BAO INFO: ASSIGN irq 3 to vm
+BAO INFO: ASSIGN irq 13 to vm
+BAO INFO: ASSIGN irq 14 to vm
+
+
+###### ARMOR BENCH RUNNER ######
+# CSV header : scenario,iter,expected_block,verdict,det_lat_cy,tx_lat_cy
+# det_lat = DETECTION (lancement -> 1er verdict ARMOR/DONE)
+# tx_lat  = TRANSACTION (lancement -> BUSY=0, round-trip complet)
+# verdict : M=MSI O=OUTS S=STORM B=BANNED b=BLOCKED D=DONE E=ERROR
+# SUMMARY-DET / SUMMARY-TX,name,N,n,n_lat,TP,FP,FN,TN,Lmin,Lavg,Lp50,Lp99,Lmax
+# CALIB : une lecture de `cycle` coute 26 (min) / 26 (moy sur 64)
+# CALIB : `det` et `tx` sont separes par exactement une de ces lectures
+# UNITE : compteur = cycle, cycles coeur 50 MHz
+# IOMMU DDT init OK (DDT @ 0xaffff000, LHA=allow ID=1, MHA=allow ID=2)
+# ARMOR CSR magic : wrap1=0x41524d4f52000012 wrap2=0x41524d4f52000012
+# ARMOR arme : ENFORCE=1, W_SKID=1, FRESH=1, WCAP=0, RHOLD=1, WFATE=1, BFATE=1, RFMCNT=0, SEUIL=synthese (8), ID_CFG w1=1 w2=2, MSI_ADDR=0x91008000
+# ARMOR CTRL relu : w1=0x731 w2=0x731 (attendu 0x731)
+# ARMOR devid_last : w1=0 w2=0
+
+###### ASOS NIVEAU 2 (E2b, bras ASOS, evaluation periodique) ######
+# TRAJ : gamma=230/256, hysteresis=1, pas=1000000 cycles, ctrl_ref=0x731, cfgp_ref=0x0
+# TRAJ,pas,phase,evt,verdict,collant2,score2,tlc2,etat2,action2,ctrl2,cfgp2,id2,collant1,score1,tlc1,depasse
+# TRAJ,0,A-sain,legit,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,1,A-sain,legit,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,2,A-sain,legit,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,3,A-sain,legit,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,4,A-sain,legit,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,5,A-sain,legit,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,6,A-sain,legit,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,7,A-sain,legit,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,8,A-sain,legit,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,9,A-sain,legit,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,10,B-intermittent,storm,S,0x228,45,TLC-5,SUSPICIOUS,seuil-6,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,11,B-intermittent,legit,D,0x0,40,TLC-5,SUSPICIOUS,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,12,B-intermittent,legit,D,0x0,35,TLC-6,LEARNING,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,13,B-intermittent,legit,D,0x0,31,TLC-6,LEARNING,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,14,B-intermittent,legit,D,0x0,27,TLC-6,LEARNING,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,15,B-intermittent,legit,D,0x0,24,TLC-7,LEARNING,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,16,B-intermittent,legit,D,0x0,21,TLC-7,LEARNING,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,17,B-intermittent,legit,D,0x0,18,TLC-7,LEARNING,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,18,B-intermittent,legit,D,0x0,16,TLC-7,LEARNING,-,0x60731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,19,B-intermittent,storm,S,0x228,59,TLC-4,SUSPICIOUS,CFG-D,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,20,B-intermittent,legit,D,0x0,53,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,21,B-intermittent,legit,D,0x0,47,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,22,B-intermittent,legit,D,0x0,42,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,23,B-intermittent,legit,D,0x0,37,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,24,B-intermittent,legit,D,0x0,33,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,25,B-intermittent,legit,D,0x0,29,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,26,B-intermittent,legit,D,0x0,26,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,27,B-intermittent,legit,D,0x0,23,TLC-7,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,28,B-intermittent,storm,S,0x228,65,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,29,B-intermittent,legit,D,0x0,58,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,30,B-intermittent,legit,D,0x0,52,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,31,B-intermittent,legit,D,0x0,46,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,32,B-intermittent,legit,D,0x0,41,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,33,B-intermittent,legit,D,0x0,36,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,34,B-intermittent,legit,D,0x0,32,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,35,B-intermittent,legit,D,0x0,28,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,36,B-intermittent,legit,D,0x0,25,TLC-7,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,37,B-intermittent,storm,S,0x228,67,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,38,B-intermittent,legit,D,0x0,60,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,39,B-intermittent,legit,D,0x0,53,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,40,B-intermittent,legit,D,0x0,47,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,41,B-intermittent,legit,D,0x0,42,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,42,B-intermittent,legit,D,0x0,37,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,43,B-intermittent,legit,D,0x0,33,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,44,B-intermittent,legit,D,0x0,29,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,45,B-intermittent,legit,D,0x0,26,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,46,B-intermittent,storm,S,0x228,68,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,47,B-intermittent,legit,D,0x0,61,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,48,B-intermittent,legit,D,0x0,54,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,49,B-intermittent,legit,D,0x0,48,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,50,B-intermittent,legit,D,0x0,43,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,51,B-intermittent,legit,D,0x0,38,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,52,B-intermittent,legit,D,0x0,34,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,53,B-intermittent,legit,D,0x0,30,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,54,B-intermittent,legit,D,0x0,26,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,55,B-intermittent,storm,S,0x228,68,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,56,B-intermittent,legit,D,0x0,61,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,57,B-intermittent,legit,D,0x0,54,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,58,B-intermittent,legit,D,0x0,48,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,59,B-intermittent,legit,D,0x0,43,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,60,B-intermittent,legit,D,0x0,38,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,61,B-intermittent,legit,D,0x0,34,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,62,B-intermittent,legit,D,0x0,30,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,63,B-intermittent,legit,D,0x0,26,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,64,B-intermittent,storm,S,0x228,68,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,65,B-intermittent,legit,D,0x0,61,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,66,B-intermittent,legit,D,0x0,54,TLC-4,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,67,B-intermittent,legit,D,0x0,48,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,68,B-intermittent,legit,D,0x0,43,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,69,B-intermittent,legit,D,0x0,38,TLC-5,SUSPICIOUS,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,70,C-apres,legit,D,0x0,34,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,71,C-apres,legit,D,0x0,30,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,72,C-apres,legit,D,0x0,26,TLC-6,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,73,C-apres,legit,D,0x0,23,TLC-7,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,74,C-apres,legit,D,0x0,20,TLC-7,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,75,C-apres,legit,D,0x0,17,TLC-7,LEARNING,-,0x41731,0x2080032,0x2,0x0,0,TLC-10,0
+# TRAJ,76,C-apres,legit,D,0x0,15,TLC-8,ACTIVE,reference,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,77,C-apres,legit,D,0x0,13,TLC-8,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,78,C-apres,legit,D,0x0,11,TLC-8,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,79,C-apres,legit,D,0x0,9,TLC-8,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,80,C-apres,legit,D,0x0,8,TLC-8,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,81,C-apres,legit,D,0x0,7,TLC-8,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,82,C-apres,legit,D,0x0,6,TLC-8,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,83,C-apres,legit,D,0x0,5,TLC-9,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,84,C-apres,legit,D,0x0,4,TLC-9,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,85,C-apres,legit,D,0x0,3,TLC-9,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,86,C-apres,legit,D,0x0,2,TLC-9,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,87,C-apres,legit,D,0x0,1,TLC-9,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,88,C-apres,legit,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# TRAJ,89,C-apres,legit,D,0x0,0,TLC-10,ACTIVE,-,0x731,0x0,0x2,0x0,0,TLC-10,0
+# PHASE,ASOS,B-intermittent,storm,tires=7,menes=0,bloques=7
+# TRAJ-FIN,pas=90,etat2=ACTIVE,banni2=0,score2_max=68,politiques2=3,sonde2=D,score1_max=0,politiques1=0,depassements=0
+###### END ######

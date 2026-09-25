@@ -1,0 +1,16 @@
+SIM/.Xil/
+SIM/.comp_sv.timestamp
+SIM/.elab.timestamp
+SIM/dumpports.vcd
+SIM/vcd2tb/
+SIM/vivado_pid19613.str
+SIM/wrapper_testbench1_snapshot.wcfg
+SIM/wrapper_testbench1_snapshot.wdb
+SIM/xelab.log
+SIM/xelab.pb
+SIM/xsim.dir/
+SIM/xsim.jou
+SIM/xsim.log
+SIM/xvlog.log
+SIM/xvlog.pb
+

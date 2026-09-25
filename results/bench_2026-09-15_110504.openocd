@@ -1,0 +1,24 @@
+  image   : opensbi/build/platform/fpga/ariane/firmware/fw_payload.elf (748392 octets, 2026-09-15 11:03:42)
+  DTB     : build/hw/cv64a6.dtb -> 0x82200000
+  OpenOCD : /usr/bin/openocd (0.12)
+
+Open On-Chip Debugger 0.12.0
+Licensed under GNU GPL v2
+For bug reports, read
+	http://openocd.org/doc/doxygen/bugs.html
+Info : clock speed 1000 kHz
+Info : JTAG tap: riscv.cpu tap/device found: 0x00000001 (mfg: 0x000 (<invalid>), part: 0x0000, ver: 0x0)
+Info : datacount=2 progbufsize=8
+Info : Examined RISC-V core; found 1 harts
+Info :  hart 0: XLEN=64, misa=0x80000000001411ad
+Info : starting gdb server for riscv.cpu on 3333
+Info : Listening on port 3333 for gdb connections
+Info : JTAG tap: riscv.cpu tap/device found: 0x00000001 (mfg: 0x000 (<invalid>), part: 0x0000, ver: 0x0)
+  chargement de l'image...
+Error: No working memory available. Specify -work-area-phys to target.
+Warn : not enough working area available(requested 1112)
+Error: No working memory available. Specify -work-area-phys to target.
+Warn : not enough working area available(requested 1112)
+  chargement du DTB...
+  lance : OpenSBI -> Bao -> guest. Voir la capture UART.
+shutdown command invoked

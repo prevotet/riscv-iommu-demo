@@ -1,0 +1,465 @@
+.Hello World!
+init SPI
+status: 0x0000000000000025
+status: 0x0000000000000025
+SPI initialized!
+initializing SD... 
+SD command cmd0 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 01
+SD command cmd55 	response : 01
+SD command cmd41 	response : 00
+sd initialized!
+gpt partition table header:
+	signature:	5452415020494645
+	revision:	00010000
+	size:		0000005C
+	crc_header:	814A5485
+	reserved:	00000000
+	current lba:	0000000000000001
+	backup lda:	000000000EB81FFF
+	partition entries lba:   	0000000000000002
+	number partition entries:	00000080
+	size partition entries:  	00000080
+gpt partition entry 00
+	partition type guid:	D5F7127456A1134B81DC867174929325
+	partition guid:     	35CEBC405641BA4EB9A3028DFFB76284
+	first lba:	0000000000000800
+	last lba:	00000000000107FF
+	attributes:	0000000000000000
+	name:	000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+gpt partition entry 01
+	partition type guid:	AF3DC60F838472478E793D69D8477DE4
+	partition guid:     	4101DEDC40678248886CD120D42F7766
+	first lba:	0000000000010800
+	last lba:	000000000EB81FDE
+	attributes:	0000000000000000
+	name:	000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+gpt partition entry 02
+	partition type guid:	00000000000000000000000000000000
+	partition guid:     	00000000000000000000000000000000
+	first lba:	0000000000000000
+	last lba:	0000000000000000
+	attributes:	0000000000000000
+	name:	000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+gpt partition entry 03
+	partition type guid:	00000000000000000000000000000000
+	partition guid:     	00000000000000000000000000000000
+	first lba:	0000000000000000
+	last lba:	0000000000000000
+	attributes:	0000000000000000
+	name:	000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+copying boot image ................................................................. done!
+
+OpenSBI v1.0
+   ____                    _____ ____ _____
+  / __ \                  / ____|  _ \_   _|
+ | |  | |_ __   ___ _ __ | (___ | |_) || |
+ | |  | | '_ \ / _ \ '_ \ \___ \|  _ < | |
+ | |__| | |_) |  __/ | | |____) | |_) || |_
+  \____/| .__/ \___|_| |_|_____/|____/_____|
+        | |
+        |_|
+
+Platform Name             : ARIANE RISC-V
+Platform Features         : medeleg
+Platform HART Count       : 1
+Platform IPI Device       : aclint-mswi
+Platform Timer Device     : aclint-mtimer @ 1000000Hz
+Platform Console Device   : uart8250
+Platform HSM Device       : ---
+Platform Reboot Device    : ---
+Platform Shutdown Device  : ---
+Firmware Base             : 0x80000000
+Firmware Size             : 220 KB
+Runtime SBI Version       : 0.3
+
+Domain0 Name              : root
+Domain0 Boot HART         : 0
+Domain0 HARTs             : 0*
+Domain0 Region00          : 0x0000000002008000-0x000000000200bfff (I)
+Domain0 Region01          : 0x0000000002000000-0x0000000002007fff (I)
+Domain0 Region02          : 0x0000000080000000-0x000000008003ffff ()
+Domain0 Region03          : 0x0000000000000000-0xffffffffffffffff (R,W,X)
+Domain0 Next Address      : 0x0000000080200000
+Domain0 Next Arg1         : 0x0000000082200000
+Domain0 Next Mode         : S-mode
+Domain0 SysReset          : yes
+
+Boot HART ID              : 0
+Boot HART Domain          : root
+Boot HART ISA             : rv64imafdcsuh
+Boot HART Features        : scounteren,mcounteren
+Boot HART PMP Count       : 16
+Boot HART PMP Granularity : 8
+Boot HART PMP Address Bits: 54
+Boot HART MHPM Count      : 0
+Boot HART MIDELEG         : 0x0000000000000666
+Boot HART MEDELEG         : 0x0000000000f0b509
+Bao Hypervisor
+BAO WARNING: trying to flush caches but the operation is not defined for this platform
+
+
+###### ARMOR BENCH RUNNER ######
+# CSV header : scenario,iter,expected_block,verdict,det_lat_cy,tx_lat_cy
+# det_lat = DETECTION (lancement -> 1er verdict ARMOR/DONE)
+# tx_lat  = TRANSACTION (lancement -> BUSY=0, round-trip complet)
+# verdict : M=MSI O=OUTS S=STORM B=BANNED b=BLOCKED D=DONE E=ERROR
+# SUMMARY-DET / SUMMARY-TX,name,N,n,n_lat,TP,FP,FN,TN,Lmin,Lavg,Lp50,Lp99,Lmax
+# CALIB : une lecture de `cycle` coute 26 (min) / 26 (moy sur 64)
+# CALIB : `det` et `tx` sont separes par exactement une de ces lectures
+# UNITE : compteur = cycle, cycles coeur 50 MHz
+# IOMMU DDT init OK (DDT @ 0xaffff000, LHA=allow ID=1, MHA=allow ID=2)
+# ARMOR CSR magic : wrap1=0x41524d4f52000003 wrap2=0x41524d4f52000003
+# ARMOR arme : ENFORCE=1, ID_CFG w1=1 w2=2, MSI_ADDR=0x91008000
+# ARMOR devid_last : w1=0 w2=0
+# === SC06-LHAOK : N=100 accel=L mode=0 cfg=0x0 expect_block=0
+# ARMORSNAP,SC06-LHAOK,accel_status=0x0
+# ARMORSNAP,SC06-LHAOK,w1,status=0x2000 sticky=0x0 | ENF
+# ARMORSNAP,SC06-LHAOK,w2,status=0x2000 sticky=0x0 | ENF
+# ARMORHS,SC06-LHAOK,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC06-LHAOK,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC06-LHAOK,w2,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC06-LHAOK,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,SC06-LHAOK,w1,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC06-LHAOK,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC06-LHAOK,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC06-LHAOK,w2,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC06-LHAOK,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC06-LHAOK,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x0
+# ARMORSNAP,pre-ctrl,w1,status=0x2000 sticky=0x0 | ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x2000 sticky=0x0 | ENF
+# ARMORHS,pre-ctrl,w1,up,0x440, AW --  W --  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x440, AW --  W --  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x3000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x2000 sticky=0x0 | ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=63 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=1 req_dn=1 cut=0 | cyc_block=0 cyc_hold=2
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=1 wlast_dn=1 ecart=0 | fantome=0 orphelin=0 | w_owed=16 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x3000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x2000 sticky=0x0 | ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=27 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=2 req_dn=2 cut=0 | cyc_block=0 cyc_hold=2
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=2 wlast_dn=2 ecart=0 | fantome=0 orphelin=0 | w_owed=16 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# SC06-LHAOK STATUS_final=0x2 | DONE=100 BLOCK=0 BAN=0 STORM=0 OUTS=0 MSI=0 ERR=0 UNK=0
+# ARMORCNT,SC06-LHAOK,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0
+# ARMORCNT,SC06-LHAOK,w2,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0
+# ARMORLAT,SC06-LHAOK,w1,n=100,n_verdict=0,det_avg=37,tx_avg=37,det_last=37,tx_last=37,det_min=26,det_max=62,tx_min=26,tx_max=62
+# ARMORHW,SC06-LHAOK,w1,cyc_block=0,cyc_hold=2,req_up=100,req_dn=100,req_cut=0,cyc_total=26601185
+# ARMORW,SC06-LHAOK,w1,bad_id=0 fronts 0 cy | aw_dn=100 wlast_dn=100 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORSTALL,SC06-LHAOK,w1,up aw=2 w=37 b=0 ar=0 r=0 | dn aw=0 w=37 b=0 ar=0 r=0
+# ARMORLAT,SC06-LHAOK,w2,n=0 (aucune transaction echantillonnee)
+# ARMORHW,SC06-LHAOK,w2,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=28531936
+# ARMORW,SC06-LHAOK,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORSTALL,SC06-LHAOK,w2,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# === SC07-MHAOK : N=100 accel=M mode=0 cfg=0x0 expect_block=0
+# ARMORSNAP,SC07-MHAOK,accel_status=0x0
+# ARMORSNAP,SC07-MHAOK,w1,status=0x3000 sticky=0x0 | legit ENF
+# ARMORSNAP,SC07-MHAOK,w2,status=0x2000 sticky=0x0 | ENF
+# ARMORHS,SC07-MHAOK,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC07-MHAOK,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC07-MHAOK,w2,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC07-MHAOK,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,SC07-MHAOK,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC07-MHAOK,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC07-MHAOK,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC07-MHAOK,w2,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC07-MHAOK,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC07-MHAOK,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x0
+# ARMORSNAP,pre-ctrl,w1,status=0x3000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x2000 sticky=0x0 | ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x440, AW --  W --  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x540, AW --  W --  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=0 cvalid=0 bad_id=0 legit=0 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x3000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x3000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=68 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=1 req_dn=1 cut=0 | cyc_block=0 cyc_hold=2
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=1 wlast_dn=1 ecart=0 | fantome=0 orphelin=0 | w_owed=16 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x3000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x3000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=27 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=2 req_dn=2 cut=0 | cyc_block=0 cyc_hold=2
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=2 wlast_dn=2 ecart=0 | fantome=0 orphelin=0 | w_owed=16 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# SC07-MHAOK STATUS_final=0x2 | DONE=100 BLOCK=0 BAN=0 STORM=0 OUTS=0 MSI=0 ERR=0 UNK=0
+# ARMORCNT,SC07-MHAOK,w1,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0
+# ARMORCNT,SC07-MHAOK,w2,sticky=0x00000000,fail=0,ban=0,storm=0,outs=0,msi=0
+# ARMORLAT,SC07-MHAOK,w1,n=0 (aucune transaction echantillonnee)
+# ARMORHW,SC07-MHAOK,w1,cyc_block=0,cyc_hold=0,req_up=0,req_dn=0,req_cut=0,cyc_total=26711031
+# ARMORW,SC07-MHAOK,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORSTALL,SC07-MHAOK,w1,up aw=0 w=0 b=0 ar=0 r=0 | dn aw=0 w=0 b=0 ar=0 r=0
+# ARMORLAT,SC07-MHAOK,w2,n=100,n_verdict=0,det_avg=37,tx_avg=37,det_last=37,tx_last=37,det_min=26,det_max=67,tx_min=26,tx_max=67
+# ARMORHW,SC07-MHAOK,w2,cyc_block=0,cyc_hold=2,req_up=100,req_dn=100,req_cut=0,cyc_total=28310282
+# ARMORW,SC07-MHAOK,w2,bad_id=0 fronts 0 cy | aw_dn=100 wlast_dn=100 ecart=0 | fantome=0 orphelin=0 | w_owed_max=0
+# ARMORSTALL,SC07-MHAOK,w2,up aw=2 w=42 b=0 ar=0 r=0 | dn aw=0 w=42 b=0 ar=0 r=0
+# DIAG : fond LHA DESACTIVE (-DBENCH_NO_LHA_BG)
+# LHA background CONTINU arme (READ) base=0x91000000
+# === SC08 low-and-slow : 100 salves x 7 AW gap=200 cy
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x3000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x3000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=38 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=100 req_dn=100 cut=0 | cyc_block=0 cyc_hold=2
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=100 wlast_dn=100 ecart=0 | fantome=0 orphelin=0 | w_owed=16 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x3000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x3000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=27 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=101 req_dn=101 cut=0 | cyc_block=0 cyc_hold=2
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=101 wlast_dn=101 ecart=0 | fantome=0 orphelin=0 | w_owed=16 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x3000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x3000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=27 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=102 req_dn=102 cut=0 | cyc_block=0 cyc_hold=2
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=102 wlast_dn=102 ecart=0 | fantome=0 orphelin=0 | w_owed=16 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+# SC08 : passed=700 blocked=0 (FN=700, débit_évasion attendu)
+# === SC02-STORM : N=50 accel=M mode=4 cfg=0x0 expect_block=1
+# ARMORSNAP,SC02-STORM,accel_status=0x2
+# ARMORSNAP,SC02-STORM,w1,status=0x3000 sticky=0x0 | legit ENF
+# ARMORSNAP,SC02-STORM,w2,status=0x3000 sticky=0x0 | legit ENF
+# ARMORHS,SC02-STORM,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC02-STORM,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,SC02-STORM,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,SC02-STORM,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,SC02-STORM,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC02-STORM,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC02-STORM,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,SC02-STORM,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,SC02-STORM,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,SC02-STORM,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x3000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x3000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x540, AW --  W --  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x540, AW --  W --  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x3000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x3000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=10 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=16 req_dn=16 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=16 wlast_dn=16 ecart=0 | fantome=0 orphelin=0 | w_owed=16 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK
+#   MMIO -> ecriture ATTACK_MODE
+#   MMIO    ecriture ATTACK_MODE OK ; -> BASE
+#   MMIO    BASE OK ; -> SIZE
+#   MMIO    SIZE OK ; -> CONFIG
+#   MMIO    CONFIG OK
+# ARMORSNAP,pre-ctrl,accel_status=0x2
+# ARMORSNAP,pre-ctrl,w1,status=0x3000 sticky=0x0 | legit ENF
+# ARMORSNAP,pre-ctrl,w2,status=0x3000 sticky=0x0 | legit ENF
+# ARMORHS,pre-ctrl,w1,up,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w1,dn,0x450, AW --  W -- last  B -R  AR --  R -R
+# ARMORHS,pre-ctrl,w2,up,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORHS,pre-ctrl,w2,dn,0x550, AW --  W -- last  B -R  AR -R  R -R
+# ARMORDBG,pre-ctrl,w1,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=0 verdict_vu=0
+# ARMORCUT,pre-ctrl,w1,req_up=0 req_dn=0 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w1,bad_id=0 fronts 0 cy | aw_dn=0 wlast_dn=0 ecart=0 | fantome=0 orphelin=0 | w_owed=0 max=0
+# ARMORDBG,pre-ctrl,w2,w_owed=0 w_pending=0 vk=1 cvalid=0 bad_id=0 legit=1 fail=0 outs=0 req_cnt=0 fsm_w=0 fsm_r=1 | en_vol=0 cyc=10 verdict_vu=0
+# ARMORCUT,pre-ctrl,w2,req_up=32 req_dn=32 cut=0 | cyc_block=0 cyc_hold=0
+# ARMORW,pre-ctrl,w2,bad_id=0 fronts 0 cy | aw_dn=32 wlast_dn=32 ecart=0 | fantome=0 orphelin=0 | w_owed=16 max=0
+#   MMIO -> ecriture CTRL=1 (lancement)
+#   MMIO    CTRL OK ; -> 1re lecture STATUS
+#   MMIO    1re lecture STATUS OK, sondage en cours
+#   MMIO -> lecture STATUS finale
+#   MMIO    lecture STATUS finale OK

@@ -1,0 +1,589 @@
+# Banc de simulation ARMOR — `accel_wrap` + `wrapper` + aval comportemental
+
+Banc xsim minimal pour déboguer le chemin de données de l'accélérateur sans
+passer par un bitstream. Sur carte, chaque hypothèse coûtait une
+recompilation + un flash + un reboot pour un bit d'information ; ici tous les
+signaux sont visibles en quelques secondes.
+
+## Lancer
+
+```sh
+./run_sim.sh 0        # aval sain          — contrôle, doit atteindre DONE
+./run_sim.sh 1        # aval qui accepte AW/AR mais ne renvoie jamais B ni R
+./run_sim.sh 2        # aval qui n'accepte rien
+./run_sim.sh 3        # campagne : les six scénarios de bench_runner.c
+./run_sim.sh 4        # micro-banc du moniteur de flux : fronts vs transferts
+./run_sim.sh all      # les cinq
+
+BUG=1   ./run_sim.sh 0        # rejoue le défaut resp_t/resp_slv_t (non-régression)
+PROFILE=demo ./run_sim.sh 3   # profil DEMO au lieu de BENCH
+WAVES=1 ./run_sim.sh 1        # produit en plus work/tb_accel_armor.vcd
+
+# Aval réaliste : À UTILISER pour tout ce qui touche au canal W ou à l'étage W
+WSKID=1 FRESH=1 DN_LAT=4 DN_WGATE=1 DN_WLAT=40 GUARD_MS=20 ./run_sim.sh 3
+```
+
+Réglages, tous par variable d'environnement :
+
+| variable | effet | défaut |
+|---|---|---|
+| `DN_LAT=<n>` | latence d'acceptation AW/AR de l'aval. **≥ 2 obligatoire** : à 0 le banc validait ce sur quoi la carte gelait | 0 |
+| `DN_WGATE=1` | l'aval ne prend un W que si un AW l'y attend, comme l'IOMMU et le crossbar | aval historique, `w_ready` toujours haut |
+| `DN_WLAT=<n>` | latence d'acceptation d'un beat W. Carte : **40 à 45** (`ARMORSTALL`) | 0 |
+| `DN_AWOUT=<n>` | écritures acceptées en aval dont le B n'est pas rendu. À 1, l'aval est **mono-transaction en écriture** — sixième angle mort ; la carte en accepte 16 | 1 |
+| `DN_BLAT=<n>` | latence avant qu'un B dû soit présenté au wrapper | 0 |
+| `GUARD_MS=<n>` | garde-fou global. À relever avec `DN_WLAT`, sinon la campagne s'arrête avant la fin | 2 |
+| `WSKID=1` | `CTRL[4]`, étage W | 0 |
+| `FRESH=1` | `CTRL[5]`, verdict d'identité frais | 0 |
+| `TXBLOCK=1` | `CTRL[6]`, blocage transactionnel — **jamais sans `FRESH`, nuisible seul** | 0 |
+| `WCAP=1` | `CTRL[7]`, dette W comptée à la capture dans l'étage — n'agit qu'avec `WSKID` | 0 |
+| `RHOLD=1` | `CTRL[8]`, réponse B/R présentée tenue jusqu'à son `ready` | 0 |
+| `WFATE=1` | `CTRL[9]`, sort de chaque AW ; le W d'un AW coupé est absorbé même hors blocage — n'agit qu'avec `WSKID` | 0 |
+| `BFATE=1` | `CTRL[10]`, un B par écriture, dans l'ordre : SLVERR pour un AW coupé, B de l'aval pour un AW admis — n'agit qu'avec `WSKID` et `WFATE` | 0 |
+| `RFMCNT=1` | `CTRL[12]`, le moniteur de flux compte les **transferts** d'adresse accomplis en aval au lieu des **fronts** de handshake (v14) | 0 |
+| `STORMOFF=1` | ajoute à la campagne un pas `SC02-STORM/off` sous `ENFORCE=0` — le seul régime où l'occupation de fenêtre se lit sans écrêtage | 0 |
+| `PIPE=1` | ajoute le pas `SC09-PIPE`, mode 7 de l'accélérateur : seize adresses à la volée **avant** le premier beat de données | 0 |
+| `THRESH=<n>` | seuil du moniteur de flux, écrit dans `CTRL[23:16]` (v15). Non défini = valeur de synthèse (8) | 8 |
+| `OBS_CHECK=1` | contrôle croisé des compteurs matériels. **Perturbe SC03 et SC04** : run de vérification, pas de mesure | 0 |
+| `AWFIX=1` | `CTRL[3]`, inerte depuis la réfutation | 0 |
+
+Le banc compile avec `BENCH_PROFILE` par défaut, comme le bitstream de
+campagne. Ce n'est pas un détail : voir plus bas.
+
+`xvlog`/`xelab`/`xsim` viennent de Vivado 2022.2 ; le script sourcera
+`settings64.sh` tout seul si `xvlog` n'est pas dans le `PATH` (surcharger avec
+`VIVADO_SETTINGS=<chemin>`). Ni verilator ni iverilog ne sont installés sur
+cette machine.
+
+## Ce que le banc a établi
+
+**La cause racine du « zéro verdict DONE ».** `wrapper.resp_wrapper_iommu_i`
+est déclaré `resp_slv_t` (88 bits, identifiants sur 6 bits) mais
+`ariane_peripherals_xilinx.sv` y raccordait un `resp_t` (84 bits, identifiants
+sur 4 bits). SystemVerilog complète alors par des zéros du côté MSB, ce qui
+décale tous les champs :
+
+| champ vu par ARMOR | reçoit réellement |
+|---|---|
+| `aw_ready`, `ar_ready`, `w_ready`, `b_valid` | **0 en permanence** |
+| `b.id` | `{aw_ready, ar_ready, w_ready, b_valid, b.id[3:2]}` |
+| `r_valid` | `b.resp[0]` — nul pour `OKAY` comme pour `SLVERR` |
+| `r.data` | `r.data` décalé de 4 bits |
+
+ARMOR ne voyait donc jamais l'aval accepter quoi que ce soit ni répondre, et
+l'accélérateur en amont non plus. Aucune transaction ne pouvait aboutir, en
+lecture comme en écriture, quel que soit l'état de l'IOMMU, de la DDT ou du
+bit ENFORCE — ce qui explique que toutes ces pistes aient été éliminées une à
+une sans que le comportement change.
+
+Mesures du scénario 0 (aval idéal), avant et après correction :
+
+| | AR émis | beats R | verdict | durée |
+|---|---|---|---|---|
+| `BUG=1` (l'ancien câblage) | 223 | 1784 | `done+error` (timeout) | 21,5 ms |
+| corrigé | 1 | 8 | `done`, `error=0` | 1,7 µs |
+
+L'accélérateur maintenait `ar_valid` indéfiniment faute de voir son `ar_ready`,
+et l'aval comptait une nouvelle requête à chaque cycle : d'où les 223 rafales
+pour une seule lecture de 64 octets.
+
+**Le gel du CPU était une conséquence, pas un défaut séparé.** Une fois la
+largeur corrigée, les scénarios 1 et 2 — aval complètement mort — laissent les
+deux ports de configuration parfaitement vivants : l'accélérateur part en
+timeout proprement et le CPU continue de lire `STATUS` et `MAGIC`. L'absence de
+timeout dans les FSM `cw_state_q`/`cr_state_q` de `accel_wrap` et
+`w_state_q`/`r_state_q` du wrapper reste une fragilité réelle, mais ce n'est
+pas ce qui figeait la campagne.
+
+**La campagne discrimine enfin** (scénario 3, `BENCH_PROFILE`, aval sain,
+`ENFORCE=1`, 8 itérations par scénario, verdict = `{MSI, OUTS, STORM, BANNED,
+BLOCKED}`) :
+
+| scénario | mode | latence moy. | `fail_cnt` | verdict |
+|---|---|---|---|---|
+| LEGIT-lect légitime lecture | 0 | 16 cy | 0 | `00000` |
+| LEGIT-ecr légitime écriture | 0 | 17 cy | 0 | `00000` |
+| SC01-SPOOF | 1 | 515 cy | 3 | `00011` BANNED |
+| SC02-STORM | 4 | 55 cy | 3 | `00111` STORM |
+| SC04-MSI | 6 | 151 cy | 3 | `10111` MSI |
+| SC03-OUTS | 5 | 79 cy | 3 | `01111` OUTS |
+| SC08 low-and-slow | 4 / 0 | — | — | voir plus bas |
+
+Chaque attaque lève son bit et **le trafic légitime n'en lève aucun** — les
+faux positifs en nappe des campagnes sur carte ont disparu. Les latences sont
+du même ordre que l'implémentation de référence (~1450 cy), là où toutes les
+mesures précédentes étaient bloquées à `TIMEOUT_CYCLES`.
+
+### SC08 low-and-slow mesure l'inverse de ce qu'il annonce
+
+`run_sc08()` appelle `fire_one('M', 4, ...)`, or **le mode 4 est le mode
+tempête** : il émet `STORM_REQS = 16` requêtes par appel. Les 7 de `LAS_BURST`
+ne sont donc pas 7 requêtes mais 7 × 16 = 112 par salve, très au-dessus du
+seuil de 8 — alors que le commentaire du scénario dit explicitement « on envoie
+K AW », `LAS_BURST 7 /* sous le seuil de 8 */`.
+
+Les deux variantes, jouées à salve et écart identiques (12 salves × 7, gap
+200 cy > `FLOW_WINDOW_C` = 100) :
+
+| variante | requêtes/salve | passées | bloquées | verdict |
+|---|---|---|---|---|
+| telle qu'écrite (mode 4) | 112 | 0 | 84 | `00101` STORM |
+| conforme au commentaire (mode 0) | 7 | 84 | 0 | `00000` |
+
+L'évasion — la limite intéressante et publiable des détecteurs à fenêtre
+glissante — est parfaitement obtenable, mais seulement en mode 0. En mode 4 le
+scénario ne démontre rien qu'SC02 ne démontre déjà.
+
+### L'occupation de la fenêtre de flux, et pourquoi SC02 n'est pas détecté
+
+Ajouté le 2026-09-13. Chaque pas imprime désormais une ligne `FENETRE` :
+
+```
+SC02-STORM  FENETRE : occ max=8 (seuil 8) | fenetres actives=10 dont 9 au seuil
+                      | 73 requetes comptees, soit 7.30 par fenetre active
+```
+
+C'est le chiffre qui manquait pour lire un faux négatif. Le log disait combien
+de salves avaient levé `STORM` ; celles qui ne le levaient pas étaient un trou
+noir. Or **une salve de 16 écritures n'est au-dessus du seuil de 8 que si elle
+tient dans une seule fenêtre de 100 cycles** : étalée sur trois, elle n'en met
+que cinq ou six dans chacune, et aucun moniteur à fenêtre ne peut la voir.
+
+Le banc le démontre en faisant varier la seule vitesse de l'aval, à scénario
+strictement identique (`ENFORCE=1`, 8 itérations de 16 écritures) :
+
+| aval | occ max | fenêtres au seuil | occupation moyenne | verdict SC02 |
+|---|---|---|---|---|
+| `DN_LAT=2` | 8 | 6 / 7 | 7,42 | `STORM`, 68/128 coupées |
+| `DN_LAT=4` | 8 | 9 / 10 | 7,30 | `STORM`, 55/128 coupées |
+| `DN_LAT=4 DN_WGATE=1 DN_WLAT=40` (carte) | **3** | **0 / 54** | **2,33** | **aucun**, 0 coupée |
+
+Et sans enforcement, où rien n'est coupé et où l'occupation se lit donc en
+clair (`STORMOFF=1`) : `DN_LAT=2` donne **occ max = 18**, `DN_LAT=4` **14**,
+l'aval réaliste **4**. Le débit de l'attaque au niveau du wrapper n'est pas
+fixé par `STORM_REQS` mais **par la vitesse de l'aval**. À `DN_WLAT=40` — la
+valeur que `ARMORSTALL` mesure sur carte — SC02 passe intégralement, sans qu'une
+ligne de RTL ait changé.
+
+C'est le mécanisme qui explique les ~78 % de détection sur carte et leur
+dispersion de 12 points : la salve y arrive à peu près au seuil, et c'est la
+phase entre elle et la fenêtre qui décide. **Le seuil n'est pas mal calibré, le
+scénario est sur la frontière.**
+
+Deux conséquences pour la lecture des campagnes :
+
+- `occ max` sous `ENFORCE=1` vaut 8 **par construction** — le moniteur coupe dès
+  le seuil atteint. Il ne dit rien du débit de l'attaque ; seul le bras
+  `ENFORCE=0` le dit ;
+- l'évasion de SC08 a **plus de marge que son énoncé ne le suggère**. Ses salves
+  de 7 « sous le seuil de 8 » n'atteignent en réalité que **4** par fenêtre, la
+  salve étant elle-même étalée sur deux fenêtres. Un seuil abaissé à 5 la
+  laisserait encore passer — mais du trafic légitime monte lui aussi à 4 quand
+  ses itérations s'enchaînent sans pause logicielle.
+
+### Le compteur de fenêtre rebouclait à 16
+
+`req_cnt` était déclaré `[$clog2(MAX_REQ_PER_WINDOW):0]`, soit **quatre bits pour
+un seuil de 8** : il comptait 0 à 15 puis repassait à 0 en pleine fenêtre, et
+`storm_flag` — qui n'est qu'une comparaison sur ce compteur — retombait au
+milieu d'une tempête. Silencieusement : aucun compteur ne le disait.
+
+`STORM_REQS = 16` place SC02 pile sur le point de rebouclage. Sous `ENFORCE=1`
+le blocage écrête le compte à 8 et le défaut ne se voit pas ; sous `ENFORCE=0`,
+où rien n'est coupé, il se voit tout de suite (`STORMOFF=1 DN_LAT=2`) :
+
+| | ancien RTL | v14 |
+|---|---|---|
+| occupation max | 15 (plafond 4 bits) | **18** |
+| fenêtres atteignant le seuil | 1 / 6 | **7 / 7** |
+| rebouclages | **7** | 0 |
+| transactions avec verdict | 65 / 128 | **77 / 128** |
+
+Le reste de la campagne est **identique ligne pour ligne** entre les deux RTL :
+le correctif de largeur ne change pas l'enforcement, il rend au bras `ENFORCE=0`
+— celui du témoin — la capacité de voir ce qu'il observe.
+
+### Le comptage par fronts sous-compte un maître pipeliné (scénario 4)
+
+`req_fire` compte un **front montant** de handshake. Deux adresses transférées
+sur deux cycles consécutifs ne font qu'un front, donc une seule requête comptée.
+Le générateur de `accel_wrap` ne le fait jamais — sa FSM repasse par `G_W` entre
+deux AW, `aw_valid` retombe — si bien que l'A/B `RFMCNT=0` / `RFMCNT=1` sur la
+campagne est **rigoureusement identique**, au caractère près.
+
+Un A/B qui ne bouge pas ne prouve pourtant pas que le nouveau chemin compte
+juste : c'est aussi ce qu'on observerait s'il ne comptait rien. D'où le
+scénario 4, qui produit le cas que l'accélérateur ne sait pas produire — douze
+adresses transférées sur douze cycles consécutifs, `valid` et `ready` tenus :
+
+```
+adresses ESPACEES  : fronts=12 transferts=12 (attendu 12 et 12)
+adresses PIPELINEES: fronts=1  transferts=12 (attendu 1 et 12)
+```
+
+Une tempête pipelinée — c'est-à-dire toute tempête écrite par quelqu'un qui
+cherche vraiment à saturer un bus — compte donc pour **une** requête et ne
+franchit jamais le seuil. `CTRL[12]` le corrige ; la campagne ne peut pas le
+montrer, et c'est précisément pourquoi ce micro-banc existe.
+
+### La tempête pipelinée (mode 7, `PIPE=1`)
+
+Le mode 4 émet seize écritures **une à la fois** : `G_AW → G_W → G_NEXT`,
+`aw_valid` retombe entre deux adresses, chaque écriture attend que la
+précédente ait poussé ses données. Son débit au niveau du wrapper est donc fixé
+par la vitesse de l'aval, et c'est ce que montre le tableau de la section
+précédente. Le mode 7 présente ses seize adresses à la volée, puis leurs seize
+beats : c'est ce que fait tout DMA réel, et c'est la tempête telle qu'elle est
+spécifiée (« 16 requêtes par salve, 2 × MAX_REQ »).
+
+Même salve, 8 itérations × 16 écritures = 128 transactions, aval rapide
+(`DN_LAT=4`) :
+
+| | `req_fire` vu | occ. max | verdict | coupées |
+|---|---|---|---|---|
+| SC02 séquentiel (mode 4) | 75 | 8 | `STORM` | 53 / 128 |
+| SC09 pipeliné, `RFMCNT=0` | **8** | **3** | **aucun** | **0 / 128** |
+| SC09 pipeliné, `RFMCNT=1` | — | 9 | `STORM` | **92 / 128** |
+
+**Huit fronts pour 128 adresses transférées** : le comptage historique voit une
+requête par salve. La tempête la plus dense que cette plateforme sache produire
+est, littéralement, invisible au moniteur — et elle le reste quelle que soit la
+vitesse de l'aval, puisque c'est la forme du trafic et non son débit qui la
+cache. C'est l'angle mort du scénario 4, ici de bout en bout dans la campagne.
+
+Et sous l'aval réaliste, celui qui fait passer SC02 intégralement :
+
+| aval `DN_WLAT=40` | occ. max | fenêtres au seuil | verdict | coupées |
+|---|---|---|---|---|
+| SC02 séquentiel | 3 | 0 / 54 | aucun | 0 / 128 |
+| SC09 pipeliné, `RFMCNT=1` | 9 | 8 / 10 | `STORM` | 50 / 128 |
+
+**Le débit du mode 7 ne dépend plus de l'aval.** C'est la seule modification qui
+fasse remonter la détection sans toucher au seuil ni au moniteur — et elle rend
+la spécification de la tempête conforme au RTL au lieu de l'inverse.
+
+#### Ce que le mode 7 a coûté au wrapper
+
+Seize AW en vol sans leurs données, c'est exactement l'hypothèse sur laquelle
+trois mécanismes reposaient :
+
+- **la file de sort de `W_FATE` faisait quatre entrées**, sur le commentaire
+  « accel_wrap n'a jamais plus d'un AW sans W en attente ». La cinquième poussée
+  était perdue et `fate_ovf_q` (STATUS[22]) se levait : le sort d'une écriture
+  devenait inconnu. Portée à **64**, comme la file B ;
+- **`w_owed_q` faisait quatre bits** et saturait à 15. Avec seize AW il perdait
+  une incrémentation puis encaissait seize décrémentations : il atteignait zéro
+  alors qu'une écriture était encore due en aval, et la coupure de W redevenait
+  autorisée au pire moment — le Bug #16 que ce compteur existe pour éviter.
+  Porté à **8 bits** ;
+- **`B_FATE` (CTRL[10]) devient nécessaire.** Il était jusqu'ici une correction
+  de robustesse sans gain mesurable (31 campagnes, p = 0,35 sur SC02). Sous
+  aval réaliste, le mode 7 sans lui donne **488 B en trop, 50 manquants et un AW
+  resté dû en aval** — la condition du gel carte ; avec lui, **128 B appariés,
+  aucun en trop ni manquant, `aw_owed = 0`**. Le premier scénario qui en a
+  besoin.
+
+Aucune de ces trois modifications ne change quoi que ce soit tant que le maître
+n'a qu'un AW en vol : campagne par défaut **identique ligne pour ligne** avant
+et après, sur aval rapide comme sur aval réaliste.
+
+Effet de bord à noter : le contrôle `OBS_CHECK` de `w_owed_max` lisait déjà
+`0xE8[15:8]`, c'est-à-dire des champs de 8 bits, alors que le RTL en portait de
+4 — il comparait donc un zéro constant à un maximum lui aussi presque toujours
+nul, et passait sans rien vérifier. Le RTL l'ayant rejoint, le contrôle devient
+réel : sur SC09 il confronte un `w_owed_max` de 9 à celui que le banc compte de
+son côté.
+
+#### Le contrôle d'appariement W suivait un maître séquentiel
+
+Il rattachait chaque beat au **dernier** AW acquitté — vrai d'une FSM qui fait
+`G_AW → G_W`, faux dès que les adresses partent en avance. Sur le mode 7 il
+sortait « 120 beats pour un AW sans donnée » sur un trafic parfaitement
+conforme. Il suit désormais une **file** : les beats appartiennent aux AW
+acquittés dans l'ordre, ce qui est la règle AXI4 et vaut pour les deux formes de
+maître. Pour un maître séquentiel la file n'a jamais plus d'une entrée, et le
+contrôle est inchangé.
+
+### Le seuil se règle à l'exécution (v15) — et la courbe a la bonne forme
+
+`CTRL[23:16]` remplace `MAX_REQ_PER_WINDOW` quand il est non nul ; **zéro veut dire « valeur
+de synthèse »**, ce qui rend le champ rétrocompatible sans toucher un mot de firmware. Une
+campagne par valeur produit la courbe détection / faux positifs, là où il fallait une
+synthèse de 45 minutes par point.
+
+Balayage au banc (`WSKID=1 FRESH=1 RHOLD=1 WFATE=1 DN_LAT=4`, `THRESH=<n>`) :
+
+| seuil | trafic légitime | SC08 low-and-slow | SC02 tempête |
+|---|---|---|---|
+| 8 (synthèse) | propre | évade, 84 passent | détecté, verdict en 111 cy |
+| 6 | propre | évade, 84 passent | détecté, **90 cy** |
+| 4 | **1 faux positif sur 8** | **9 bloquées sur 84** | détecté, 76 cy |
+| 2 | **5 faux positifs sur 8** | **56 bloquées sur 84** | détecté, 64 cy |
+
+Le seuil descend, la détection est plus rapide (le seuil est franchi plus tôt dans la
+fenêtre), et les faux positifs apparaissent entre 6 et 4.
+
+**Attention à ne pas lire ce tableau comme celui de la carte.** Au banc, les itérations
+légitimes s'enchaînent sans les 220 cycles de boucle logicielle : leur densité y vaut 4 par
+fenêtre, contre **1** sur carte pour le trafic piloté par le logiciel. Le 4 du banc est en
+revanche la densité du **fond LHA saturant** mesurée sur carte (pic 4 sur 5,4 millions de
+fenêtres) — les deux bascules tombent donc au même endroit, mais pour des raisons
+différentes, et c'est la carte qui tranche.
+
+### Le bannissement contamine tout ce qui suit dans les 2 ms
+
+`security_monitor` maintient `block_ip_o` pendant `BLOCK_DURATION` =
+`BLOCK_DURATION_C` = 100 000 cycles, soit ~2 ms à 50 MHz, et **aucun CSR ne
+l'efface** : `STICKY_CLR` ne vide que le registre collant, `CNT_CLR` que les
+compteurs. `failure_count` reste d'ailleurs à 3 pour le reste de la campagne.
+
+Le banc le mesure : `LEGIT-apres01` rejoue exactement le trafic de
+`LEGIT-ecr`, mais juste après le spoof.
+
+| | verdict | err |
+|---|---|---|
+| LEGIT-ecr, wrapper vierge | `00000` | 0/8 |
+| LEGIT-apres01, après SC01 | `00011` BANNED | 8/8 |
+
+Conséquence pour la campagne sur carte : dans l'ordre de `bench_runner.c`
+(SC01, SC02, SC04, SC06, SC07, SC08, SC03), SC02 et SC04 démarrent forcément
+dans cette fenêtre de 2 ms, et les premières itérations de SC06 peuvent y être
+encore. C'est une source de faux positifs indépendante de tout défaut de
+détecteur. Les scénarios légitimes doivent être joués **avant** tout spoof, ou
+espacés de plus de 2 ms.
+
+Deux choses à savoir pour interpréter ces lignes :
+
+- **Une attaque ne se détecte pas en une transaction.** Le bannissement demande
+  `MAX_FAILURES = 3` comparaisons d'identifiant fautives. Avec une seule
+  itération, SC01-SPOOF ne lève aucun bit et part en timeout : la transaction
+  n'est ni bloquée ni laissée passer, elle est simplement retenue. C'est
+  pourquoi `bench_runner.c` lance `N_ATK` itérations, et pourquoi le banc en
+  fait 8.
+- **`err` n'est pas un timeout.** `error_q` se lève aussi sur le SLVERR fabriqué
+  par ARMOR, qui revient en quelques cycles. C'est le cas des `err 8/8` des
+  lignes d'attaque, dont la latence reste faible.
+
+**Le profil compte autant que le RTL.** En profil DEMO, `FLOW_WINDOW_C` vaut
+50 000 cycles pour le même `MAX_REQ_PER_WINDOW = 8` : neuf transactions
+légitimes en moins d'une milliseconde suffisent alors à déclencher STORM.
+`PROFILE=demo ./run_sim.sh 3` le montre — SC06 et SC07 passent à `00101`
+(BLOCKED + STORM) sans qu'une ligne de RTL ait changé. Toute campagne jouée sur
+un bitstream DEMO produira des faux positifs de tempête sur le trafic normal,
+quel que soit l'état des détecteurs.
+
+## Appariement du canal W (2026-09-11)
+
+Tous les compteurs du banc et du matériel vérifient un **équilibre** : autant de
+W-last que d'AW en aval, pas de beat sans adresse, pas de beat dupliqué. Aucun
+ne vérifiait qu'un beat arrive avec **sa propre** adresse. Le banc le fait
+désormais, sans lire le moindre CSR, donc sans perturber la campagne : chaque
+AW admis en aval est rattaché à l'AW du maître dont il provient, et chaque beat
+pris en aval doit porter la valeur que le maître a émise pour lui
+(`accel_wrap` incrémente `wdata_q` à chaque beat, chaque beat est donc unique).
+La ligne `appariement W` s'imprime **aussi** quand tout est juste, avec le
+nombre de beats vérifiés : un contrôle muet ne se distingue pas d'un contrôle
+aveugle.
+
+**Cinquième angle mort.** L'aval historique tenait `w_ready` haut et prenait
+chaque beat au cycle suivant. Sur carte, un W n'est routé qu'après son AW, et
+l'aval met **40 à 45 cycles** à le prendre. Avec l'aval historique, l'étage W
+ne montrait rien ; avec `DN_WGATE=1 DN_WLAT=40` :
+
+| aval | `WSKID` | `WCAP` | beats justes | beats d'une **autre** écriture |
+|---|---|---|---|---|
+| historique | 1 | 0 | 1586 | 0 |
+| réaliste | 1 | 0 | 2273 | **147** |
+| réaliste | 0 | — | 2312 | **273** (+ 7 AW sans donnée) |
+| réaliste | 1 | **1** | 2408 | **0** |
+| historique | 1 | **1** | 1586 | **0** |
+
+Le mécanisme : pendant un blocage, `response_manager` fabrique `aw_ready` ;
+l'écriture suivante, coupée, est acquittée, et son W arrive pendant que le
+dernier beat de la précédente attend encore dans l'étage. La dette W, comptée
+**en aval**, vaut encore 1 : ce W est capturé, reste présenté avec `w_owed = 0`,
+puis part avec l'adresse légitime suivante — tout le canal est décalé d'un cran
+et le solde AW/W-last reste juste. Première rupture : un beat **63 beats plus
+vieux** que prévu. `CTRL[7] W_CAPDEBT` compte la dette **à la capture**.
+
+**Piège du détecteur de fantômes.** Sous `WSKID=1 WCAP=1`, il comptait 25 puis
+187 « beats fantômes » pour zéro anomalie d'appariement : avec l'étage, le
+handshake aval et celui du maître sont découplés par construction, et le ready
+du maître baisse à juste titre pendant que l'aval vide l'étage. Le détecteur —
+et le compteur matériel `cnt_w_ghost_q`, même définition — est désormais
+inhibé quand l'étage est actif. L'appariement fait foi.
+
+## Réponses tenues et réponses perdues (2026-09-11)
+
+`response_manager` produisait ses réponses comme fonctions **pures** de l'état
+courant : une réponse B/R présentée au maître sans son `ready` retombait dès que
+la branche changeait — SLVERR fabriqué à la fin d'un blocage, ou R réelle à
+l'ouverture d'une attente de verdict. C'est le troisième site de retrait de
+VALID (`b-r` sur carte : 16 sans `FRESH`, 73 avec). `CTRL[8] RESP_HOLD`
+verrouille toute réponse présentée jusqu'à son `ready` :
+
+| aval | `RHOLD` | retraits B/R SC03 | réponses perdues | campagne |
+|---|---|---|---|---|
+| réaliste | 0 | **8** | 0 | 8 OK / 3 ÉCHEC |
+| réaliste | 1 | **0** | 0 | 8 OK / 3 ÉCHEC |
+| historique | 1 | **0** | 0 | 10 OK / 1 ÉCHEC |
+
+Le banc compte aussi les **réponses perdues** : une réponse prise en aval alors
+que le maître ne voyait aucun valid, hors drainage anti-wedge (qui en avale à
+dessein). La branche d'attente en faisait craindre, en masquant les réponses de
+l'aval sans masquer le `ready` du maître. **Le détecteur n'en a jamais compté une
+seule**, avec ou sans le correctif : faire passer les réponses pendant l'attente
+reste une précaution, pas un correctif mesuré.
+
+Les `ar=8` de SC03 qui subsistent sous `RHOLD=1` ont une cause vide et tombent à
+2031 cycles : c'est l'accélérateur qui retire son `ar_valid` sur son propre
+timeout (2000 cycles), pas ARMOR.
+
+## Canal B : un B par écriture (2026-09-11)
+
+Tous les contrôles portaient sur W et sur les réponses **perdues** ; aucun ne
+vérifiait qu'un maître reçoit **un B par écriture**, ni plus ni moins. Le banc
+le vérifie désormais côté maître : chaque W-last accepté ouvre droit à un B ; un
+B pris sans W-last en attente est **en trop**, un W-last encore ouvert quand
+l'accélérateur passe en FINISH est **manquant**. La ligne `canal B` s'imprime
+aussi quand tout est juste.
+
+Ce qu'il a trouvé, configuration de référence (`WSKID=1 FRESH=1 RHOLD=1 WFATE=1`) :
+
+| aval | B appariés | en trop | manquants | B perdus |
+|---|---|---|---|---|
+| historique (`DN_LAT=4`) | 1958 | **2674** | **14** | 0 |
+| réaliste (`DN_WGATE=1 DN_WLAT=40`) | 1971 | **782** | **1** | 0 |
+| historique, **sans `RHOLD`** | 1808 | 2005 | **164** | **815** |
+
+Deux défauts, un seul mécanisme. Pendant un blocage, `response_manager` présente
+un SLVERR fabriqué **en continu**, et `accel_wrap`, qui tient `b_ready` à 1, en
+compte **un par cycle** — jusqu'à 26 B pour 16 requêtes. Hors blocage, seul le
+B de l'aval passe, et l'aval ne répond pas à un AW coupé qu'il n'a jamais vu.
+L'accélérateur compte ses B sans les apparier : les B en trop **masquaient** les
+manquants. Sans `RHOLD` s'y ajoutent des B réels perdus pendant l'attente de
+verdict, les B en trop ne suffisent plus, et SC02 finit en timeout en état DRAIN
+(14 B reçus sur 16) — le point laissé ouvert par `W_FATE`. L'hypothèse d'alors,
+« le B d'un AW coupé ne vient jamais », était juste mais incomplète : les
+manquants existent **aussi** sous `RHOLD`, où rien n'est perdu.
+
+**`CTRL[10] B_FATE`** (MAGIC v11, puis v12 après le correctif de profondeur) : file
+du sort de chaque AW acquitté au maître,
+avec son ID, dépilée au B. Tête coupée : un SLVERR, un seul, après son W-last.
+Tête admise : le B de l'aval, seul cas où l'aval reçoit `b_ready`. File vide :
+aucun B.
+
+| aval | `RHOLD` | B appariés | en trop | manquants | perdus | campagne |
+|---|---|---|---|---|---|---|
+| historique | 1 | 1972 | **0** | **0** | 0 | 10 OK / 1 ÉCHEC |
+| historique | 0 | 1972 | **0** | **0** | **0** | 10 OK / 1 ÉCHEC, plus de DRAIN |
+| réaliste | 1 | 1972 | **0** | **0** | 0 | 8 OK / 3 ÉCHEC |
+
+Verdicts, ERR et appariement W inchangés pas par pas. Seules les itérations
+d'attaque s'allongent, puisque le maître attend désormais un B par requête au
+lieu de sortir sur des B fabriqués : SC02 111 → 114 cycles, SC04 232 → 238
+(aval réaliste : 1396 → 1414). Bit à 0 : chiffres identiques à ceux d'avant.
+
+Vérifications : `OBS_CHECK=1`, 0 défaut sur l'aval historique et sur l'aval
+réaliste ; `DN_WGATE=1 DN_WLAT=8`, l'aval où `W_FATE` avait été mesuré, 0 en
+trop et 0 manquant contre 2773 et 52 bit à 0. Les seuls timeouts restants sont
+ceux de SC03 en état AR, le timeout propre de l'accélérateur.
+
+### La file de 16 déborde sur carte (2026-09-12)
+
+Synthétisé en v11 et passé sur carte, `B_FATE` **gèle la campagne dans SC04** :
+`STATUS[24]` levé — file pleine —, maître tenant son `b_ready` sans qu'aucun B ne
+lui soit présenté, et ARMOR n'en prenant aucun en aval. Sur le même bitstream,
+`bfate0` reproduit exactement le v10 : le défaut appartient bien au bit.
+
+Le banc ne pouvait pas le voir, et pas pour la raison qu'on croit. Son aval
+n'acceptait **qu'une écriture à la fois** — sixième angle mort, d'où `DN_AWOUT` et
+`DN_BLAT`. Mais seize écritures en vol ne suffisent pas davantage : ce qui remplit
+la file, c'est **la lenteur du B**, qui bloque la tête pendant que les AW acquittés
+s'empilent derrière.
+
+| aval | remplissage | débordement | en trop / manquants |
+|---|---|---|---|
+| 16 en vol, B à 8 cy | 2 / 16 | 0 | 0 / 0 |
+| 48 en vol, **B à 200 cy** | **16 / 16** | **1** | 206 / 294 |
+| 48 en vol, **B à 1000 cy** | **16 / 16** | **1** | 113 / 144 |
+
+**Correctif.** La file passe à **64**, au-dessus des 48 écritures de SC04-MSI
+(`MSI_REQS`), et surtout, pleine, elle **refuse l'AW** — `aw_ready` à 0 au maître,
+`aw_valid` coupé en aval — au lieu de perdre la poussée. Une poussée perdue
+désynchronise le compte pour toujours ; faire attendre un maître est licite.
+Aucun VALID présenté n'est retiré : la file ne se remplit qu'au cycle d'un
+handshake AW amont, lequel implique que l'AW a été admis en aval dans le même
+cycle, ou jamais présenté.
+
+| aval | remplissage | débordement | en trop / manquants | campagne |
+|---|---|---|---|---|
+| historique | 1 / 64 | 0 | **0 / 0** | 10 OK / 1 ÉCHEC |
+| réaliste (`DN_WLAT=40`) | 14 / 64 | 0 | **0 / 0** | 8 OK / 3 ÉCHEC |
+| 48 en vol, B à 40 cy | 3 / 64 | 0 | 2 / 2 | 7 OK / 4 ÉCHEC |
+| 48 en vol, B à 200 cy | 50 / 64 | **0** | 266 / 266 | 8 OK / 3 ÉCHEC |
+
+Les écarts résiduels ne sont pas un défaut de la file : ils sont **identiques bit à
+0 et bit à 1** — à 48 en vol et B à 40 cycles, 2 manquants des deux côtés, contre
+**527 B en trop** sans le bit —, chaque « B manquant » porte `timeout=1`, et le B
+en trop est un B **réel** (`resp=0`, hors blocage) arrivé après l'abandon. À 200
+cycles par B, 48 écritures dépassent de loin les 2000 cycles de `TIMEOUT_CYCLES`
+du banc : c'est un aval que le maître ne peut pas survivre, pas un compte faux.
+
+**Piège de méthode.** La première version de `DN_AWOUT` conditionnait `aw_ready` à
+« moins de N écritures en vol », plus strict que la garde historique « aucun B en
+attente ». À N = 1, l'aval réaliste gagnait 6 timeouts en AW et W et 6 B manquants
+**qui n'existaient pas** — un défaut du banc, pris un instant pour une régression
+du RTL. La garde historique est rétablie au bit près pour `DN_AWOUT=1`.
+
+**Non synthétisé** : le v12 reste à produire.
+
+## Structure
+
+Le banc instancie la chaîne réelle, pas un modèle :
+
+```
+TB (maître AXI) --cfg--> accel_wrap --dma--> wrapper --out--> aval comportemental
+TB (maître AXI) --csr----------------------> wrapper
+```
+
+Le chemin CSR **ne traverse pas ARMOR** : le CPU attaque `accel_wrap.axi_cfg`
+via le XBAR et le port CSR du wrapper directement, ARMOR n'étant que sur le
+chemin DMA. Les deux ports sont donc pilotés par le banc, et chaque accès MMIO
+est borné par un garde-fou de 500 cycles : sans lui, un handshake perdu fige la
+simulation exactement comme il fige le CPU.
+
+La glue interface↔structs est recopiée telle quelle de
+`cva6-overlay/corev_apu/fpga/src/ariane_peripherals_xilinx.sv` — c'est du
+boilerplate où une faute de frappe se paie cher.
+
+`TIMEOUT_CYCLES` de l'accélérateur est ramené de 65536 à 2000 par paramètre
+d'instanciation, sinon la simulation dure inutilement longtemps.
+
+## Limites
+
+L'aval ne modélise l'IOMMU que par trois réglages grossiers — `DN_LAT` (adresse),
+`DN_WGATE` et `DN_WLAT` (données) — et pas du tout le multiplexeur 2:1 partagé
+entre LHA et MHA : le banc répond à « qui cale et pourquoi », pas à « combien de
+cycles coûte l'IOMMU ». **Par défaut ces réglages valent 0, c'est-à-dire un aval
+irréaliste** : tout ce qui touche au canal W doit être rejoué avec
+`DN_WGATE=1 DN_WLAT=40`, sous peine de valider du vide une cinquième fois. Les
+latences des tableaux plus haut sont celles d'ARMOR seul, non comparables telles
+quelles au coût mesuré sur carte.
+
+Un seul accélérateur est instancié : le banc ne peut donc pas distinguer le
+baseline LHA (SC06) du baseline MHA (SC07), et ses deux pas légitimes sont
+nommés par leur sens — `LEGIT-lect` et `LEGIT-ecr`. Les deux sens comptent :
+ils exercent des chemins de réponse différents, R pour la lecture et B pour
+l'écriture, et c'est le retour du B qui manquait avant le correctif de largeur.
+
+L'accélérateur porte `STREAM_ID = 2` — le MHA, celui que la
+campagne attaque. `SPOOF_STREAM_ID` vaut `24'd1` par défaut et n'est surchargé
+nulle part, donc le mode 1 n'usurpe réellement un identifiant que depuis un
+accélérateur dont le `STREAM_ID` diffère de 1 : le jouer sur le LHA ne
+prouverait rien. Les scénarios de contention (SC08 low-and-slow, blocage en
+tête de file) restent hors de portée faute du second accélérateur et du
+multiplexeur.
+
+Le comportement sur carte après ces correctifs n'est pas vérifié : la Genesys2
+n'est toujours pas détectée.

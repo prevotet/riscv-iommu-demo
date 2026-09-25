@@ -25,12 +25,21 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VIVADO_VERSION="${VIVADO_VERSION:-2022.2}"
 VIVADO_DIR="${VIVADO_DIR:-/tools/Xilinx/Vivado/${VIVADO_VERSION}}"
 
-RISCV_BARE="${RISCV_BARE:-/home/jc/Software/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-}"
-RISCV_LINUX_DIR="${RISCV_LINUX_DIR:-/home/jc/Software/riscv}"
+# Toolchain bare-metal : newlib construite en rv64imac / lp64 / medany
+# (le guest est lie a PLAT_MEM_BASE=0x90000000, medlow ne peut pas l'atteindre)
+RISCV_BARE="${RISCV_BARE:-/home/jc/Work/Software/riscv-imac/bin/riscv64-unknown-elf-}"
+RISCV_LINUX_DIR="${RISCV_LINUX_DIR:-/usr}"
 export RISCV="${RISCV:-$RISCV_LINUX_DIR}"
 
 export CROSS_COMPILE="${CROSS_COMPILE:-$RISCV_BARE}"
 export PATH="$RISCV_LINUX_DIR/bin:$PATH"
+
+# OpenSBI v1.0 avec un GCC recent (defaut C23) :
+#   - sbi_types.h fait `typedef int bool`, interdit depuis C23 -> -std=gnu11
+#   - l'ISA devinee via `gcc -v --with-arch` est tronquee au premier `_`,
+#     d'ou une -march sans zicsr/zifencei -> csrr/csrw non reconnus
+OPENSBI_CC="${OPENSBI_CC:-${RISCV_BARE}gcc -std=gnu11}"
+OPENSBI_RISCV_ISA="${OPENSBI_RISCV_ISA:-rv64imac_zicsr_zifencei}"
 
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
 JOBS="${JOBS:-$(nproc)}"
@@ -153,12 +162,34 @@ do_clean() {
 
 do_fpga() {
     log_step "Synthèse FPGA (CVA6)"
+    #cp -f $ROOT_DIR/cva6/corev_apu/rv_iommu/packages/dependencies/ariane_axi_soc_pkg.sv $ROOT_DIR/cva6/corev_apu/tb
+    # Copy armor files 
+    mkdir -p $ROOT_DIR/cva6/corev_apu/fpga/src/armor/
+    mkdir -p $ROOT_DIR/cva6/corev_apu/fpga/src/armor/SRC
+    mkdir -p $ROOT_DIR/cva6/corev_apu/fpga/src/armor/Include
+    cp -f $ROOT_DIR/armor/SRC/*.sv $ROOT_DIR/cva6/corev_apu/fpga/src/armor/SRC
+    cp -f $ROOT_DIR/armor/Include/*.* $ROOT_DIR/cva6/corev_apu/fpga/src/armor/Include
+
+    # Overlay : fichiers du sous-module cva6 modifies et conserves dans le depot
+    # principal, sinon effaces par le `git reset --hard` de init_submodules.
+    # (arborescence miroir : cva6-overlay/<chemin relatif dans cva6/>)
+    if [[ -d "$ROOT_DIR/cva6-overlay" ]]; then
+        log_step "  → Overlay cva6 (run.tcl, …)"
+        RUN cp -a "$ROOT_DIR/cva6-overlay/." "$ROOT_DIR/cva6/"
+    fi
+
+   # cp -f $ROOT_DIR/cva6/corev_apu/rv_iommu/packages/dependencies/ariane_soc_pkg.sv $ROOT_DIR/cva6/corev_apu/tb/ariane_soc_pkg.sv
     source "$VIVADO_DIR/settings64.sh"
-    if [[ -d "$ROOT_DIR/cva6/build" ]]; then
-        log_warn "Synthèse déjà réalisée — pour forcer, supprimer cva6/build"
+    
+    if [[ -f "$ROOT_DIR/cva6/corev_apu/fpga/work-fpga/ariane_xilinx.bit" ]] && [[ "${FORCE_FPGA:-0}" != "1" ]]; then
+        log_warn "Synthèse déjà réalisée — pour forcer, utiliser FORCE_FPGA=1 ou './build.sh fpga --force'"
     else
+        log_warn "Mode force activé — suppression des fichiers .bit"
+        rm -rf "$ROOT_DIR/cva6/corev_apu/fpga/work-fpga/ariane_xilinx.bit"
+        [[ -d "$ROOT_DIR/cva6/build" ]] && RUN rm -rf "$ROOT_DIR/cva6/build"
         RUN make -C "$ROOT_DIR/cva6" fpga
     fi
+
     copy_if_changed \
         "$ROOT_DIR/cva6/corev_apu/fpga/work-fpga/ariane_xilinx.bit" \
         "$BUILD_CVA6_DIR/ariane_xilinx.bit"
@@ -199,6 +230,18 @@ do_bao() {
     RUN cp -R "$ROOT_DIR/vm-configs/"*   "$BAO_SRCS/configs/"
     RUN cp -R "$ROOT_DIR/plat-configs/"* "$BAO_SRCS/src/platform/"
 
+    # Overlay : fichiers de bao-hypervisor modifies et conserves dans le depot
+    # principal. Meme mecanisme et meme raison que cva6-overlay : bao-hypervisor
+    # EST un sous-module suivi, mais init_submodules y fait `git reset --hard`
+    # + `git clean -fd`, ce qui effacerait toute edition faite directement
+    # dedans. La garder ici la met hors d'atteinte -- et evite d'avoir a
+    # committer puis pousser un second depot pour un seul bit.
+    # (arborescence miroir : bao-overlay/<chemin relatif dans bao-hypervisor/>)
+    if [[ -d "$ROOT_DIR/bao-overlay" ]]; then
+        log_step "  → Overlay bao (hcounteren, …)"
+        RUN cp -a "$ROOT_DIR/bao-overlay/." "$BAO_SRCS/"
+    fi
+
     RUN make -C "$BAO_SRCS" \
         CROSS_COMPILE="$CROSS_COMPILE" \
         PLATFORM=cva6 \
@@ -217,6 +260,8 @@ do_opensbi() {
     log_step "Compilation de OpenSBI"
     RUN make -C "$ROOT_DIR/opensbi" \
         CROSS_COMPILE="$CROSS_COMPILE" \
+        CC="$OPENSBI_CC" \
+        PLATFORM_RISCV_ISA="$OPENSBI_RISCV_ISA" \
         PLATFORM=fpga/ariane \
         FW_PAYLOAD=y \
         FW_PAYLOAD_PATH="$BAO_SRCS/bin/cva6/cva6-baremetal/bao.bin" \
@@ -245,6 +290,15 @@ do_program() {
     cat > "$tcl_script" <<EOF
 open_hw_manager
 connect_hw_server -url localhost:3121
+# current_hw_target est OBLIGATOIRE : sans lui, open_hw_target devine une cible,
+# se trompe de nom et sort « No devices detected on target » alors que le JTAG
+# repond parfaitement. Constate le 2026-09-08 sur la Genesys2.
+set targets [get_hw_targets -quiet]
+if {[llength \$targets] == 0} {
+    puts "ERREUR : aucune cible JTAG. Carte alimentee ? Cable branche ?"
+    exit 1
+}
+current_hw_target [lindex \$targets 0]
 open_hw_target
 set dev [lindex [get_hw_devices xc7k*] 0]
 current_hw_device \$dev
@@ -322,7 +376,7 @@ do_sdcard() {
 
 
 do_all() {
-    init_submodules
+    #init_submodules
     create_dirs
     do_fpga
     do_baremetal
@@ -336,6 +390,16 @@ do_all() {
 # =============================================================================
 
 TARGET="${1:-all}"
+
+FORCE_FPGA=0
+
+# Parsing des flags optionnels
+for arg in "$@"; do
+    case "$arg" in
+        --force) FORCE_FPGA=1 ;;
+    esac
+done
+export FORCE_FPGA
 
 # Les cibles autres que clean vérifient les dépendances
 if [[ "$TARGET" != "clean" ]]; then
@@ -359,7 +423,10 @@ case "$TARGET" in
         echo "Targets disponibles :"
         echo "  all        — build complet (défaut)"
         echo "  clean      — supprime tous les artefacts"
-        echo "  fpga       — synthèse CVA6 uniquement"
+        echo "  fpga       — synthèse CVA6 uniquement (ajouter --force pour resynthétiser)"
+        echo ""
+        echo     "  FORCE_FPGA=1 ./build.sh fpga           # forcer via variable"
+        echo "  ./build.sh fpga --force                # forcer via flag"
         echo "  baremetal  — guests baremetal uniquement"
         echo "  bao        — hyperviseur BAO uniquement"
         echo "  opensbi    — OpenSBI uniquement"
@@ -371,6 +438,8 @@ case "$TARGET" in
         echo "  VIVADO_VERSION     (défaut: 2022.2)"
         echo "  VIVADO_DIR         (défaut: /tools/Xilinx/Vivado/\$VIVADO_VERSION)"
         echo "  CROSS_COMPILE      (défaut: riscv64-unknown-elf- toolchain)"
+        echo "  OPENSBI_CC         (défaut: \$RISCV_BARE gcc -std=gnu11)"
+        echo "  OPENSBI_RISCV_ISA  (défaut: rv64imac_zicsr_zifencei)"
         echo "  BUILD_DIR          (défaut: <root>/build)"
         echo "  JOBS               (défaut: nproc)"
         echo "  DRY_RUN=1          (affiche les commandes sans les exécuter)"

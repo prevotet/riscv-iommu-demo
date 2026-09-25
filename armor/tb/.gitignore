@@ -1,0 +1,9 @@
+work/
+*.vcd
+*.jou
+*.log
+*.pb
+xsim.dir/
+.Xil/
+work_iommu/
+work_pacer/

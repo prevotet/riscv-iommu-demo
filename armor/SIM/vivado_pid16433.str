@@ -1,0 +1,288 @@
+/*
+
+Xilinx xsim v2022.1 (64-bit) [Major: 2022, Minor: 1]
+SW Build: 3526262 on Mon Apr 18 15:47:01 MDT 2022
+IP Build: 3524634 on Mon Apr 18 20:55:01 MDT 2022
+
+Process ID (PID): 16433
+License: Customer
+Mode: GUI Mode
+
+Current time: 	Wed Dec 31 12:52:56 CET 2025
+Time zone: 	Central European Standard Time (Europe/Paris)
+
+OS: Ubuntu
+OS Version: 6.8.0-90-generic
+OS Architecture: amd64
+Available processors (cores): 4
+
+Display: 0
+Screen size: 2560x1334
+Screen resolution (DPI): 100
+Available screens: 1
+Default font: family=Dialog,name=Dialog,style=plain,size=12
+Scale size: 12
+
+Java version: 	11.0.11 64-bit
+Java home: 	/tools/Xilinx/Vivado/2022.1/tps/lnx64/jre11.0.11_9
+Java executable: 	/tools/Xilinx/Vivado/2022.1/tps/lnx64/jre11.0.11_9/bin/java
+Java arguments: 	[-Dsun.java2d.pmoffscreen=false, -Dhttps.protocols=TLSv1,TLSv1.1,TLSv1.2, -Dsun.java2d.xrender=false, -Djdk.gtk.version=2, -Dsun.java2d.uiScale.enabled=false, -Xverify:none, -Dswing.aatext=true, -XX:-UsePerfData, -Djdk.map.althashing.threshold=512, -XX:StringTableSize=4072, --add-opens=java.desktop/com.sun.awt=ALL-UNNAMED, --add-opens=java.desktop/javax.swing.plaf.synth=ALL-UNNAMED, --add-opens=java.base/java.nio=ALL-UNNAMED, --add-opens=java.desktop/sun.swing=ALL-UNNAMED, --add-opens=java.desktop/javax.swing=ALL-UNNAMED, --add-opens=java.desktop/javax.swing.tree=ALL-UNNAMED, --add-opens=java.desktop/javax.swing.plaf.basic=ALL-UNNAMED, --add-opens=java.desktop/javax.swing.plaf.synth=ALL-UNNAMED, --add-opens=java.desktop/javax.swing.plaf.basic=ALL-UNNAMED, --add-opens=java.desktop/javax.swing=ALL-UNNAMED, --add-opens=java.desktop/javax.swing.tree=ALL-UNNAMED, --add-opens=java.desktop/java.awt.event=ALL-UNNAMED, --add-exports=java.desktop/javax.swing.plaf.synth=ALL-UNNAMED, --add-exports=java.base/java.nio=ALL-UNNAMED, --add-exports=java.desktop/sun.swing=ALL-UNNAMED, --add-exports=java.desktop/javax.swing=ALL-UNNAMED, --add-exports=java.desktop/javax.swing.tree=ALL-UNNAMED, --add-exports=java.desktop/javax.swing.plaf.basic=ALL-UNNAMED, --add-exports=java.desktop/sun.swing=ALL-UNNAMED, --add-exports=java.desktop/sun.swing.table=ALL-UNNAMED, --add-exports=java.desktop/sun.swing.plaf.synth=ALL-UNNAMED, --add-exports=java.desktop/sun.awt.shell=ALL-UNNAMED, --add-exports=java.base/sun.security.action=ALL-UNNAMED, --add-exports=java.desktop/sun.font=ALL-UNNAMED, --add-opens=java.desktop/sun.awt.X11=ALL-UNNAMED, -XX:NewSize=60m, -XX:MaxNewSize=60m, -Xms256m, -Xmx3072m, -Xss5m, -Xrs]
+Java initial memory (-Xms): 	256 MB
+Java maximum memory (-Xmx):	 3 GB
+
+
+User name: 	aya
+User home directory: /home/aya
+User working directory: /home/aya/Desktop/armor/SIM
+User country: 	US
+User language: 	en
+User locale: 	en_US
+
+RDI_BASEROOT: /tools/Xilinx/Vivado
+HDI_APPROOT: /tools/Xilinx/Vivado/2022.1
+RDI_DATADIR: /tools/Xilinx/Vivado/2022.1/data
+RDI_BINDIR: /tools/Xilinx/Vivado/2022.1/bin
+
+Vivado preferences file: /home/aya/.Xilinx/xsim/2022.1/vivado.xml
+Vivado preferences directory: /home/aya/.Xilinx/xsim/2022.1/
+Vivado layouts directory: /home/aya/.Xilinx/xsim/2022.1/data/layouts
+PlanAhead jar file: 	/tools/Xilinx/Vivado/2022.1/lib/classes/planAhead.jar
+Vivado log file: 	/home/aya/Desktop/armor/SIM/xsim.log
+Vivado journal file: 	/home/aya/Desktop/armor/SIM/xsim.jou
+Engine tmp dir: 	./.Xil/xsim-16433-aya-VirtualBox
+
+Xilinx Environment Variables
+----------------------------
+XILINX: /tools/Xilinx/Vivado/2022.1/ids_lite/ISE
+XILINX_DSP: /tools/Xilinx/Vivado/2022.1/ids_lite/ISE
+XILINX_HLS: /tools/Xilinx/Vitis_HLS/2022.1
+XILINX_PLANAHEAD: /tools/Xilinx/Vivado/2022.1
+XILINX_VITIS: 
+XILINX_VIVADO: /tools/Xilinx/Vivado/2022.1
+
+
+GUI allocated memory:	419 MB
+GUI max memory:		3,072 MB
+Engine allocated memory: 1,334 MB
+
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+
+*/
+
+// TclEventType: START_GUI
+// TclEventType: START_PROGRESS_DIALOG
+// Tcl Message: start_gui 
+// TclEventType: START_PROGRESS_DIALOG
+// Tcl Message: source xsim.dir/testbench_wrapper_generator_memory_snapshot/xsim_script.tcl 
+// Tcl Message: # set_param project.enableReportConfiguration 0 
+// TclEventType: LOAD_FEATURE
+// TclEventType: DEBUG_PROBE_SET_CHANGE
+// TclEventType: FLOW_ADDED
+// Tcl Message: # load_feature core # current_fileset 
+// TclEventType: FILE_SET_NEW
+// TclEventType: RUN_ADD
+// TclEventType: RUN_CURRENT
+// TclEventType: PROJECT_DASHBOARD_NEW
+// TclEventType: PROJECT_DASHBOARD_GADGET_NEW
+// TclEventType: PROJECT_DASHBOARD_GADGET_CHANGE
+// TclEventType: PROJECT_DASHBOARD_GADGET_NEW
+// TclEventType: PROJECT_DASHBOARD_GADGET_CHANGE
+// TclEventType: PROJECT_DASHBOARD_GADGET_NEW
+// TclEventType: PROJECT_DASHBOARD_GADGET_CHANGE
+// TclEventType: PROJECT_DASHBOARD_GADGET_NEW
+// TclEventType: PROJECT_DASHBOARD_GADGET_CHANGE
+// TclEventType: PROJECT_DASHBOARD_GADGET_NEW
+// TclEventType: PROJECT_DASHBOARD_GADGET_CHANGE
+// TclEventType: PROJECT_NEW
+// [GUI Memory]: 81 MB (+82055kb) [00:00:09]
+// [Engine Memory]: 1,308 MB (+1219852kb) [00:00:09]
+// WARNING: HEventQueue.dispatchEvent() is taking  1053 ms.
+// Tcl Message: INFO: [IP_Flow 19-234] Refreshing IP repositories INFO: [IP_Flow 19-1704] No user IP repositories specified INFO: [IP_Flow 19-2313] Loaded Vivado IP repository '/tools/Xilinx/Vivado/2022.1/data/ip'. 
+// Tcl Message: # xsim {testbench_wrapper_generator_memory_snapshot} -autoloadwcfg -tclbatch {xsim_cfg.tcl} 
+// HMemoryUtils.trashcanNow. Engine heap size: 1,194 MB. GUI used memory: 65 MB. Current time: 12/31/25, 12:52:56 PM CET
+// TclEventType: SIMULATION_CREATE_SIMULATION_OBJECT
+// TclEventType: SIMULATION_UPDATE_SIMULATION_STATE
+// TclEventType: SIMULATION_UPDATE_SCOPE_TREE
+// TclEventType: SIMULATION_UPDATE_STACKS
+// TclEventType: SIMULATION_UPDATE_OBJECT_TREE
+// TclEventType: SIMULATION_UPDATE_PROTOCOL_INSTANCE_TREE
+// TclEventType: SIMULATION_UPDATE_SCOPE_TREE
+// TclEventType: SIMULATION_UPDATE_STACKS
+// TclEventType: SIMULATION_UPDATE_OBJECT_TREE
+// TclEventType: SIMULATION_UPDATE_PROTOCOL_INSTANCE_TREE
+// TclEventType: SIMULATION_UPDATE_SCOPE_TREE
+// TclEventType: SIMULATION_UPDATE_STACKS
+// TclEventType: SIMULATION_UPDATE_OBJECT_TREE
+// TclEventType: SIMULATION_UPDATE_PROTOCOL_INSTANCE_TREE
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_OPEN_WCFG
+// TclEventType: SIMULATION_UPDATE_SCOPE_TREE
+// TclEventType: SIMULATION_UPDATE_STACKS
+// TclEventType: SIMULATION_UPDATE_OBJECT_TREE
+// TclEventType: SIMULATION_UPDATE_PROTOCOL_INSTANCE_TREE
+// TclEventType: WAVEFORM_OPEN_WCFG
+// TclEventType: WAVEFORM_DELAYED_MODEL_EVENT
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_MODEL_EVENT
+// Tcl Message: Time resolution is 1 ps 
+// Tcl Message: source xsim_cfg.tcl 
+// Tcl Message: ## add_wave {{/testbench_wrapper_generator_memory/clk}} 
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// [GUI Memory]: 97 MB (+13094kb) [00:00:11]
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// HMemoryUtils.trashcanNow. Engine heap size: 1,242 MB. GUI used memory: 73 MB. Current time: 12/31/25, 12:52:58 PM CET
+// TclEventType: WAVEFORM_DELAYED_MODEL_EVENT
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_UPDATE_TITLE
+// TclEventType: SIMULATION_UPDATE_SIMULATION_STATE
+// TclEventType: SIMULATION_CLEAR_CURRENT_LINE
+// TclEventType: SIMULATION_OBJECT_TREE_REFRESHING
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_UPDATE_COMMANDS
+// TclEventType: WAVEFORM_MOVE_CURSOR
+// TclEventType: SIMULATION_UPDATE_LATEST_TIME
+// TclEventType: SIMULATION_OBJECT_TREE_RESTORED
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: SIMULATION_UPDATE_LATEST_TIME
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: SIMULATION_CURRENT_SCOPE_CHANGED
+// TclEventType: SIMULATION_CURRENT_STACK_CHANGED
+// HMemoryUtils.trashcanNow. Engine heap size: 1,251 MB. GUI used memory: 73 MB. Current time: 12/31/25, 12:52:59 PM CET
+// TclEventType: SIMULATION_UPDATE_SCOPE_TREE
+// TclEventType: SIMULATION_UPDATE_STACKS
+// TclEventType: SIMULATION_UPDATE_OBJECT_TREE
+// TclEventType: SIMULATION_CURRENT_STACK_CHANGED
+// TclEventType: SIMULATION_UPDATE_STACK_FRAMES
+// TclEventType: SIMULATION_UPDATE_PROTOCOL_INSTANCE_TREE
+// TclEventType: SIMULATION_UPDATE_STACK_FRAMES
+// TclEventType: SIMULATION_CURRENT_STACK_FRAME_CHANGED
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: SIMULATION_CURRENT_STACK_FRAME_CHANGED
+// TclEventType: SIMULATION_UPDATE_LOCALS
+// TclEventType: SIMULATION_UPDATE_SCOPE_TREE
+// TclEventType: SIMULATION_UPDATE_STACKS
+// TclEventType: SIMULATION_UPDATE_OBJECT_TREE
+// TclEventType: SIMULATION_UPDATE_SIMULATION_STATE
+// TclEventType: STOP_PROGRESS_DIALOG
+dismissDialog("Sourcing Tcl script 'xsim.dir/testbench_wrapper_generator_memory_snapshot/xsim_script.tcl'"); // bA
+// TclEventType: WAVEFORM_MODEL_EVENT
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// TclEventType: WAVEFORM_MODEL_EVENT
+// Elapsed time: 10 seconds
+selectTreeTable(PAResourceQtoS.SimulationScopesPanel_SIMULATE_SCOPE_TABLE, "dut ; wrapper ; Verilog Module", 2, "dut", 0, true); // c - Node
+// TclEventType: SIMULATION_REQUEST_SELECT_SCOPES
+// TclEventType: SIMULATION_UPDATE_SCOPE_TREE
+// TclEventType: SIMULATION_UPDATE_STACKS
+// TclEventType: SIMULATION_CURRENT_SCOPE_CHANGED
+// TclEventType: SIMULATION_CURRENT_STACK_CHANGED
+// TclEventType: SIMULATION_UPDATE_STACK_FRAMES
+// TclEventType: SIMULATION_CURRENT_STACK_FRAME_CHANGED
+// TclEventType: SIMULATION_UPDATE_LOCALS
+// [GUI Memory]: 105 MB (+2611kb) [00:00:24]
+selectButton(RDIResource.GraphicalView_ZOOM_FIT, "Waveform Viewer_zoom_fit"); // D
+// TclEventType: WAVEFORM_UPDATE_WAVEFORM
+// HMemoryUtils.trashcanNow. Engine heap size: 1,287 MB. GUI used memory: 74 MB. Current time: 12/31/25, 12:53:19 PM CET

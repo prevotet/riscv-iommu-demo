@@ -1,0 +1,41 @@
+  image   : payloads/fw_payload_v15_bg_thr0.elf (748264 octets, 2026-09-13 10:05:05)
+  DTB     : build/hw/cv64a6.dtb -> 0x82200000
+  OpenOCD : /usr/bin/openocd (0.12)
+
+Open On-Chip Debugger 0.12.0
+Licensed under GNU GPL v2
+For bug reports, read
+	http://openocd.org/doc/doxygen/bugs.html
+Info : clock speed 1000 kHz
+Error: JTAG scan chain interrogation failed: all ones
+Error: Check JTAG interface, timings, target power, etc.
+Error: Trying to use configured scan chain anyway...
+Error: riscv.cpu: IR capture error; saw 0x1f not 0x01
+Warn : Bypassing JTAG setup events due to errors
+Error: Unsupported DTM version: 15
+Warn : target riscv.cpu examination failed
+Info : starting gdb server for riscv.cpu on 3333
+Info : Listening on port 3333 for gdb connections
+Error: JTAG scan chain interrogation failed: all ones
+Error: Check JTAG interface, timings, target power, etc.
+Error: Trying to use configured scan chain anyway...
+Error: riscv.cpu: IR capture error; saw 0x1f not 0x01
+Warn : Bypassing JTAG setup events due to errors
+Error: Unsupported DTM version: 15
+Error: Unsupported DTM version: 15
+/home/jc/Work/Git/riscv-iommu-demo/tools/load_jtag.sh : ligne 111 : 172706 Erreur de segmentation     (core dumped) "$OPENOCD" -f "$CFG" -c "
+    init
+    reset halt
+    echo \"  chargement de l'image...\"
+    $LOAD
+    $VERIFY
+    echo \"  chargement du DTB...\"
+    load_image {$DTB} $DTB_ADDR bin
+    verify_image {$DTB} $DTB_ADDR bin
+    reg a0 0x0
+    reg a1 $DTB_ADDR
+    reg pc $ENTRY
+    resume
+    echo \"  lance : OpenSBI -> Bao -> guest. Voir la capture UART.\"
+    shutdown
+"
