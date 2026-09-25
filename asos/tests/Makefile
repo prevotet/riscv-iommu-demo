@@ -19,9 +19,15 @@ replay: replay.c $(SRCS)
 unit: unit.c $(SRCS)
 	$(CC) $(CFLAGS) -o $@ unit.c $(SRCS)
 
+# Le rejeu exige des journaux de carte : ceux de riscv-iommu-demo/results par
+# defaut, ou LOGS=... ; sans journal, seuls les tests unitaires tournent.
 test: unit replay
 	@./unit
+ifneq ($(strip $(LOGS)),)
 	@python3 replay_logs.py ./replay $(LOGS)
+else
+	@echo "rejeu : aucun journal (LOGS=...), ignore"
+endif
 
 clean:
 	rm -f replay unit
